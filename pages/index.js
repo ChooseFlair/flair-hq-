@@ -3,6 +3,7 @@ import Head from 'next/head'
 import Layout from '../components/Layout'
 import Overview from '../components/Overview'
 import Notifications from '../components/Notifications'
+import Finance from '../components/Finance'
 import BusinessHub from '../components/BusinessHub'
 import Orders from '../components/Orders'
 import Products from '../components/Products'
@@ -18,6 +19,8 @@ export default function Home() {
         return <Overview />
       case 'notifications':
         return <Notifications />
+      case 'finance':
+        return <Finance />
       case 'hub':
         return <BusinessHub />
       case 'orders':

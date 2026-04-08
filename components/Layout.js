@@ -3,6 +3,7 @@ import { useState } from 'react'
 const tabs = [
   { id: 'overview', name: 'Overview', icon: '📊' },
   { id: 'notifications', name: 'Priorities', icon: '🔔' },
+  { id: 'finance', name: 'Finance', icon: '🏦' },
   { id: 'hub', name: 'Business Hub', icon: '🏢' },
   { id: 'orders', name: 'Orders', icon: '📦' },
   { id: 'products', name: 'Products', icon: '🛍️' },
