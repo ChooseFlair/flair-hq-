@@ -2,6 +2,8 @@ import { useState } from 'react'
 import Head from 'next/head'
 import Layout from '../components/Layout'
 import Overview from '../components/Overview'
+import Notifications from '../components/Notifications'
+import BusinessHub from '../components/BusinessHub'
 import Orders from '../components/Orders'
 import Products from '../components/Products'
 import Marketing from '../components/Marketing'
@@ -14,6 +16,10 @@ export default function Home() {
     switch (activeTab) {
       case 'overview':
         return <Overview />
+      case 'notifications':
+        return <Notifications />
+      case 'hub':
+        return <BusinessHub />
       case 'orders':
         return <Orders />
       case 'products':
