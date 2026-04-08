@@ -25,6 +25,9 @@ yarn-error.log*
 # Local env files
 .env*.local
 
+# Certificates (keep private keys secure)
+certs/privatekey.pem
+
 # Vercel
 .vercel
 
