@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { getProducts, getAllOrders } from '../lib/supabase'
 import TaskWidget from './TaskWidget'
+import AlibabaCalculator from './AlibabaCalculator'
 
 export default function Products() {
   const [products, setProducts] = useState([])
@@ -265,6 +266,9 @@ export default function Products() {
           </div>
         </div>
       </div>
+
+      {/* Alibaba Order Calculator */}
+      <AlibabaCalculator />
     </div>
   )
 }
