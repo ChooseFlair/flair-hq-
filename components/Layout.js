@@ -22,6 +22,10 @@ import {
   Tags,
   Users,
   ListOrdered,
+  Newspaper,
+  Flame,
+  Target,
+  MessageSquare,
 } from 'lucide-react'
 
 const navigation = [
@@ -70,12 +74,22 @@ const navigation = [
       { id: 'marketing-meta', name: 'Meta Ads', subTab: 'meta', icon: BarChart3 },
     ]
   },
-  { id: 'researcher', name: 'AI Researcher', icon: FlaskConical },
+  {
+    id: 'researcher',
+    name: 'AI Researcher',
+    icon: FlaskConical,
+    children: [
+      { id: 'researcher-trends', name: 'Industry Trends', subTab: 'trends', icon: Newspaper },
+      { id: 'researcher-products', name: 'Hot Products', subTab: 'products', icon: Flame },
+      { id: 'researcher-competitors', name: 'Competitors', subTab: 'competitors', icon: Target },
+      { id: 'researcher-ask', name: 'Ask AI', subTab: 'ask', icon: MessageSquare },
+    ]
+  },
 ]
 
 export default function Layout({ children, activeTab, setActiveTab, activeSubTab, setActiveSubTab }) {
   const [sidebarOpen, setSidebarOpen] = useState(true)
-  const [expandedSections, setExpandedSections] = useState(['finance', 'orders', 'products', 'marketing'])
+  const [expandedSections, setExpandedSections] = useState(['finance', 'orders', 'products', 'marketing', 'researcher'])
 
   const toggleSection = (sectionId) => {
     setExpandedSections(prev =>

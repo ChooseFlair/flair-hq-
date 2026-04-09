@@ -31,7 +31,7 @@ export default function Home() {
       case 'marketing':
         return <Marketing activeSubTab={activeSubTab} setActiveSubTab={setActiveSubTab} />
       case 'researcher':
-        return <Researcher />
+        return <Researcher activeSubTab={activeSubTab} setActiveSubTab={setActiveSubTab} />
       default:
         return <Overview />
     }
