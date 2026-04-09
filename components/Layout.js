@@ -78,12 +78,14 @@ const navigation = [
   },
   {
     id: 'researcher',
-    name: 'AI Researcher',
+    name: 'Researcher',
     icon: FlaskConical,
     children: [
       { id: 'researcher-trends', name: 'Industry Trends', subTab: 'trends', icon: Newspaper },
       { id: 'researcher-products', name: 'Hot Products', subTab: 'products', icon: Flame },
       { id: 'researcher-competitors', name: 'Competitors', subTab: 'competitors', icon: Target },
+      { id: 'researcher-calculator', name: 'Profitability', subTab: 'calculator', icon: Calculator },
+      { id: 'researcher-alibaba', name: 'Alibaba', subTab: 'alibaba', icon: DollarSign },
       { id: 'researcher-ask', name: 'Ask AI', subTab: 'ask', icon: MessageSquare },
     ]
   },
