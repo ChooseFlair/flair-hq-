@@ -17,6 +17,7 @@ import {
   MoreHorizontal,
   Sparkles,
   Loader2,
+  Undo2,
 } from 'lucide-react'
 
 const TAGS = [
@@ -50,6 +51,17 @@ export default function TaskManager() {
   })
   const [editingTask, setEditingTask] = useState(null)
   const [loadingStrategic, setLoadingStrategic] = useState(false)
+  const [undoPopup, setUndoPopup] = useState(null) // { taskId, taskTitle }
+
+  // Auto-dismiss undo popup after 5 seconds
+  useEffect(() => {
+    if (undoPopup) {
+      const timer = setTimeout(() => {
+        setUndoPopup(null)
+      }, 5000)
+      return () => clearTimeout(timer)
+    }
+  }, [undoPopup])
 
   // Load tasks from localStorage on mount
   useEffect(() => {
@@ -92,9 +104,26 @@ export default function TaskManager() {
   }
 
   const toggleComplete = (taskId) => {
+    const task = tasks.find(t => t.id === taskId)
+    const isCompleting = task && !task.completed
+
     setTasks(tasks.map(t =>
       t.id === taskId ? { ...t, completed: !t.completed, completedAt: !t.completed ? new Date().toISOString() : null } : t
     ))
+
+    // Show undo popup when completing a task
+    if (isCompleting && task) {
+      setUndoPopup({ taskId: task.id, taskTitle: task.title })
+    }
+  }
+
+  const undoComplete = () => {
+    if (undoPopup) {
+      setTasks(tasks.map(t =>
+        t.id === undoPopup.taskId ? { ...t, completed: false, completedAt: null } : t
+      ))
+      setUndoPopup(null)
+    }
   }
 
   const archiveTask = (taskId) => {
@@ -706,6 +735,33 @@ export default function TaskManager() {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Undo Popup */}
+      {undoPopup && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-4 fade-in duration-200">
+          <div className="bg-gray-900 text-white px-4 py-3 rounded-xl shadow-lg flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-5 h-5 text-green-400" />
+              <span className="text-sm">
+                <span className="font-medium">"{undoPopup.taskTitle.length > 30 ? undoPopup.taskTitle.slice(0, 30) + '...' : undoPopup.taskTitle}"</span> completed
+              </span>
+            </div>
+            <button
+              onClick={undoComplete}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-sm font-medium transition-colors"
+            >
+              <Undo2 className="w-4 h-4" />
+              Undo
+            </button>
+            <button
+              onClick={() => setUndoPopup(null)}
+              className="p-1 hover:bg-white/10 rounded-lg transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
         </div>
       )}
