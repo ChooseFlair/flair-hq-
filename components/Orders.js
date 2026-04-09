@@ -37,14 +37,17 @@ import {
 import DateRangePicker from './DateRangePicker'
 import TaskWidget from './TaskWidget'
 
-export default function Orders() {
+export default function Orders({ activeSubTab, setActiveSubTab }) {
   const [orders, setOrders] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [fulfillmentFilter, setFulfillmentFilter] = useState('all')
   const [currentPage, setCurrentPage] = useState(1)
-  const [activeTab, setActiveTab] = useState('analytics')
+
+  // Use sidebar navigation if available, otherwise fallback to internal state
+  const activeTab = activeSubTab || 'analytics'
+  const setActiveTab = setActiveSubTab || (() => {})
   const ordersPerPage = 20
 
   // Date range state

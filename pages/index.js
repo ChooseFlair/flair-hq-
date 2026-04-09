@@ -25,7 +25,7 @@ export default function Home() {
       case 'forecast':
         return <Forecast />
       case 'orders':
-        return <Orders />
+        return <Orders activeSubTab={activeSubTab} setActiveSubTab={setActiveSubTab} />
       case 'products':
         return <Products activeSubTab={activeSubTab} setActiveSubTab={setActiveSubTab} />
       case 'marketing':

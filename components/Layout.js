@@ -20,6 +20,8 @@ import {
   Calculator,
   DollarSign,
   Tags,
+  Users,
+  ListOrdered,
 } from 'lucide-react'
 
 const navigation = [
@@ -36,7 +38,16 @@ const navigation = [
     ]
   },
   { id: 'forecast', name: 'Forecast', icon: LineChart },
-  { id: 'orders', name: 'Orders', icon: Package },
+  {
+    id: 'orders',
+    name: 'Orders',
+    icon: Package,
+    children: [
+      { id: 'orders-analytics', name: 'Analytics', subTab: 'analytics', icon: BarChart3 },
+      { id: 'orders-list', name: 'All Orders', subTab: 'orders', icon: ListOrdered },
+      { id: 'orders-customers', name: 'Customers', subTab: 'customers', icon: Users },
+    ]
+  },
   {
     id: 'products',
     name: 'Products',
@@ -64,7 +75,7 @@ const navigation = [
 
 export default function Layout({ children, activeTab, setActiveTab, activeSubTab, setActiveSubTab }) {
   const [sidebarOpen, setSidebarOpen] = useState(true)
-  const [expandedSections, setExpandedSections] = useState(['finance', 'products', 'marketing'])
+  const [expandedSections, setExpandedSections] = useState(['finance', 'orders', 'products', 'marketing'])
 
   const toggleSection = (sectionId) => {
     setExpandedSections(prev =>
