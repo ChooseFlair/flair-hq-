@@ -40,11 +40,14 @@ import {
 import TaskWidget from './TaskWidget'
 import AlibabaCalculator from './AlibabaCalculator'
 
-export default function Products() {
+export default function Products({ activeSubTab, setActiveSubTab }) {
   const [products, setProducts] = useState([])
   const [orders, setOrders] = useState([])
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState('analytics')
+
+  // Use sidebar navigation if available, otherwise fallback to internal state
+  const activeTab = activeSubTab || 'analytics'
+  const setActiveTab = setActiveSubTab || (() => {})
 
   // Sales analytics data
   const [salesData, setSalesData] = useState({ products: [], source: 'loading' })

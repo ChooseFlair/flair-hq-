@@ -17,6 +17,9 @@ import {
   Share2,
   BarChart3,
   LineChart,
+  Calculator,
+  DollarSign,
+  Tags,
 } from 'lucide-react'
 
 const navigation = [
@@ -34,7 +37,17 @@ const navigation = [
   },
   { id: 'forecast', name: 'Forecast', icon: LineChart },
   { id: 'orders', name: 'Orders', icon: Package },
-  { id: 'products', name: 'Products', icon: ShoppingBag },
+  {
+    id: 'products',
+    name: 'Products',
+    icon: ShoppingBag,
+    children: [
+      { id: 'products-analytics', name: 'Sales Analytics', subTab: 'analytics', icon: BarChart3 },
+      { id: 'products-catalog', name: 'Catalog & COGS', subTab: 'catalog', icon: Tags },
+      { id: 'products-calculator', name: 'Profitability', subTab: 'potential', icon: Calculator },
+      { id: 'products-alibaba', name: 'Alibaba', subTab: 'alibaba', icon: DollarSign },
+    ]
+  },
   {
     id: 'marketing',
     name: 'Marketing',
@@ -51,7 +64,7 @@ const navigation = [
 
 export default function Layout({ children, activeTab, setActiveTab, activeSubTab, setActiveSubTab }) {
   const [sidebarOpen, setSidebarOpen] = useState(true)
-  const [expandedSections, setExpandedSections] = useState(['finance', 'marketing'])
+  const [expandedSections, setExpandedSections] = useState(['finance', 'products', 'marketing'])
 
   const toggleSection = (sectionId) => {
     setExpandedSections(prev =>
