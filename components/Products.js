@@ -14,6 +14,9 @@ import {
   RefreshCw,
   PlusCircle,
   Trash2,
+  Edit3,
+  Save,
+  X,
 } from 'lucide-react'
 import TaskWidget from './TaskWidget'
 import AlibabaCalculator from './AlibabaCalculator'
@@ -24,10 +27,15 @@ export default function Products() {
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('catalog')
 
+  // COGS data stored locally
+  const [productCosts, setProductCosts] = useState({})
+  const [editingCost, setEditingCost] = useState(null)
+  const [tempCost, setTempCost] = useState('')
+
   // Flair business data (fetched from APIs)
   const [businessData, setBusinessData] = useState({
     metaCAC: null,
-    paypalFeeRate: 0.029, // 2.9% + £0.30 default
+    paypalFeeRate: 0.029,
     paypalFixedFee: 0.30,
     avgConversionRate: null,
     avgAOV: null,
@@ -43,10 +51,25 @@ export default function Products() {
       sellingPrice: '',
       shippingCost: '',
       packagingCost: '',
-      platformFee: '2.9', // Shopify/Stripe %
-      marketingAllocation: '30', // % of revenue for marketing
+      platformFee: '2.9',
+      marketingAllocation: '30',
     }
   ])
+
+  // Load COGS from localStorage on mount
+  useEffect(() => {
+    const savedCosts = localStorage.getItem('flair-product-costs')
+    if (savedCosts) {
+      setProductCosts(JSON.parse(savedCosts))
+    }
+  }, [])
+
+  // Save COGS to localStorage when it changes
+  useEffect(() => {
+    if (Object.keys(productCosts).length > 0) {
+      localStorage.setItem('flair-product-costs', JSON.stringify(productCosts))
+    }
+  }, [productCosts])
 
   useEffect(() => {
     loadData()
@@ -71,19 +94,12 @@ export default function Products() {
 
   const loadBusinessData = async () => {
     try {
-      // Fetch Meta ads data for CAC
       const metaRes = await fetch('/api/meta/overview').catch(() => null)
       const metaData = metaRes ? await metaRes.json() : null
 
-      // Fetch PayPal for fee data
       const paypalRes = await fetch('/api/paypal/transactions').catch(() => null)
       const paypalData = paypalRes ? await paypalRes.json() : null
 
-      // Fetch orders for AOV and conversion data
-      const ordersRes = await fetch('/api/klaviyo/sync-status').catch(() => null)
-      const syncData = ordersRes ? await ordersRes.json() : null
-
-      // Calculate CAC from Meta data
       let metaCAC = null
       if (metaData?.summary) {
         const spend = metaData.summary.spend || 0
@@ -93,7 +109,6 @@ export default function Products() {
         }
       }
 
-      // Calculate AOV from orders
       const ordersData = await getAllOrders()
       let avgAOV = null
       if (ordersData && ordersData.length > 0) {
@@ -101,7 +116,6 @@ export default function Products() {
         avgAOV = totalRevenue / ordersData.length
       }
 
-      // Calculate actual PayPal fee rate if we have data
       let actualPaypalFeeRate = 0.029
       if (paypalData?.transactions) {
         const txs = paypalData.transactions.filter(t => t.amount > 0)
@@ -128,7 +142,70 @@ export default function Products() {
 
   const formatCurrency = (value) => `£${parseFloat(value || 0).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
-  // Calculate profitability for a potential product
+  // Product catalog with default COGS estimates
+  const productCatalog = [
+    { sku: 'FLAIR-WNT-IN', name: 'Walnut Inhaler', price: 29.99, category: 'Inhalers', defaultCost: 8.50 },
+    { sku: 'FLAIR-OAK-IN', name: 'Oak Inhaler', price: 29.99, category: 'Inhalers', defaultCost: 8.50 },
+    { sku: 'FLAIR-SM-3PK', name: 'Spearmint 3-Pack', price: 4.99, category: 'Refills', defaultCost: 1.20 },
+    { sku: 'FLAIR-CM-3PK', name: 'Crisp Mint 3-Pack', price: 4.99, category: 'Refills', defaultCost: 1.20 },
+    { sku: 'FLAIR-RA-3PK', name: 'Raspberry 3-Pack', price: 4.99, category: 'Refills', defaultCost: 1.20 },
+    { sku: 'FLAIR-BL-3PK', name: 'Blueberry 3-Pack', price: 4.99, category: 'Refills', defaultCost: 1.20 },
+    { sku: 'FLAIR-CO-3PK', name: 'Coffee 3-Pack', price: 4.99, category: 'Refills', defaultCost: 1.20 },
+    { sku: 'FLAIR-MA-3PK', name: 'Mango 3-Pack', price: 4.99, category: 'Refills', defaultCost: 1.20 },
+    { sku: 'FLAIR-ST-3PK', name: 'Strawberry 3-Pack', price: 4.99, category: 'Refills', defaultCost: 1.20 },
+    { sku: 'FLAIR-RB-3PK', name: '3 Rubber Tips', price: 4.99, category: 'Accessories', defaultCost: 0.80 },
+  ]
+
+  // Get cost for a product (from saved or default)
+  const getCost = (sku) => {
+    return productCosts[sku] !== undefined ? productCosts[sku] : productCatalog.find(p => p.sku === sku)?.defaultCost || 0
+  }
+
+  // Calculate margin for a product
+  const getMargin = (sku) => {
+    const product = productCatalog.find(p => p.sku === sku)
+    if (!product) return null
+    const cost = getCost(sku)
+    const profit = product.price - cost
+    const margin = (profit / product.price) * 100
+    return { profit, margin, cost }
+  }
+
+  // Save cost for a product
+  const saveCost = (sku) => {
+    const cost = parseFloat(tempCost)
+    if (!isNaN(cost) && cost >= 0) {
+      setProductCosts(prev => ({ ...prev, [sku]: cost }))
+    }
+    setEditingCost(null)
+    setTempCost('')
+  }
+
+  // Start editing a cost
+  const startEditCost = (sku) => {
+    setEditingCost(sku)
+    setTempCost(getCost(sku).toString())
+  }
+
+  // Calculate totals
+  const catalogStats = useMemo(() => {
+    let totalCOGS = 0
+    let totalRevenue = 0
+    let totalProfit = 0
+
+    productCatalog.forEach(p => {
+      const cost = getCost(p.sku)
+      totalCOGS += cost
+      totalRevenue += p.price
+      totalProfit += (p.price - cost)
+    })
+
+    const avgMargin = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0
+
+    return { totalCOGS, totalRevenue, totalProfit, avgMargin }
+  }, [productCosts])
+
+  // Profitability calculator functions
   const calculateProfitability = (product) => {
     const unitCost = parseFloat(product.unitCost) || 0
     const sellingPrice = parseFloat(product.sellingPrice) || 0
@@ -139,26 +216,17 @@ export default function Products() {
 
     if (sellingPrice === 0) return null
 
-    // Calculate costs
     const platformFee = sellingPrice * platformFeeRate
     const paypalFee = (sellingPrice * businessData.paypalFeeRate) + businessData.paypalFixedFee
     const totalVariableCosts = unitCost + shippingCost + packagingCost + platformFee + paypalFee
 
-    // Gross profit (before marketing)
     const grossProfit = sellingPrice - totalVariableCosts
     const grossMargin = (grossProfit / sellingPrice) * 100
 
-    // Marketing cost (either from actual CAC or allocation)
     const marketingCost = businessData.metaCAC || (sellingPrice * marketingAllocationRate)
-
-    // Net profit (after marketing)
     const netProfit = grossProfit - marketingCost
     const netMargin = (netProfit / sellingPrice) * 100
 
-    // Break-even analysis
-    const unitsToBreakEven = marketingCost > 0 ? Math.ceil(marketingCost / Math.max(grossProfit, 0.01)) : 0
-
-    // Profitability verdict
     let verdict = 'unprofitable'
     let verdictColor = 'red'
     if (netMargin >= 20) {
@@ -173,22 +241,9 @@ export default function Products() {
     }
 
     return {
-      sellingPrice,
-      unitCost,
-      shippingCost,
-      packagingCost,
-      platformFee,
-      paypalFee,
-      totalVariableCosts,
-      grossProfit,
-      grossMargin,
-      marketingCost,
-      netProfit,
-      netMargin,
-      unitsToBreakEven,
-      verdict,
-      verdictColor,
-      // For display
+      sellingPrice, unitCost, shippingCost, packagingCost, platformFee, paypalFee,
+      totalVariableCosts, grossProfit, grossMargin, marketingCost, netProfit, netMargin,
+      verdict, verdictColor,
       costBreakdown: [
         { name: 'Unit Cost', value: unitCost },
         { name: 'Shipping', value: shippingCost },
@@ -223,20 +278,6 @@ export default function Products() {
     setPotentialProducts(prev => prev.filter(p => p.id !== id))
   }
 
-  // Flair product lineup
-  const productCatalog = [
-    { name: 'Walnut Inhaler', sku: 'FLAIR-WNT-IN', price: 29.99, category: 'Inhalers', status: 'active' },
-    { name: 'Oak Inhaler', sku: 'FLAIR-OAK-IN', price: 29.99, category: 'Inhalers', status: 'active' },
-    { name: 'Spearmint 3-Pack', sku: 'FLAIR-SM-3PK', price: 4.99, category: 'Refills', status: 'active' },
-    { name: 'Crisp Mint 3-Pack', sku: 'FLAIR-CM-3PK', price: 4.99, category: 'Refills', status: 'active' },
-    { name: 'Raspberry 3-Pack', sku: 'FLAIR-RA-3PK', price: 4.99, category: 'Refills', status: 'active' },
-    { name: 'Blueberry 3-Pack', sku: 'FLAIR-BL-3PK', price: 4.99, category: 'Refills', status: 'active' },
-    { name: 'Coffee 3-Pack', sku: 'FLAIR-CO-3PK', price: 4.99, category: 'Refills', status: 'active' },
-    { name: 'Mango 3-Pack', sku: 'FLAIR-MA-3PK', price: 4.99, category: 'Refills', status: 'active' },
-    { name: 'Strawberry 3-Pack', sku: 'FLAIR-ST-3PK', price: 4.99, category: 'Refills', status: 'active' },
-    { name: '3 Rubber Tips', sku: 'FLAIR-RB-3PK', price: 4.99, category: 'Accessories', status: 'active' },
-  ]
-
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -251,7 +292,7 @@ export default function Products() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Products</h1>
-          <p className="text-gray-500 mt-1">Catalog, unit economics, and profitability analysis.</p>
+          <p className="text-gray-500 mt-1">Catalog, COGS, and profitability analysis.</p>
         </div>
         <button
           onClick={() => { loadData(); loadBusinessData() }}
@@ -292,9 +333,9 @@ export default function Products() {
             </p>
           </div>
           <div>
-            <p className="text-xs text-green-600">Conversion Rate</p>
+            <p className="text-xs text-green-600">Avg Gross Margin</p>
             <p className="text-lg font-bold text-green-800">
-              {businessData.avgConversionRate ? `${businessData.avgConversionRate.toFixed(1)}%` : 'N/A'}
+              {catalogStats.avgMargin.toFixed(1)}%
             </p>
           </div>
         </div>
@@ -303,7 +344,7 @@ export default function Products() {
       {/* Tabs */}
       <div className="flex gap-2 flex-wrap">
         {[
-          { id: 'catalog', label: 'Product Catalog', icon: Package },
+          { id: 'catalog', label: 'Product Catalog & COGS', icon: Package },
           { id: 'potential', label: 'Profitability Calculator', icon: Calculator },
           { id: 'alibaba', label: 'Alibaba Calculator', icon: DollarSign },
         ].map(tab => (
@@ -322,30 +363,135 @@ export default function Products() {
         ))}
       </div>
 
-      {/* Catalog Tab */}
+      {/* Catalog & COGS Tab */}
       {activeTab === 'catalog' && (
         <div className="space-y-6">
-          {/* Quick Stats */}
+          {/* Summary Stats */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="bg-white rounded-lg border border-gray-200 p-4">
               <p className="text-sm text-gray-500">Total Products</p>
               <p className="text-xl font-bold text-gray-900">{productCatalog.length}</p>
             </div>
             <div className="bg-white rounded-lg border border-gray-200 p-4">
-              <p className="text-sm text-gray-500">Inhalers</p>
-              <p className="text-xl font-bold text-green-600">2</p>
+              <p className="text-sm text-gray-500">Total COGS</p>
+              <p className="text-xl font-bold text-red-600">{formatCurrency(catalogStats.totalCOGS)}</p>
             </div>
             <div className="bg-white rounded-lg border border-gray-200 p-4">
-              <p className="text-sm text-gray-500">Refill Flavors</p>
-              <p className="text-xl font-bold text-blue-600">7</p>
+              <p className="text-sm text-gray-500">Total Revenue (at price)</p>
+              <p className="text-xl font-bold text-green-600">{formatCurrency(catalogStats.totalRevenue)}</p>
             </div>
             <div className="bg-white rounded-lg border border-gray-200 p-4">
-              <p className="text-sm text-gray-500">Accessories</p>
-              <p className="text-xl font-bold text-purple-600">1</p>
+              <p className="text-sm text-gray-500">Avg Gross Margin</p>
+              <p className="text-xl font-bold text-purple-600">{catalogStats.avgMargin.toFixed(1)}%</p>
             </div>
           </div>
 
-          {/* Product Categories */}
+          {/* COGS Table */}
+          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
+              <h3 className="font-semibold text-gray-900">Product COGS & Margins</h3>
+              <p className="text-sm text-gray-500 mt-1">Click the edit icon to update cost prices. Changes are saved automatically.</p>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">SKU</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Selling Price</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">COGS</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Gross Profit</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Margin</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {productCatalog.map((product) => {
+                    const marginData = getMargin(product.sku)
+                    const isEditing = editingCost === product.sku
+
+                    return (
+                      <tr key={product.sku} className="hover:bg-gray-50">
+                        <td className="px-6 py-4">
+                          <span className="font-medium text-gray-900">{product.name}</span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="text-sm text-gray-500 font-mono">{product.sku}</span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
+                            product.category === 'Inhalers' ? 'bg-green-100 text-green-800' :
+                            product.category === 'Refills' ? 'bg-blue-100 text-blue-800' :
+                            'bg-purple-100 text-purple-800'
+                          }`}>
+                            {product.category}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <span className="font-medium text-gray-900">{formatCurrency(product.price)}</span>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          {isEditing ? (
+                            <div className="flex items-center justify-end gap-2">
+                              <span className="text-gray-400">£</span>
+                              <input
+                                type="number"
+                                step="0.01"
+                                value={tempCost}
+                                onChange={(e) => setTempCost(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') saveCost(product.sku)
+                                  if (e.key === 'Escape') { setEditingCost(null); setTempCost('') }
+                                }}
+                                className="w-20 px-2 py-1 border border-gray-300 rounded text-right text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none"
+                                autoFocus
+                              />
+                              <button
+                                onClick={() => saveCost(product.sku)}
+                                className="p-1 text-green-600 hover:text-green-800"
+                              >
+                                <Save className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => { setEditingCost(null); setTempCost('') }}
+                                className="p-1 text-gray-400 hover:text-gray-600"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-end gap-2">
+                              <span className="font-medium text-red-600">{formatCurrency(marginData?.cost || 0)}</span>
+                              <button
+                                onClick={() => startEditCost(product.sku)}
+                                className="p-1 text-gray-400 hover:text-gray-600"
+                              >
+                                <Edit3 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <span className="font-medium text-green-600">{formatCurrency(marginData?.profit || 0)}</span>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <span className={`font-bold ${
+                            (marginData?.margin || 0) >= 60 ? 'text-green-600' :
+                            (marginData?.margin || 0) >= 40 ? 'text-yellow-600' :
+                            'text-red-600'
+                          }`}>
+                            {marginData?.margin?.toFixed(1) || 0}%
+                          </span>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Category Breakdown */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Inhalers */}
             <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
@@ -354,15 +500,23 @@ export default function Products() {
                 <p className="text-sm text-green-600">Premium wooden inhalers</p>
               </div>
               <div className="p-4 space-y-3">
-                {productCatalog.filter(p => p.category === 'Inhalers').map(product => (
-                  <div key={product.sku} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <div>
-                      <p className="font-medium text-gray-900">{product.name}</p>
-                      <p className="text-xs text-gray-500">{product.sku}</p>
+                {productCatalog.filter(p => p.category === 'Inhalers').map(product => {
+                  const marginData = getMargin(product.sku)
+                  return (
+                    <div key={product.sku} className="p-3 bg-gray-50 rounded-lg">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="font-medium text-gray-900">{product.name}</p>
+                        <span className="font-bold text-gray-900">{formatCurrency(product.price)}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-gray-500">COGS: {formatCurrency(marginData?.cost)}</span>
+                        <span className={`font-medium ${marginData?.margin >= 60 ? 'text-green-600' : 'text-yellow-600'}`}>
+                          {marginData?.margin?.toFixed(0)}% margin
+                        </span>
+                      </div>
                     </div>
-                    <span className="font-bold text-gray-900">{formatCurrency(product.price)}</span>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
 
@@ -373,15 +527,23 @@ export default function Products() {
                 <p className="text-sm text-blue-600">Aromatic refill cartridges</p>
               </div>
               <div className="p-4 space-y-3 max-h-80 overflow-y-auto">
-                {productCatalog.filter(p => p.category === 'Refills').map(product => (
-                  <div key={product.sku} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <div>
-                      <p className="font-medium text-gray-900">{product.name}</p>
-                      <p className="text-xs text-gray-500">{product.sku}</p>
+                {productCatalog.filter(p => p.category === 'Refills').map(product => {
+                  const marginData = getMargin(product.sku)
+                  return (
+                    <div key={product.sku} className="p-3 bg-gray-50 rounded-lg">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="font-medium text-gray-900">{product.name}</p>
+                        <span className="font-bold text-gray-900">{formatCurrency(product.price)}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-gray-500">COGS: {formatCurrency(marginData?.cost)}</span>
+                        <span className={`font-medium ${marginData?.margin >= 60 ? 'text-green-600' : 'text-yellow-600'}`}>
+                          {marginData?.margin?.toFixed(0)}% margin
+                        </span>
+                      </div>
                     </div>
-                    <span className="font-bold text-gray-900">{formatCurrency(product.price)}</span>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
 
@@ -392,15 +554,42 @@ export default function Products() {
                 <p className="text-sm text-purple-600">Add-ons and extras</p>
               </div>
               <div className="p-4 space-y-3">
-                {productCatalog.filter(p => p.category === 'Accessories').map(product => (
-                  <div key={product.sku} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <div>
-                      <p className="font-medium text-gray-900">{product.name}</p>
-                      <p className="text-xs text-gray-500">{product.sku}</p>
+                {productCatalog.filter(p => p.category === 'Accessories').map(product => {
+                  const marginData = getMargin(product.sku)
+                  return (
+                    <div key={product.sku} className="p-3 bg-gray-50 rounded-lg">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="font-medium text-gray-900">{product.name}</p>
+                        <span className="font-bold text-gray-900">{formatCurrency(product.price)}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-gray-500">COGS: {formatCurrency(marginData?.cost)}</span>
+                        <span className={`font-medium ${marginData?.margin >= 60 ? 'text-green-600' : 'text-yellow-600'}`}>
+                          {marginData?.margin?.toFixed(0)}% margin
+                        </span>
+                      </div>
                     </div>
-                    <span className="font-bold text-gray-900">{formatCurrency(product.price)}</span>
-                  </div>
-                ))}
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* Margin Tips */}
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+            <h4 className="font-medium text-amber-800 mb-2">Margin Guidelines</h4>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                <span className="text-amber-700">60%+ margin = Excellent</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
+                <span className="text-amber-700">40-60% margin = Good</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                <span className="text-amber-700">&lt;40% margin = Review pricing</span>
               </div>
             </div>
           </div>
@@ -475,7 +664,7 @@ export default function Products() {
                           />
                         </div>
                         <div>
-                          <label className="block text-sm text-gray-600 mb-1">Unit Cost (£)</label>
+                          <label className="block text-sm text-gray-600 mb-1">Unit Cost / COGS (£)</label>
                           <input
                             type="number"
                             step="0.01"
