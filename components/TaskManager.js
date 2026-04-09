@@ -15,6 +15,8 @@ import {
   Upload,
   Download,
   MoreHorizontal,
+  Sparkles,
+  Loader2,
 } from 'lucide-react'
 
 const TAGS = [
@@ -47,6 +49,7 @@ export default function TaskManager() {
     dueDate: '',
   })
   const [editingTask, setEditingTask] = useState(null)
+  const [loadingStrategic, setLoadingStrategic] = useState(false)
 
   // Load tasks from localStorage on mount
   useEffect(() => {
@@ -162,6 +165,34 @@ export default function TaskManager() {
     }
   }
 
+  const importStrategicPlan = async () => {
+    setLoadingStrategic(true)
+    try {
+      const res = await fetch('/api/seed-tasks')
+      const data = await res.json()
+
+      if (data.tasks && Array.isArray(data.tasks)) {
+        // Get existing task IDs to avoid duplicates
+        const existingIds = new Set(tasks.map(t => t.id))
+
+        // Filter out tasks that already exist
+        const newTasks = data.tasks.filter(t => !existingIds.has(t.id))
+
+        if (newTasks.length === 0) {
+          alert('Strategic tasks already imported!')
+        } else {
+          setTasks([...newTasks, ...tasks])
+          alert(`Imported ${newTasks.length} strategic tasks!`)
+        }
+      }
+    } catch (err) {
+      console.error('Error importing strategic tasks:', err)
+      alert('Failed to import strategic tasks')
+    } finally {
+      setLoadingStrategic(false)
+    }
+  }
+
   // Filter tasks
   const filteredTasks = tasks.filter(t => {
     if (showArchived !== t.archived) return false
@@ -210,6 +241,18 @@ export default function TaskManager() {
           <p className="text-gray-500 mt-1">Track and manage your business tasks</p>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={importStrategicPlan}
+            disabled={loadingStrategic}
+            className="flex items-center gap-2 px-3 py-2 text-sm text-purple-600 bg-purple-50 hover:bg-purple-100 rounded-lg disabled:opacity-50"
+          >
+            {loadingStrategic ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Sparkles className="w-4 h-4" />
+            )}
+            Strategic Plan
+          </button>
           <label className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg cursor-pointer">
             <Upload className="w-4 h-4" />
             Import
