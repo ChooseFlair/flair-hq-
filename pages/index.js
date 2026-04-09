@@ -2,7 +2,7 @@ import { useState } from 'react'
 import Head from 'next/head'
 import Layout from '../components/Layout'
 import Overview from '../components/Overview'
-import Notifications from '../components/Notifications'
+import TaskManager from '../components/TaskManager'
 import Finance from '../components/Finance'
 import BusinessHub from '../components/BusinessHub'
 import Orders from '../components/Orders'
@@ -12,15 +12,16 @@ import Researcher from '../components/Researcher'
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState('overview')
+  const [activeSubTab, setActiveSubTab] = useState(null)
 
   const renderContent = () => {
     switch (activeTab) {
       case 'overview':
         return <Overview />
-      case 'notifications':
-        return <Notifications />
+      case 'tasks':
+        return <TaskManager />
       case 'finance':
-        return <Finance />
+        return <Finance activeSubTab={activeSubTab} setActiveSubTab={setActiveSubTab} />
       case 'hub':
         return <BusinessHub />
       case 'orders':
@@ -28,7 +29,7 @@ export default function Home() {
       case 'products':
         return <Products />
       case 'marketing':
-        return <Marketing />
+        return <Marketing activeSubTab={activeSubTab} setActiveSubTab={setActiveSubTab} />
       case 'researcher':
         return <Researcher />
       default:
@@ -45,7 +46,12 @@ export default function Home() {
         <link rel="icon" href="/favicon.ico" />
       </Head>
 
-      <Layout activeTab={activeTab} setActiveTab={setActiveTab}>
+      <Layout
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        activeSubTab={activeSubTab}
+        setActiveSubTab={setActiveSubTab}
+      >
         {renderContent()}
       </Layout>
     </>

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { getProducts, getAllOrders } from '../lib/supabase'
+import TaskWidget from './TaskWidget'
 
 export default function Products() {
   const [products, setProducts] = useState([])
@@ -132,6 +133,9 @@ export default function Products() {
         <h1 className="text-2xl font-bold text-gray-900">Products</h1>
         <p className="text-gray-500 mt-1">Your Flair product catalog and performance.</p>
       </div>
+
+      {/* Task Widget */}
+      <TaskWidget filterTag="products" title="Product Tasks" />
 
       {/* Quick Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

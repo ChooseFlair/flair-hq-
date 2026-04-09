@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { getAllOrders } from '../lib/supabase'
 import { format, parseISO } from 'date-fns'
+import TaskWidget from './TaskWidget'
 
 export default function Orders() {
   const [orders, setOrders] = useState([])
@@ -72,6 +73,9 @@ export default function Orders() {
           <span className="text-sm font-medium text-gray-900">{formatCurrency(stats.revenue)}</span>
         </div>
       </div>
+
+      {/* Task Widget */}
+      <TaskWidget filterTag="orders" title="Order Tasks" />
 
       {/* Quick Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

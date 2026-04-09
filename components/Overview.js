@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase, getOrderStats, getRecentOrders, getDailyRevenue } from '../lib/supabase'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts'
 import { format, parseISO, subDays } from 'date-fns'
+import TaskWidget from './TaskWidget'
 
 function StatCard({ title, value, subValue, trend, icon, color = 'green' }) {
   const colorClasses = {
@@ -89,6 +90,9 @@ export default function Overview() {
         <h1 className="text-2xl font-bold text-gray-900">Dashboard Overview</h1>
         <p className="text-gray-500 mt-1">Welcome back! Here's what's happening with Flair.</p>
       </div>
+
+      {/* Urgent Tasks */}
+      <TaskWidget filterTag="urgent" title="Urgent Tasks" />
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
