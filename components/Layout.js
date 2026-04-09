@@ -3,7 +3,6 @@ import {
   LayoutDashboard,
   ClipboardList,
   Building2,
-  Briefcase,
   Package,
   ShoppingBag,
   TrendingUp,
@@ -17,6 +16,7 @@ import {
   Mail,
   Share2,
   BarChart3,
+  LineChart,
 } from 'lucide-react'
 
 const navigation = [
@@ -30,9 +30,9 @@ const navigation = [
       { id: 'finance-overview', name: 'Overview', subTab: 'overview', icon: Eye },
       { id: 'finance-revolut', name: 'Revolut', subTab: 'accounts', icon: Wallet },
       { id: 'finance-paypal', name: 'PayPal', subTab: 'paypal', icon: CreditCard },
+      { id: 'finance-forecast', name: 'Forecast', subTab: 'forecast', icon: LineChart },
     ]
   },
-  { id: 'hub', name: 'Business Hub', icon: Briefcase },
   { id: 'orders', name: 'Orders', icon: Package },
   { id: 'products', name: 'Products', icon: ShoppingBag },
   {
