@@ -229,7 +229,131 @@ export default function Finance({ activeSubTab, setActiveSubTab }) {
   }, [transactions, paypalData])
 
   // Colors for pie chart
-  const COLORS = ['#10B981', '#3B82F6', '#8B5CF6', '#F59E0B']
+  const COLORS = ['#10B981', '#3B82F6', '#8B5CF6', '#F59E0B', '#EF4444', '#EC4899', '#14B8A6']
+
+  // Revolut expense categories analysis
+  const revolutAnalytics = useMemo(() => {
+    const now = new Date()
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+
+    // Categorize transactions
+    const categories = {}
+    const expenseTransactions = transactions.filter(t => {
+      const txDate = new Date(t.created_at)
+      return txDate >= startOfMonth && t.legs?.[0]?.amount < 0
+    })
+
+    expenseTransactions.forEach(tx => {
+      const desc = (tx.reference || tx.legs?.[0]?.description || 'Other').toLowerCase()
+      let category = 'Other'
+
+      if (desc.includes('meta') || desc.includes('facebook') || desc.includes('google') || desc.includes('tiktok') || desc.includes('ad')) {
+        category = 'Advertising'
+      } else if (desc.includes('shopify') || desc.includes('stripe') || desc.includes('payment')) {
+        category = 'Platform Fees'
+      } else if (desc.includes('klaviyo') || desc.includes('mailchimp') || desc.includes('software') || desc.includes('subscription')) {
+        category = 'Software/SaaS'
+      } else if (desc.includes('shipping') || desc.includes('royal mail') || desc.includes('dhl') || desc.includes('post')) {
+        category = 'Shipping'
+      } else if (desc.includes('supplier') || desc.includes('inventory') || desc.includes('stock') || desc.includes('alibaba')) {
+        category = 'Inventory/COGS'
+      } else if (desc.includes('transfer') || desc.includes('salary') || desc.includes('wage')) {
+        category = 'Payroll'
+      }
+
+      if (!categories[category]) categories[category] = 0
+      categories[category] += Math.abs(tx.legs?.[0]?.amount || 0) / 100
+    })
+
+    const categoryData = Object.entries(categories)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value)
+
+    // Transaction volume by type
+    const typeVolume = {}
+    transactions.forEach(tx => {
+      const type = tx.type || 'other'
+      if (!typeVolume[type]) typeVolume[type] = 0
+      typeVolume[type]++
+    })
+
+    // Calculate metrics
+    const totalExpenses = expenseTransactions.reduce((sum, t) => sum + Math.abs(t.legs?.[0]?.amount || 0), 0) / 100
+    const avgTransactionSize = transactions.length > 0
+      ? transactions.reduce((sum, t) => sum + Math.abs(t.legs?.[0]?.amount || 0), 0) / transactions.length / 100
+      : 0
+
+    return {
+      categoryData,
+      typeVolume: Object.entries(typeVolume).map(([name, value]) => ({ name: name.replace('_', ' '), value })),
+      totalExpenses,
+      avgTransactionSize,
+      transactionCount: transactions.length,
+      expenseCount: expenseTransactions.length
+    }
+  }, [transactions])
+
+  // PayPal analytics
+  const paypalAnalytics = useMemo(() => {
+    if (!paypalData?.transactions) return null
+
+    const txs = paypalData.transactions
+
+    // Daily revenue for last 14 days
+    const days = eachDayOfInterval({
+      start: subDays(new Date(), 13),
+      end: new Date()
+    })
+
+    const dailyRevenue = days.map(day => {
+      const dayStr = format(day, 'yyyy-MM-dd')
+      const dayTxs = txs.filter(t => t.date?.startsWith(dayStr) && t.amount > 0)
+      const revenue = dayTxs.reduce((sum, t) => sum + t.amount, 0)
+      const fees = dayTxs.reduce((sum, t) => sum + Math.abs(t.fee || 0), 0)
+      return {
+        date: format(day, 'MMM d'),
+        revenue,
+        fees,
+        net: revenue - fees,
+        orders: dayTxs.length
+      }
+    })
+
+    // Fee analysis
+    const totalRevenue = txs.filter(t => t.amount > 0).reduce((sum, t) => sum + t.amount, 0)
+    const totalFees = txs.reduce((sum, t) => sum + Math.abs(t.fee || 0), 0)
+    const feePercentage = totalRevenue > 0 ? (totalFees / totalRevenue * 100) : 0
+
+    // Order metrics
+    const successfulOrders = txs.filter(t => t.amount > 0 && t.status === 'S')
+    const avgOrderValue = successfulOrders.length > 0
+      ? successfulOrders.reduce((sum, t) => sum + t.amount, 0) / successfulOrders.length
+      : 0
+
+    // Top customers (by transaction count)
+    const customerCounts = {}
+    txs.forEach(t => {
+      if (t.payerName && t.amount > 0) {
+        if (!customerCounts[t.payerName]) customerCounts[t.payerName] = { count: 0, total: 0 }
+        customerCounts[t.payerName].count++
+        customerCounts[t.payerName].total += t.amount
+      }
+    })
+    const topCustomers = Object.entries(customerCounts)
+      .map(([name, data]) => ({ name, ...data }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 5)
+
+    return {
+      dailyRevenue,
+      totalRevenue,
+      totalFees,
+      feePercentage,
+      avgOrderValue,
+      orderCount: successfulOrders.length,
+      topCustomers
+    }
+  }, [paypalData])
 
   // Custom tooltip for charts
   const CustomTooltip = ({ active, payload, label }) => {
@@ -547,38 +671,141 @@ export default function Finance({ activeSubTab, setActiveSubTab }) {
         </div>
       )}
 
-      {/* Accounts Tab */}
+      {/* Accounts Tab - Revolut Analytics */}
       {activeTab === 'accounts' && (
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <table className="w-full">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Account</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Currency</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Balance</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">State</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {accounts.map(account => (
-                <tr key={account.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 font-medium text-gray-900">{account.name || 'Main Account'}</td>
-                  <td className="px-6 py-4 text-gray-500">{account.currency}</td>
-                  <td className="px-6 py-4 font-semibold text-gray-900">
-                    {formatCurrency(account.balance, account.currency)}
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full ${
-                      account.state === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-                    }`}>
-                      <CheckCircle className="w-3 h-3" />
-                      {account.state || 'active'}
-                    </span>
-                  </td>
+        <div className="space-y-6">
+          {/* Key Metrics */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="bg-white rounded-xl border border-gray-200 p-4">
+              <p className="text-sm text-gray-500">Total Expenses (MTD)</p>
+              <p className="text-2xl font-bold text-red-600">£{revolutAnalytics.totalExpenses.toFixed(2)}</p>
+            </div>
+            <div className="bg-white rounded-xl border border-gray-200 p-4">
+              <p className="text-sm text-gray-500">Avg Transaction</p>
+              <p className="text-2xl font-bold text-gray-900">£{revolutAnalytics.avgTransactionSize.toFixed(2)}</p>
+            </div>
+            <div className="bg-white rounded-xl border border-gray-200 p-4">
+              <p className="text-sm text-gray-500">Total Transactions</p>
+              <p className="text-2xl font-bold text-blue-600">{revolutAnalytics.transactionCount}</p>
+            </div>
+            <div className="bg-white rounded-xl border border-gray-200 p-4">
+              <p className="text-sm text-gray-500">Expense Txns</p>
+              <p className="text-2xl font-bold text-purple-600">{revolutAnalytics.expenseCount}</p>
+            </div>
+          </div>
+
+          {/* Charts Row */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Expense Categories Pie Chart */}
+            <div className="bg-white rounded-xl border border-gray-200 p-6">
+              <h3 className="font-semibold text-gray-900 mb-4">OpEx Breakdown (This Month)</h3>
+              <div className="h-64">
+                {revolutAnalytics.categoryData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={revolutAnalytics.categoryData}
+                        cx="50%"
+                        cy="50%"
+                        outerRadius={80}
+                        dataKey="value"
+                        label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                        labelLine={false}
+                      >
+                        {revolutAnalytics.categoryData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip formatter={(value) => `£${value.toFixed(2)}`} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="h-full flex items-center justify-center text-gray-500">No expense data</div>
+                )}
+              </div>
+            </div>
+
+            {/* Expense Categories Breakdown */}
+            <div className="bg-white rounded-xl border border-gray-200 p-6">
+              <h3 className="font-semibold text-gray-900 mb-4">Expense Categories</h3>
+              <div className="space-y-3">
+                {revolutAnalytics.categoryData.map((cat, idx) => (
+                  <div key={cat.name} className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div
+                        className="w-3 h-3 rounded-full"
+                        style={{ backgroundColor: COLORS[idx % COLORS.length] }}
+                      />
+                      <span className="text-sm text-gray-700">{cat.name}</span>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-semibold text-gray-900">£{cat.value.toFixed(2)}</p>
+                      <p className="text-xs text-gray-500">
+                        {revolutAnalytics.totalExpenses > 0
+                          ? ((cat.value / revolutAnalytics.totalExpenses) * 100).toFixed(1)
+                          : 0}%
+                      </p>
+                    </div>
+                  </div>
+                ))}
+                {revolutAnalytics.categoryData.length === 0 && (
+                  <p className="text-gray-500 text-center py-4">No expenses this month</p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Account Balances Table */}
+          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <h3 className="font-semibold text-gray-900">Account Balances</h3>
+            </div>
+            <table className="w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Account</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Currency</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Balance</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">State</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {accounts.map(account => (
+                  <tr key={account.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 font-medium text-gray-900">{account.name || 'Main Account'}</td>
+                    <td className="px-6 py-4 text-gray-500">{account.currency}</td>
+                    <td className="px-6 py-4 font-semibold text-gray-900">
+                      {formatCurrency(account.balance, account.currency)}
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full ${
+                        account.state === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                      }`}>
+                        <CheckCircle className="w-3 h-3" />
+                        {account.state || 'active'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Transaction Type Distribution */}
+          <div className="bg-white rounded-xl border border-gray-200 p-6">
+            <h3 className="font-semibold text-gray-900 mb-4">Transaction Types</h3>
+            <div className="h-48">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={revolutAnalytics.typeVolume} layout="vertical" margin={{ left: 80 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+                  <XAxis type="number" tick={{ fontSize: 12, fill: '#6B7280' }} />
+                  <YAxis dataKey="name" type="category" tick={{ fontSize: 12, fill: '#6B7280' }} />
+                  <Tooltip />
+                  <Bar dataKey="value" name="Count" fill="#3B82F6" radius={[0, 4, 4, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
         </div>
       )}
 
@@ -645,94 +872,178 @@ export default function Finance({ activeSubTab, setActiveSubTab }) {
               <h3 className="text-lg font-semibold text-gray-900 mb-2">PayPal Not Connected</h3>
               <p className="text-gray-500 text-sm">Configure PayPal API credentials to see transaction data.</p>
             </div>
-          ) : paypalData ? (
+          ) : paypalData && paypalAnalytics ? (
             <>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div className="bg-white rounded-xl border border-gray-200 p-5">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center">
-                      <CreditCard className="w-5 h-5 text-blue-600" />
-                    </div>
-                    <p className="text-sm text-gray-500">PayPal Balance</p>
-                  </div>
-                  <p className="text-2xl font-bold text-gray-900">
-                    {paypalData.balance ? formatPayPalCurrency(parseFloat(paypalData.balance.total_balance?.value || 0), paypalData.balance.total_balance?.currency_code) : '—'}
+              {/* Key Metrics */}
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                <div className="bg-white rounded-xl border border-gray-200 p-4">
+                  <p className="text-sm text-gray-500">PayPal Balance</p>
+                  <p className="text-xl font-bold text-gray-900">
+                    {paypalData.balance ? formatPayPalCurrency(parseFloat(paypalData.balance.total_balance?.value || 0)) : '—'}
                   </p>
                 </div>
-                <div className="bg-white rounded-xl border border-gray-200 p-5">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="w-10 h-10 bg-green-50 rounded-lg flex items-center justify-center">
-                      <TrendingUp className="w-5 h-5 text-green-600" />
-                    </div>
-                    <p className="text-sm text-gray-500">Income (31d)</p>
-                  </div>
-                  <p className="text-2xl font-bold text-green-600">{formatPayPalCurrency(paypalData.summary?.totalIncome || 0)}</p>
-                  <p className="text-xs text-gray-400 mt-2">{paypalData.summary?.transactionCount || 0} transactions</p>
+                <div className="bg-white rounded-xl border border-gray-200 p-4">
+                  <p className="text-sm text-gray-500">Revenue (31d)</p>
+                  <p className="text-xl font-bold text-green-600">£{paypalAnalytics.totalRevenue.toFixed(2)}</p>
                 </div>
-                <div className="bg-white rounded-xl border border-gray-200 p-5">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="w-10 h-10 bg-red-50 rounded-lg flex items-center justify-center">
-                      <TrendingDown className="w-5 h-5 text-red-600" />
-                    </div>
-                    <p className="text-sm text-gray-500">Fees (31d)</p>
-                  </div>
-                  <p className="text-2xl font-bold text-red-600">{formatPayPalCurrency(paypalData.summary?.totalFees || 0)}</p>
+                <div className="bg-white rounded-xl border border-gray-200 p-4">
+                  <p className="text-sm text-gray-500">Fees (31d)</p>
+                  <p className="text-xl font-bold text-red-600">£{paypalAnalytics.totalFees.toFixed(2)}</p>
                 </div>
-                <div className="bg-white rounded-xl border border-gray-200 p-5">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="w-10 h-10 bg-purple-50 rounded-lg flex items-center justify-center">
-                      <Wallet className="w-5 h-5 text-purple-600" />
-                    </div>
-                    <p className="text-sm text-gray-500">Net Income (31d)</p>
-                  </div>
-                  <p className="text-2xl font-bold text-purple-600">{formatPayPalCurrency(paypalData.summary?.netIncome || 0)}</p>
+                <div className="bg-white rounded-xl border border-gray-200 p-4">
+                  <p className="text-sm text-gray-500">Fee Rate</p>
+                  <p className="text-xl font-bold text-orange-600">{paypalAnalytics.feePercentage.toFixed(1)}%</p>
+                </div>
+                <div className="bg-white rounded-xl border border-gray-200 p-4">
+                  <p className="text-sm text-gray-500">Orders</p>
+                  <p className="text-xl font-bold text-blue-600">{paypalAnalytics.orderCount}</p>
+                </div>
+                <div className="bg-white rounded-xl border border-gray-200 p-4">
+                  <p className="text-sm text-gray-500">Avg Order Value</p>
+                  <p className="text-xl font-bold text-purple-600">£{paypalAnalytics.avgOrderValue.toFixed(2)}</p>
                 </div>
               </div>
 
+              {/* Revenue Chart */}
+              <div className="bg-white rounded-xl border border-gray-200 p-6">
+                <h3 className="font-semibold text-gray-900 mb-4">Daily Revenue & Fees (Last 14 Days)</h3>
+                <div className="h-72">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={paypalAnalytics.dailyRevenue} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#10B981" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="#10B981" stopOpacity={0} />
+                        </linearGradient>
+                        <linearGradient id="feeGradient" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#EF4444" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="#EF4444" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+                      <XAxis dataKey="date" tick={{ fontSize: 12, fill: '#6B7280' }} />
+                      <YAxis tick={{ fontSize: 12, fill: '#6B7280' }} tickFormatter={(v) => `£${v}`} />
+                      <Tooltip content={<CustomTooltip />} />
+                      <Area type="monotone" dataKey="revenue" name="Revenue" stroke="#10B981" fill="url(#revenueGradient)" strokeWidth={2} />
+                      <Area type="monotone" dataKey="fees" name="Fees" stroke="#EF4444" fill="url(#feeGradient)" strokeWidth={2} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* Orders and Top Customers */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Orders per Day */}
+                <div className="bg-white rounded-xl border border-gray-200 p-6">
+                  <h3 className="font-semibold text-gray-900 mb-4">Orders per Day</h3>
+                  <div className="h-56">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={paypalAnalytics.dailyRevenue} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+                        <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#6B7280' }} />
+                        <YAxis tick={{ fontSize: 11, fill: '#6B7280' }} />
+                        <Tooltip />
+                        <Bar dataKey="orders" name="Orders" fill="#3B82F6" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                {/* Top Customers */}
+                <div className="bg-white rounded-xl border border-gray-200 p-6">
+                  <h3 className="font-semibold text-gray-900 mb-4">Top Customers (31d)</h3>
+                  <div className="space-y-3">
+                    {paypalAnalytics.topCustomers.map((customer, idx) => (
+                      <div key={customer.name} className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-semibold text-sm">
+                            {idx + 1}
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">{customer.name}</p>
+                            <p className="text-xs text-gray-500">{customer.count} order{customer.count > 1 ? 's' : ''}</p>
+                          </div>
+                        </div>
+                        <p className="font-semibold text-gray-900">£{customer.total.toFixed(2)}</p>
+                      </div>
+                    ))}
+                    {paypalAnalytics.topCustomers.length === 0 && (
+                      <p className="text-gray-500 text-center py-4">No customer data</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Fee Analysis */}
+              <div className="bg-gradient-to-r from-orange-50 to-red-50 border border-orange-200 rounded-xl p-6">
+                <h3 className="font-semibold text-gray-900 mb-3">Fee Analysis</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div>
+                    <p className="text-sm text-gray-600">Total Fees Paid</p>
+                    <p className="text-2xl font-bold text-red-600">£{paypalAnalytics.totalFees.toFixed(2)}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600">Effective Fee Rate</p>
+                    <p className="text-2xl font-bold text-orange-600">{paypalAnalytics.feePercentage.toFixed(2)}%</p>
+                    <p className="text-xs text-gray-500 mt-1">PayPal standard: 2.9% + £0.30</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600">Avg Fee per Order</p>
+                    <p className="text-2xl font-bold text-gray-900">
+                      £{paypalAnalytics.orderCount > 0 ? (paypalAnalytics.totalFees / paypalAnalytics.orderCount).toFixed(2) : '0.00'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Transactions Table */}
               <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
                 <div className="px-6 py-4 border-b border-gray-200">
-                  <h3 className="font-semibold text-gray-900">PayPal Transactions (Last 31 Days)</h3>
+                  <h3 className="font-semibold text-gray-900">Recent Transactions</h3>
                 </div>
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto max-h-96">
                   <table className="w-full">
-                    <thead className="bg-gray-50">
+                    <thead className="bg-gray-50 sticky top-0">
                       <tr>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">From</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Customer</th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fee</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Net</th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200">
                       {paypalData.transactions?.slice(0, 50).map(tx => (
                         <tr key={tx.id} className="hover:bg-gray-50">
-                          <td className="px-6 py-4 text-sm text-gray-500 whitespace-nowrap">
-                            {tx.date ? format(parseISO(tx.date), 'MMM d, yyyy HH:mm') : '-'}
+                          <td className="px-6 py-3 text-sm text-gray-500 whitespace-nowrap">
+                            {tx.date ? format(parseISO(tx.date), 'MMM d, HH:mm') : '-'}
                           </td>
-                          <td className="px-6 py-4 text-sm text-gray-900">{tx.payerName || '-'}</td>
-                          <td className={`px-6 py-4 text-sm font-semibold whitespace-nowrap ${tx.amount >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                            {tx.amount >= 0 ? '+' : ''}{formatPayPalCurrency(tx.amount, tx.currency)}
+                          <td className="px-6 py-3 text-sm text-gray-900">{tx.payerName || '-'}</td>
+                          <td className={`px-6 py-3 text-sm font-semibold ${tx.amount >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {tx.amount >= 0 ? '+' : ''}£{tx.amount.toFixed(2)}
                           </td>
-                          <td className="px-6 py-4 text-sm text-gray-500">
-                            {tx.fee ? formatPayPalCurrency(Math.abs(tx.fee), tx.currency) : '—'}
+                          <td className="px-6 py-3 text-sm text-red-500">
+                            {tx.fee ? `-£${Math.abs(tx.fee).toFixed(2)}` : '—'}
                           </td>
-                          <td className="px-6 py-4">
+                          <td className="px-6 py-3 text-sm font-medium text-gray-900">
+                            £{(tx.amount - Math.abs(tx.fee || 0)).toFixed(2)}
+                          </td>
+                          <td className="px-6 py-3">
                             <span className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full ${
                               tx.status === 'S' ? 'bg-green-100 text-green-800' :
                               tx.status === 'P' ? 'bg-yellow-100 text-yellow-800' :
                               'bg-gray-100 text-gray-800'
                             }`}>
                               {tx.status === 'S' && <CheckCircle className="w-3 h-3" />}
-                              {tx.status === 'P' && <Clock className="w-3 h-3" />}
-                              {tx.status === 'S' ? 'Success' : tx.status === 'P' ? 'Pending' : tx.status || 'Unknown'}
+                              {tx.status === 'S' ? 'Success' : tx.status === 'P' ? 'Pending' : tx.status || '-'}
                             </span>
                           </td>
                         </tr>
                       ))}
                       {(!paypalData.transactions || paypalData.transactions.length === 0) && (
                         <tr>
-                          <td colSpan={5} className="px-6 py-8 text-center text-gray-500">No transactions found</td>
+                          <td colSpan={6} className="px-6 py-8 text-center text-gray-500">No transactions found</td>
                         </tr>
                       )}
                     </tbody>
