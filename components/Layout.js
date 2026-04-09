@@ -30,9 +30,9 @@ const navigation = [
       { id: 'finance-overview', name: 'Overview', subTab: 'overview', icon: Eye },
       { id: 'finance-revolut', name: 'Revolut', subTab: 'accounts', icon: Wallet },
       { id: 'finance-paypal', name: 'PayPal', subTab: 'paypal', icon: CreditCard },
-      { id: 'finance-forecast', name: 'Forecast', subTab: 'forecast', icon: LineChart },
     ]
   },
+  { id: 'forecast', name: 'Forecast', icon: LineChart },
   { id: 'orders', name: 'Orders', icon: Package },
   { id: 'products', name: 'Products', icon: ShoppingBag },
   {
