@@ -17,13 +17,14 @@ async function kPost(path, body) {
   return r.json()
 }
 
-function metricBody(metricId, start, end) {
+function metricBody(metricId, start, end, interval = 'day') {
   return {
     data: {
       type: 'metric-aggregate',
       attributes: {
         metric_id: metricId,
         measurements: ['count', 'unique'],
+        interval,
         filter: [
           `greater-or-equal(datetime,${start})`,
           `less-than(datetime,${end})`
@@ -38,6 +39,14 @@ function sumMetric(res, key) {
   try {
     return res.data.attributes.data[0].measurements[key].reduce((a, b) => a + b, 0)
   } catch { return 0 }
+}
+
+function dailyData(res, key) {
+  try {
+    const dates = res.data.attributes.dates
+    const values = res.data.attributes.data[0].measurements[key]
+    return dates.map((d, i) => ({ date: d.split('T')[0], value: values[i] || 0 }))
+  } catch { return [] }
 }
 
 export default async function handler(req, res) {
@@ -55,19 +64,33 @@ export default async function handler(req, res) {
       kGet('/segments/?fields[segment]=name,created,is_active'),
       kGet('/profiles/?fields[profile]=email,first_name,last_name,created&page[size]=100&sort=-created'),
       kGet('/campaigns/?filter=equals(messages.channel,%22email%22)&fields[campaign]=name,status,send_time,created_at,scheduled_at&sort=-created_at'),
-      kPost('/metric-aggregates/', metricBody('WHrzLu', fmt(ago30), fmt(now))),
-      kPost('/metric-aggregates/', metricBody('T8zNKw', fmt(ago30), fmt(now))),
-      kPost('/metric-aggregates/', metricBody('YAuHCm', fmt(ago30), fmt(now))),
-      kPost('/metric-aggregates/', metricBody('RvqrVP', fmt(ago30), fmt(now))),
-      kPost('/metric-aggregates/', metricBody('W2EAfk', fmt(ago30), fmt(now))),
+      kPost('/metric-aggregates/', metricBody('WHrzLu', fmt(ago30), fmt(now), 'day')),
+      kPost('/metric-aggregates/', metricBody('T8zNKw', fmt(ago30), fmt(now), 'day')),
+      kPost('/metric-aggregates/', metricBody('YAuHCm', fmt(ago30), fmt(now), 'day')),
+      kPost('/metric-aggregates/', metricBody('RvqrVP', fmt(ago30), fmt(now), 'day')),
+      kPost('/metric-aggregates/', metricBody('W2EAfk', fmt(ago30), fmt(now), 'day')),
     ])
 
     const emailsSent = sumMetric(received, 'count')
     const opens = sumMetric(opened, 'count')
     const clicks = sumMetric(clicked, 'count')
     const orders = sumMetric(placedOrder, 'count')
-    const orderRevenue = sumMetric(placedOrder, 'sum_value')
     const newSubscribers = sumMetric(subscribedEmail, 'count')
+
+    // Build daily time-series
+    const sentDaily = dailyData(received, 'count')
+    const opensDaily = dailyData(opened, 'count')
+    const clicksDaily = dailyData(clicked, 'count')
+    const ordersDaily = dailyData(placedOrder, 'count')
+
+    // Merge into single time-series
+    const timeSeries = sentDaily.map((s, i) => ({
+      date: s.date,
+      sent: s.value,
+      opens: opensDaily[i]?.value || 0,
+      clicks: clicksDaily[i]?.value || 0,
+      orders: ordersDaily[i]?.value || 0,
+    }))
 
     res.json({
       emailsSent,
@@ -76,10 +99,10 @@ export default async function handler(req, res) {
       opens,
       clicks,
       orders,
-      orderRevenue,
       newSubscribers,
       totalProfiles: (profiles.data || []).length,
       hasMoreProfiles: !!profiles.links?.next,
+      timeSeries,
       flows: (flows.data || []).map(f => ({
         name: f.attributes.name,
         status: f.attributes.status,
@@ -96,12 +119,6 @@ export default async function handler(req, res) {
         id: s.id,
         active: s.attributes.isActive,
         created: s.attributes.created,
-      })),
-      profiles: (profiles.data || []).slice(0, 10).map(p => ({
-        email: p.attributes.email,
-        firstName: p.attributes.firstName,
-        lastName: p.attributes.lastName,
-        created: p.attributes.created,
       })),
       campaigns: (campaigns.data || []).slice(0, 10).map(c => ({
         name: c.attributes.name,
