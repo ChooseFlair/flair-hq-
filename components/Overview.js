@@ -1,36 +1,74 @@
 import { useState, useEffect } from 'react'
 import { supabase, getOrderStats, getRecentOrders, getDailyRevenue } from '../lib/supabase'
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts'
-import { format, parseISO, subDays } from 'date-fns'
+import { LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts'
+import { format, parseISO } from 'date-fns'
+import {
+  DollarSign,
+  Calendar,
+  TrendingUp,
+  Target,
+  Package,
+  ArrowUpRight,
+  Sparkles,
+  Leaf,
+  ShoppingBag,
+  Users,
+} from 'lucide-react'
 import TaskWidget from './TaskWidget'
 
-function StatCard({ title, value, subValue, trend, icon, color = 'green' }) {
+function StatCard({ title, value, subValue, trend, icon: Icon, color = 'flair' }) {
   const colorClasses = {
-    green: 'bg-green-50 text-green-600',
+    flair: 'bg-flair-50 text-flair-600',
+    sage: 'bg-sage-50 text-sage-600',
     blue: 'bg-blue-50 text-blue-600',
     purple: 'bg-purple-50 text-purple-600',
     orange: 'bg-orange-50 text-orange-600',
   }
 
+  const valueColors = {
+    flair: 'text-flair-700',
+    sage: 'text-sage-700',
+    blue: 'text-blue-600',
+    purple: 'text-purple-600',
+    orange: 'text-orange-600',
+  }
+
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-6 hover:shadow-lg transition-shadow">
+    <div className="bg-white/60 backdrop-blur-xl border border-white/50 rounded-2xl p-6 hover:bg-white/80 hover:shadow-lg transition-all duration-300 group">
       <div className="flex items-start justify-between">
         <div>
-          <p className="text-sm text-gray-500 font-medium">{title}</p>
-          <p className="text-2xl font-bold text-gray-900 mt-1">{value}</p>
-          {subValue && <p className="text-sm text-gray-400 mt-1">{subValue}</p>}
+          <p className="text-sm text-flair-500 font-medium">{title}</p>
+          <p className={`text-2xl font-bold mt-1 ${valueColors[color]}`}>{value}</p>
+          {subValue && <p className="text-sm text-flair-400 mt-1">{subValue}</p>}
         </div>
-        <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-xl ${colorClasses[color]}`}>
-          {icon}
+        <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${colorClasses[color]} group-hover:scale-110 transition-transform duration-300`}>
+          <Icon className="w-6 h-6" />
         </div>
       </div>
       {trend !== undefined && (
-        <div className={`mt-4 text-sm ${trend >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-          {trend >= 0 ? '↑' : '↓'} {Math.abs(trend).toFixed(1)}% vs last period
+        <div className={`mt-4 text-sm font-medium flex items-center gap-1 ${trend >= 0 ? 'text-sage-600' : 'text-red-500'}`}>
+          <ArrowUpRight className={`w-4 h-4 ${trend < 0 ? 'rotate-90' : ''}`} />
+          {Math.abs(trend).toFixed(1)}% vs last period
         </div>
       )}
     </div>
   )
+}
+
+const CustomTooltip = ({ active, payload, label, formatter }) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-white/90 backdrop-blur-sm border border-flair-100 rounded-xl shadow-lg p-3">
+        <p className="text-sm font-medium text-flair-600">{label}</p>
+        {payload.map((entry, index) => (
+          <p key={index} className="text-sm text-flair-700" style={{ color: entry.color }}>
+            {entry.name}: {formatter ? formatter(entry.value) : entry.value}
+          </p>
+        ))}
+      </div>
+    )
+  }
+  return null
 }
 
 export default function Overview() {
@@ -60,7 +98,6 @@ export default function Overview() {
 
     loadData()
 
-    // Real-time subscription for new orders
     const channel = supabase
       .channel('orders-changes')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders' }, () => {
@@ -76,7 +113,12 @@ export default function Overview() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
+        <div className="text-center">
+          <div className="w-12 h-12 gradient-flair rounded-xl flex items-center justify-center mx-auto mb-4 animate-pulse">
+            <Leaf className="w-6 h-6 text-white" />
+          </div>
+          <p className="text-flair-500">Loading dashboard...</p>
+        </div>
       </div>
     )
   }
@@ -86,9 +128,15 @@ export default function Overview() {
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Dashboard Overview</h1>
-        <p className="text-gray-500 mt-1">Welcome back! Here's what's happening with Flair.</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-flair-700">Dashboard Overview</h1>
+          <p className="text-flair-500 mt-1">Welcome back! Here's what's happening with Flair.</p>
+        </div>
+        <div className="hidden sm:flex items-center gap-2 px-4 py-2 bg-flair-50 rounded-xl">
+          <div className="w-2 h-2 bg-sage-400 rounded-full animate-pulse"></div>
+          <span className="text-sm text-flair-600 font-medium">Live data</span>
+        </div>
       </div>
 
       {/* Urgent Tasks */}
@@ -100,84 +148,96 @@ export default function Overview() {
           title="Total Revenue"
           value={formatCurrency(stats?.total_revenue)}
           subValue={`${stats?.total_orders || 0} orders`}
-          icon="💰"
-          color="green"
+          icon={DollarSign}
+          color="flair"
         />
         <StatCard
           title="This Month"
           value={formatCurrency(stats?.month_revenue)}
           subValue={`${stats?.month_orders || 0} orders`}
-          icon="📅"
+          icon={Calendar}
           color="blue"
         />
         <StatCard
           title="This Week"
           value={formatCurrency(stats?.week_revenue)}
           subValue={`${stats?.week_orders || 0} orders`}
-          icon="📊"
+          icon={TrendingUp}
           color="purple"
         />
         <StatCard
           title="Avg Order Value"
           value={formatCurrency(stats?.avg_order_value)}
           subValue="per order"
-          icon="🎯"
-          color="orange"
+          icon={Target}
+          color="sage"
         />
       </div>
 
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Revenue Chart */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Revenue (Last 30 Days)</h3>
+        <div className="bg-white/60 backdrop-blur-xl border border-white/50 rounded-2xl p-6 hover:bg-white/80 transition-all duration-300">
+          <h3 className="text-lg font-semibold text-flair-700 mb-4">Revenue (Last 30 Days)</h3>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+              <AreaChart data={chartData}>
+                <defs>
+                  <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="rgb(44, 74, 62)" stopOpacity={0.2} />
+                    <stop offset="95%" stopColor="rgb(44, 74, 62)" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(44, 74, 62, 0.1)" />
                 <XAxis
                   dataKey="date"
-                  tick={{ fontSize: 12 }}
+                  tick={{ fontSize: 11, fill: '#567862' }}
                   tickFormatter={(date) => format(parseISO(date), 'MMM d')}
+                  axisLine={{ stroke: 'rgba(44, 74, 62, 0.2)' }}
                 />
                 <YAxis
-                  tick={{ fontSize: 12 }}
+                  tick={{ fontSize: 11, fill: '#567862' }}
                   tickFormatter={(value) => `£${value}`}
+                  axisLine={{ stroke: 'rgba(44, 74, 62, 0.2)' }}
                 />
                 <Tooltip
-                  formatter={(value) => [formatCurrency(value), 'Revenue']}
+                  content={<CustomTooltip formatter={formatCurrency} />}
                   labelFormatter={(date) => format(parseISO(date), 'MMM d, yyyy')}
                 />
-                <Line
+                <Area
                   type="monotone"
                   dataKey="revenue"
-                  stroke="#22c55e"
+                  stroke="rgb(44, 74, 62)"
                   strokeWidth={2}
-                  dot={false}
+                  fill="url(#revenueGradient)"
                 />
-              </LineChart>
+              </AreaChart>
             </ResponsiveContainer>
           </div>
         </div>
 
         {/* Orders Chart */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Orders (Last 30 Days)</h3>
+        <div className="bg-white/60 backdrop-blur-xl border border-white/50 rounded-2xl p-6 hover:bg-white/80 transition-all duration-300">
+          <h3 className="text-lg font-semibold text-flair-700 mb-4">Orders (Last 30 Days)</h3>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(44, 74, 62, 0.1)" />
                 <XAxis
                   dataKey="date"
-                  tick={{ fontSize: 12 }}
+                  tick={{ fontSize: 11, fill: '#567862' }}
                   tickFormatter={(date) => format(parseISO(date), 'MMM d')}
+                  axisLine={{ stroke: 'rgba(44, 74, 62, 0.2)' }}
                 />
-                <YAxis tick={{ fontSize: 12 }} />
+                <YAxis
+                  tick={{ fontSize: 11, fill: '#567862' }}
+                  axisLine={{ stroke: 'rgba(44, 74, 62, 0.2)' }}
+                />
                 <Tooltip
-                  formatter={(value) => [value, 'Orders']}
+                  content={<CustomTooltip />}
                   labelFormatter={(date) => format(parseISO(date), 'MMM d, yyyy')}
                 />
-                <Bar dataKey="orders" fill="#22c55e" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="orders" fill="rgb(143, 175, 143)" radius={[6, 6, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -185,46 +245,49 @@ export default function Overview() {
       </div>
 
       {/* Recent Orders */}
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-gray-900">Recent Orders</h3>
-          <span className="text-sm text-gray-500">Last 5 orders</span>
+      <div className="bg-white/60 backdrop-blur-xl border border-white/50 rounded-2xl overflow-hidden">
+        <div className="px-6 py-4 border-b border-flair-100/50 flex items-center justify-between bg-white/30">
+          <div className="flex items-center gap-2">
+            <Package className="w-5 h-5 text-flair-600" />
+            <h3 className="text-lg font-semibold text-flair-700">Recent Orders</h3>
+          </div>
+          <span className="text-sm text-flair-400 px-3 py-1 bg-flair-50 rounded-full">Last 5</span>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-gray-50">
+            <thead className="bg-flair-50/50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Order</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-flair-600 uppercase tracking-wider">Order</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-flair-600 uppercase tracking-wider">Customer</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-flair-600 uppercase tracking-wider">Status</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-flair-600 uppercase tracking-wider">Total</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-flair-600 uppercase tracking-wider">Date</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
+            <tbody className="divide-y divide-flair-100/50">
               {recentOrders.map((order) => (
-                <tr key={order.shopify_id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                <tr key={order.shopify_id} className="hover:bg-flair-50/30 transition-colors">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-flair-700">
                     #{order.order_number}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-flair-500">
                     {order.email}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
+                    <span className={`inline-flex px-2.5 py-1 text-xs font-medium rounded-lg backdrop-blur-sm ${
                       order.financial_status === 'paid'
-                        ? 'bg-green-100 text-green-800'
+                        ? 'bg-sage-100/80 text-sage-700 border border-sage-200/50'
                         : order.financial_status === 'pending'
-                        ? 'bg-yellow-100 text-yellow-800'
-                        : 'bg-gray-100 text-gray-800'
+                        ? 'bg-yellow-100/80 text-yellow-700 border border-yellow-200/50'
+                        : 'bg-flair-100/80 text-flair-700 border border-flair-200/50'
                     }`}>
                       {order.financial_status}
                     </span>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-flair-700">
                     {formatCurrency(order.total_price)}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-flair-400">
                     {order.created_at ? format(parseISO(order.created_at), 'MMM d, yyyy h:mm a') : '-'}
                   </td>
                 </tr>
@@ -236,20 +299,29 @@ export default function Overview() {
 
       {/* Quick Insights */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl p-6 text-white">
-          <h4 className="font-medium text-green-100">Top Insight</h4>
-          <p className="text-lg font-semibold mt-2">Your AOV is {formatCurrency(stats?.avg_order_value)}</p>
-          <p className="text-sm text-green-200 mt-1">Focus on bundles to increase this.</p>
+        <div className="gradient-flair rounded-2xl p-6 text-white shadow-lg shadow-flair-700/20">
+          <div className="flex items-center gap-2 mb-3">
+            <Target className="w-5 h-5 text-white/80" />
+            <h4 className="font-medium text-white/80">Top Insight</h4>
+          </div>
+          <p className="text-lg font-semibold">Your AOV is {formatCurrency(stats?.avg_order_value)}</p>
+          <p className="text-sm text-white/70 mt-2">Focus on bundles to increase this.</p>
         </div>
-        <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-6 text-white">
-          <h4 className="font-medium text-blue-100">Quick Action</h4>
-          <p className="text-lg font-semibold mt-2">Check AI Researcher</p>
-          <p className="text-sm text-blue-200 mt-1">Get competitive insights for Q2.</p>
+        <div className="bg-gradient-to-br from-sage-400 to-sage-500 rounded-2xl p-6 text-white shadow-lg shadow-sage-400/20">
+          <div className="flex items-center gap-2 mb-3">
+            <Sparkles className="w-5 h-5 text-white/80" />
+            <h4 className="font-medium text-white/80">Quick Action</h4>
+          </div>
+          <p className="text-lg font-semibold">Check AI Researcher</p>
+          <p className="text-sm text-white/70 mt-2">Get competitive insights for Q2.</p>
         </div>
-        <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl p-6 text-white">
-          <h4 className="font-medium text-purple-100">Coming Soon</h4>
-          <p className="text-lg font-semibold mt-2">Marketing Analytics</p>
-          <p className="text-sm text-purple-200 mt-1">Klaviyo & Meta Ads integration.</p>
+        <div className="bg-gradient-to-br from-cream-400 to-cream-500 rounded-2xl p-6 text-white shadow-lg shadow-cream-400/20">
+          <div className="flex items-center gap-2 mb-3">
+            <ShoppingBag className="w-5 h-5 text-white/80" />
+            <h4 className="font-medium text-white/80">Products</h4>
+          </div>
+          <p className="text-lg font-semibold">Track your bestsellers</p>
+          <p className="text-sm text-white/70 mt-2">See sell-through rates & COGS.</p>
         </div>
       </div>
     </div>

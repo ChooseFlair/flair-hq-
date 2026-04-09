@@ -26,6 +26,8 @@ import {
   Flame,
   Target,
   MessageSquare,
+  ExternalLink,
+  Leaf,
 } from 'lucide-react'
 
 const navigation = [
@@ -101,16 +103,13 @@ export default function Layout({ children, activeTab, setActiveTab, activeSubTab
 
   const handleNavClick = (item, child = null) => {
     if (child) {
-      // Clicking a child item
       setActiveTab(item.id)
       setActiveSubTab(child.subTab)
     } else if (item.children) {
-      // Clicking a parent with children - toggle expansion and navigate
       toggleSection(item.id)
       setActiveTab(item.id)
       setActiveSubTab('overview')
     } else {
-      // Clicking a regular item
       setActiveTab(item.id)
       setActiveSubTab(null)
     }
@@ -125,22 +124,32 @@ export default function Layout({ children, activeTab, setActiveTab, activeSubTab
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-cream-50 via-white to-flair-50">
+      {/* Decorative background elements */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-40 -right-40 w-80 h-80 bg-flair-100 rounded-full opacity-30 blur-3xl"></div>
+        <div className="absolute top-1/2 -left-40 w-96 h-96 bg-sage-100 rounded-full opacity-20 blur-3xl"></div>
+        <div className="absolute -bottom-40 right-1/3 w-80 h-80 bg-cream-200 rounded-full opacity-30 blur-3xl"></div>
+      </div>
+
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 fixed top-0 left-0 right-0 z-30">
-        <div className="flex items-center justify-between px-4 py-3">
+      <header className="glass-header fixed top-0 left-0 right-0 z-30 shadow-sm">
+        <div className="flex items-center justify-between px-5 py-3">
           <div className="flex items-center gap-4">
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="p-2 rounded-lg hover:bg-gray-100 lg:hidden"
+              className="p-2 rounded-xl hover:bg-flair-50 text-flair-700 lg:hidden transition-colors"
             >
               <Menu className="w-6 h-6" />
             </button>
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-gradient-to-br from-green-400 to-green-600 rounded-lg flex items-center justify-center text-white font-bold">
-                F
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 gradient-flair rounded-xl flex items-center justify-center text-white shadow-lg shadow-flair-700/20">
+                <Leaf className="w-5 h-5" />
               </div>
-              <span className="text-xl font-bold text-gray-900">Flair HQ</span>
+              <div>
+                <span className="text-xl font-bold text-flair-700">Flair</span>
+                <span className="text-xl font-light text-flair-500 ml-1">HQ</span>
+              </div>
             </div>
           </div>
           <div className="flex items-center gap-4">
@@ -148,21 +157,22 @@ export default function Layout({ children, activeTab, setActiveTab, activeSubTab
               href="https://chooseflair.com"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-sm text-gray-500 hover:text-gray-700"
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-flair-600 hover:text-flair-700 hover:bg-flair-50 transition-colors"
             >
               chooseflair.com
+              <ExternalLink className="w-3 h-3" />
             </a>
-            <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center text-sm font-medium">
+            <div className="w-9 h-9 gradient-flair rounded-xl flex items-center justify-center text-white text-sm font-semibold shadow-md">
               K
             </div>
           </div>
         </div>
       </header>
 
-      <div className="flex pt-14">
+      <div className="flex pt-[60px]">
         {/* Sidebar */}
-        <aside className={`fixed left-0 top-14 h-[calc(100vh-3.5rem)] bg-white border-r border-gray-200 transition-all duration-300 z-20 ${sidebarOpen ? 'w-64' : 'w-0 lg:w-16'} overflow-hidden`}>
-          <nav className="p-4 space-y-1">
+        <aside className={`fixed left-0 top-[60px] h-[calc(100vh-60px)] glass-sidebar transition-all duration-300 z-20 ${sidebarOpen ? 'w-64' : 'w-0 lg:w-16'} overflow-hidden`}>
+          <nav className="p-3 space-y-1 overflow-y-auto h-[calc(100%-120px)]">
             {navigation.map((item) => {
               const Icon = item.icon
               const hasChildren = item.children && item.children.length > 0
@@ -174,22 +184,20 @@ export default function Layout({ children, activeTab, setActiveTab, activeSubTab
                   {/* Parent Item */}
                   <button
                     onClick={() => handleNavClick(item)}
-                    className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-left transition-colors ${
-                      isActive && !hasChildren
-                        ? 'bg-green-50 text-green-700 font-medium'
-                        : isActive && hasChildren
-                        ? 'bg-green-50 text-green-700 font-medium'
-                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                    className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-left transition-all duration-200 ${
+                      isActive
+                        ? 'bg-flair-700 text-white shadow-lg shadow-flair-700/20'
+                        : 'text-flair-600 hover:bg-flair-50 hover:text-flair-700'
                     }`}
                   >
                     <div className="flex items-center gap-3">
-                      <Icon className="w-5 h-5 flex-shrink-0" />
-                      <span className={`${sidebarOpen ? 'block' : 'hidden lg:hidden'}`}>
+                      <Icon className={`w-5 h-5 flex-shrink-0 ${isActive ? 'text-white' : ''}`} />
+                      <span className={`font-medium ${sidebarOpen ? 'block' : 'hidden lg:hidden'}`}>
                         {item.name}
                       </span>
                     </div>
                     {hasChildren && sidebarOpen && (
-                      <span className="text-gray-400">
+                      <span className={isActive ? 'text-white/70' : 'text-flair-400'}>
                         {isExpanded ? (
                           <ChevronDown className="w-4 h-4" />
                         ) : (
@@ -201,20 +209,21 @@ export default function Layout({ children, activeTab, setActiveTab, activeSubTab
 
                   {/* Children */}
                   {hasChildren && isExpanded && sidebarOpen && (
-                    <div className="mt-1 ml-4 pl-4 border-l border-gray-200 space-y-1">
+                    <div className="mt-1 ml-4 pl-3 border-l-2 border-flair-100 space-y-0.5">
                       {item.children.map((child) => {
                         const ChildIcon = child.icon
+                        const isChildActive = isActiveChild(item, child)
                         return (
                           <button
                             key={child.id}
                             onClick={() => handleNavClick(item, child)}
-                            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left text-sm transition-colors ${
-                              isActiveChild(item, child)
-                                ? 'bg-green-50 text-green-700 font-medium'
-                                : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+                            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left text-sm transition-all duration-200 ${
+                              isChildActive
+                                ? 'bg-flair-100 text-flair-700 font-medium'
+                                : 'text-flair-500 hover:bg-flair-50 hover:text-flair-600'
                             }`}
                           >
-                            <ChildIcon className="w-4 h-4 flex-shrink-0" />
+                            <ChildIcon className={`w-4 h-4 flex-shrink-0 ${isChildActive ? 'text-flair-600' : ''}`} />
                             <span>{child.name}</span>
                           </button>
                         )
@@ -226,18 +235,32 @@ export default function Layout({ children, activeTab, setActiveTab, activeSubTab
             })}
           </nav>
 
-          {/* Quick Stats in Sidebar */}
-          <div className={`absolute bottom-4 left-4 right-4 ${sidebarOpen ? 'block' : 'hidden'}`}>
-            <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl p-4 text-white">
-              <p className="text-sm text-green-100">Need help?</p>
-              <p className="text-xs mt-1 text-green-200">Dashboard v2.0</p>
+          {/* Bottom Card */}
+          <div className={`absolute bottom-4 left-3 right-3 ${sidebarOpen ? 'block' : 'hidden'}`}>
+            <div className="gradient-flair rounded-2xl p-4 text-white shadow-lg shadow-flair-700/30">
+              <div className="flex items-center gap-2 mb-2">
+                <Leaf className="w-5 h-5" />
+                <span className="font-semibold">Flair HQ</span>
+              </div>
+              <p className="text-sm text-white/80">Your wellness business dashboard</p>
+              <div className="mt-3 pt-3 border-t border-white/20 flex items-center justify-between">
+                <span className="text-xs text-white/60">v2.0</span>
+                <a
+                  href="https://chooseflair.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-white/80 hover:text-white flex items-center gap-1"
+                >
+                  Visit Store <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
             </div>
           </div>
         </aside>
 
         {/* Main Content */}
-        <main className={`flex-1 transition-all duration-300 ${sidebarOpen ? 'lg:ml-64' : 'lg:ml-16'}`}>
-          <div className="p-6">
+        <main className={`flex-1 transition-all duration-300 ${sidebarOpen ? 'lg:ml-64' : 'lg:ml-16'} relative z-10`}>
+          <div className="p-6 max-w-7xl mx-auto">
             {children}
           </div>
         </main>
@@ -246,7 +269,7 @@ export default function Layout({ children, activeTab, setActiveTab, activeSubTab
       {/* Mobile Sidebar Overlay */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 bg-black/20 z-10 lg:hidden"
+          className="fixed inset-0 bg-flair-900/20 backdrop-blur-sm z-10 lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
