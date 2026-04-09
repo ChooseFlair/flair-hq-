@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { format, parseISO, subDays } from 'date-fns'
+import { useState, useEffect, useMemo } from 'react'
+import { format, parseISO, subDays, startOfDay, eachDayOfInterval } from 'date-fns'
 import {
   Building2,
   CreditCard,
@@ -11,6 +11,21 @@ import {
   CheckCircle,
   AlertCircle,
 } from 'lucide-react'
+import {
+  AreaChart,
+  Area,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  Legend,
+} from 'recharts'
 import DateRangePicker from './DateRangePicker'
 import AISummary from './AISummary'
 import TaskWidget from './TaskWidget'
@@ -167,6 +182,72 @@ export default function Finance({ activeSubTab, setActiveSubTab }) {
     paypalFees: paypalData?.summary?.totalFees ? formatPayPalCurrency(paypalData.summary.totalFees) : 'N/A',
   })
 
+  // Process data for cash flow chart (last 14 days)
+  const cashFlowData = useMemo(() => {
+    const days = eachDayOfInterval({
+      start: subDays(new Date(), 13),
+      end: new Date()
+    })
+
+    return days.map(day => {
+      const dayStart = startOfDay(day)
+      const dayEnd = new Date(dayStart)
+      dayEnd.setDate(dayEnd.getDate() + 1)
+
+      const dayTransactions = transactions.filter(t => {
+        const txDate = new Date(t.created_at)
+        return txDate >= dayStart && txDate < dayEnd
+      })
+
+      const income = dayTransactions
+        .filter(t => t.legs?.[0]?.amount > 0)
+        .reduce((sum, t) => sum + (t.legs?.[0]?.amount || 0), 0) / 100
+
+      const spend = dayTransactions
+        .filter(t => t.legs?.[0]?.amount < 0)
+        .reduce((sum, t) => sum + Math.abs(t.legs?.[0]?.amount || 0), 0) / 100
+
+      return {
+        date: format(day, 'MMM d'),
+        income,
+        spend,
+        net: income - spend
+      }
+    })
+  }, [transactions])
+
+  // Process data for income sources pie chart
+  const incomeSourcesData = useMemo(() => {
+    const revolutIncome = getMonthlyIncome() / 100
+    const paypalIncome = paypalData?.summary?.totalIncome || 0
+
+    const data = []
+    if (revolutIncome > 0) data.push({ name: 'Revolut', value: revolutIncome })
+    if (paypalIncome > 0) data.push({ name: 'PayPal', value: paypalIncome })
+
+    return data.length > 0 ? data : [{ name: 'No Data', value: 1 }]
+  }, [transactions, paypalData])
+
+  // Colors for pie chart
+  const COLORS = ['#10B981', '#3B82F6', '#8B5CF6', '#F59E0B']
+
+  // Custom tooltip for charts
+  const CustomTooltip = ({ active, payload, label }) => {
+    if (active && payload && payload.length) {
+      return (
+        <div className="bg-white border border-gray-200 rounded-lg shadow-lg p-3">
+          <p className="text-sm font-medium text-gray-900">{label}</p>
+          {payload.map((entry, index) => (
+            <p key={index} className="text-sm" style={{ color: entry.color }}>
+              {entry.name}: £{entry.value.toFixed(2)}
+            </p>
+          ))}
+        </div>
+      )
+    }
+    return null
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -308,56 +389,159 @@ export default function Finance({ activeSubTab, setActiveSubTab }) {
 
       {/* Overview Tab */}
       {activeTab === 'overview' && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200">
-              <h3 className="font-semibold text-gray-900">Account Balances</h3>
-            </div>
-            <div className="divide-y divide-gray-100">
-              {accounts.map(account => (
-                <div key={account.id} className="px-6 py-4 flex items-center justify-between">
-                  <div>
-                    <p className="font-medium text-gray-900">{account.name || account.currency + ' Account'}</p>
-                    <p className="text-sm text-gray-500">{account.currency}</p>
-                  </div>
-                  <p className="font-semibold text-gray-900">
-                    {formatCurrency(account.balance, account.currency)}
-                  </p>
-                </div>
-              ))}
-              {accounts.length === 0 && (
-                <div className="px-6 py-8 text-center text-gray-500">No accounts found</div>
-              )}
+        <div className="space-y-6">
+          {/* Cash Flow Chart */}
+          <div className="bg-white rounded-xl border border-gray-200 p-6">
+            <h3 className="font-semibold text-gray-900 mb-4">Cash Flow (Last 14 Days)</h3>
+            <div className="h-72">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={cashFlowData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+                  <XAxis
+                    dataKey="date"
+                    tick={{ fontSize: 12, fill: '#6B7280' }}
+                    axisLine={{ stroke: '#E5E7EB' }}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 12, fill: '#6B7280' }}
+                    axisLine={{ stroke: '#E5E7EB' }}
+                    tickFormatter={(value) => `£${value}`}
+                  />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Bar dataKey="income" name="Income" fill="#10B981" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="spend" name="Spend" fill="#EF4444" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
             </div>
           </div>
 
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200">
-              <h3 className="font-semibold text-gray-900">Recent Transactions</h3>
+          {/* Charts Row */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Net Cash Flow Area Chart */}
+            <div className="bg-white rounded-xl border border-gray-200 p-6">
+              <h3 className="font-semibold text-gray-900 mb-4">Net Cash Flow Trend</h3>
+              <div className="h-56">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={cashFlowData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="netGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#8B5CF6" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#8B5CF6" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+                    <XAxis
+                      dataKey="date"
+                      tick={{ fontSize: 11, fill: '#6B7280' }}
+                      axisLine={{ stroke: '#E5E7EB' }}
+                    />
+                    <YAxis
+                      tick={{ fontSize: 11, fill: '#6B7280' }}
+                      axisLine={{ stroke: '#E5E7EB' }}
+                      tickFormatter={(value) => `£${value}`}
+                    />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Area
+                      type="monotone"
+                      dataKey="net"
+                      name="Net"
+                      stroke="#8B5CF6"
+                      fill="url(#netGradient)"
+                      strokeWidth={2}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
             </div>
-            <div className="divide-y divide-gray-100 max-h-80 overflow-y-auto">
-              {transactions.slice(0, 10).map(tx => {
-                const leg = tx.legs?.[0] || {}
-                const isCredit = leg.amount > 0
-                return (
-                  <div key={tx.id} className="px-6 py-3 flex items-center justify-between">
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-gray-900 truncate">
-                        {tx.reference || leg.description || tx.type}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        {tx.created_at ? format(parseISO(tx.created_at), 'MMM d, yyyy') : '-'}
-                      </p>
+
+            {/* Income Sources Pie Chart */}
+            <div className="bg-white rounded-xl border border-gray-200 p-6">
+              <h3 className="font-semibold text-gray-900 mb-4">Income Sources (This Month)</h3>
+              <div className="h-56">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={incomeSourcesData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={50}
+                      outerRadius={80}
+                      paddingAngle={5}
+                      dataKey="value"
+                    >
+                      {incomeSourcesData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      formatter={(value) => `£${value.toFixed(2)}`}
+                      contentStyle={{ backgroundColor: 'white', border: '1px solid #E5E7EB', borderRadius: '8px' }}
+                    />
+                    <Legend
+                      verticalAlign="bottom"
+                      height={36}
+                      formatter={(value, entry) => (
+                        <span className="text-sm text-gray-600">{value}</span>
+                      )}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </div>
+
+          {/* Account Balances & Recent Transactions */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-200">
+                <h3 className="font-semibold text-gray-900">Account Balances</h3>
+              </div>
+              <div className="divide-y divide-gray-100">
+                {accounts.map(account => (
+                  <div key={account.id} className="px-6 py-4 flex items-center justify-between">
+                    <div>
+                      <p className="font-medium text-gray-900">{account.name || account.currency + ' Account'}</p>
+                      <p className="text-sm text-gray-500">{account.currency}</p>
                     </div>
-                    <p className={`font-semibold ${isCredit ? 'text-green-600' : 'text-red-600'}`}>
-                      {isCredit ? '+' : ''}{formatCurrency(leg.amount || 0, leg.currency || 'GBP')}
+                    <p className="font-semibold text-gray-900">
+                      {formatCurrency(account.balance, account.currency)}
                     </p>
                   </div>
-                )
-              })}
-              {transactions.length === 0 && (
-                <div className="px-6 py-8 text-center text-gray-500">No transactions found</div>
-              )}
+                ))}
+                {accounts.length === 0 && (
+                  <div className="px-6 py-8 text-center text-gray-500">No accounts found</div>
+                )}
+              </div>
+            </div>
+
+            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-200">
+                <h3 className="font-semibold text-gray-900">Recent Transactions</h3>
+              </div>
+              <div className="divide-y divide-gray-100 max-h-80 overflow-y-auto">
+                {transactions.slice(0, 10).map(tx => {
+                  const leg = tx.legs?.[0] || {}
+                  const isCredit = leg.amount > 0
+                  return (
+                    <div key={tx.id} className="px-6 py-3 flex items-center justify-between">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-gray-900 truncate">
+                          {tx.reference || leg.description || tx.type}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {tx.created_at ? format(parseISO(tx.created_at), 'MMM d, yyyy') : '-'}
+                        </p>
+                      </div>
+                      <p className={`font-semibold ${isCredit ? 'text-green-600' : 'text-red-600'}`}>
+                        {isCredit ? '+' : ''}{formatCurrency(leg.amount || 0, leg.currency || 'GBP')}
+                      </p>
+                    </div>
+                  )
+                })}
+                {transactions.length === 0 && (
+                  <div className="px-6 py-8 text-center text-gray-500">No transactions found</div>
+                )}
+              </div>
             </div>
           </div>
         </div>
