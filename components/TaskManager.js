@@ -414,86 +414,85 @@ export default function TaskManager() {
         )}
       </div>
 
-      {/* Task List */}
-      <div className="space-y-2">
-        {sortedTasks.length === 0 ? (
-          <div className="bg-white rounded-xl border border-gray-200 p-8 text-center">
-            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <CheckCircle2 className="w-8 h-8 text-gray-400" />
-            </div>
-            <p className="text-gray-500">
-              {showArchived ? 'No archived tasks' : 'No tasks yet. Add one to get started!'}
-            </p>
+      {/* Task Grid */}
+      {sortedTasks.length === 0 ? (
+        <div className="bg-white rounded-xl border border-gray-200 p-8 text-center">
+          <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <CheckCircle2 className="w-8 h-8 text-gray-400" />
           </div>
-        ) : (
-          sortedTasks.map(task => (
+          <p className="text-gray-500">
+            {showArchived ? 'No archived tasks' : 'No tasks yet. Add one to get started!'}
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {sortedTasks.map(task => (
             <div
               key={task.id}
-              className={`bg-white rounded-xl border border-gray-200 p-4 transition-all ${
+              className={`bg-white rounded-xl border border-gray-200 p-4 transition-all flex flex-col ${
                 task.completed ? 'opacity-60' : ''
-              }`}
+              } ${task.priority === 'high' && !task.completed ? 'border-l-4 border-l-red-500' : ''}`}
             >
-              <div className="flex items-start gap-3">
-                {/* Checkbox */}
-                {!task.archived && (
-                  <button
-                    onClick={() => toggleComplete(task.id)}
-                    className={`mt-0.5 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
-                      task.completed
-                        ? 'bg-green-500 border-green-500 text-white'
-                        : 'border-gray-300 hover:border-green-500'
-                    }`}
-                  >
-                    {task.completed && <Check className="w-3 h-3" />}
-                  </button>
-                )}
-
-                {/* Content */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between gap-2">
-                    <h3 className={`font-medium text-gray-900 ${task.completed ? 'line-through text-gray-500' : ''}`}>
-                      {task.title}
-                    </h3>
-                    <div className="flex items-center gap-1">
-                      {/* Priority indicator */}
-                      <span className={`text-xs font-medium ${PRIORITIES.find(p => p.id === task.priority)?.color}`}>
-                        {task.priority === 'high' && '!!!'}
-                        {task.priority === 'medium' && '!!'}
-                        {task.priority === 'low' && '!'}
-                      </span>
-                    </div>
-                  </div>
-
-                  {task.description && (
-                    <p className="text-sm text-gray-500 mt-1">{task.description}</p>
+              {/* Header with checkbox and priority */}
+              <div className="flex items-start justify-between gap-2 mb-2">
+                <div className="flex items-start gap-2 flex-1 min-w-0">
+                  {!task.archived && (
+                    <button
+                      onClick={() => toggleComplete(task.id)}
+                      className={`mt-0.5 w-5 h-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-colors ${
+                        task.completed
+                          ? 'bg-green-500 border-green-500 text-white'
+                          : 'border-gray-300 hover:border-green-500'
+                      }`}
+                    >
+                      {task.completed && <Check className="w-3 h-3" />}
+                    </button>
                   )}
-
-                  <div className="flex items-center gap-2 mt-2 flex-wrap">
-                    {/* Tags */}
-                    {task.tags.map(tagId => {
-                      const tag = TAGS.find(t => t.id === tagId)
-                      return tag ? (
-                        <span
-                          key={tagId}
-                          className={`px-2 py-0.5 text-xs font-medium rounded-full border ${tag.color}`}
-                        >
-                          {tag.label}
-                        </span>
-                      ) : null
-                    })}
-
-                    {/* Due date */}
-                    {task.dueDate && (
-                      <span className={`flex items-center gap-1 text-xs ${
-                        isOverdue(task.dueDate) ? 'text-red-600 font-medium' : 'text-gray-500'
-                      }`}>
-                        <Calendar className="w-3 h-3" />
-                        {formatDate(task.dueDate)}
-                        {isOverdue(task.dueDate) && ' (overdue)'}
-                      </span>
-                    )}
-                  </div>
+                  <h3 className={`font-medium text-gray-900 line-clamp-2 ${task.completed ? 'line-through text-gray-500' : ''}`}>
+                    {task.title}
+                  </h3>
                 </div>
+                <span className={`text-xs font-medium flex-shrink-0 ${PRIORITIES.find(p => p.id === task.priority)?.color}`}>
+                  {task.priority === 'high' && '!!!'}
+                  {task.priority === 'medium' && '!!'}
+                  {task.priority === 'low' && '!'}
+                </span>
+              </div>
+
+              {/* Description */}
+              {task.description && (
+                <p className="text-sm text-gray-500 mb-3 line-clamp-3">{task.description}</p>
+              )}
+
+              {/* Tags */}
+              <div className="flex items-center gap-1.5 flex-wrap mb-3">
+                {task.tags.map(tagId => {
+                  const tag = TAGS.find(t => t.id === tagId)
+                  return tag ? (
+                    <span
+                      key={tagId}
+                      className={`px-2 py-0.5 text-xs font-medium rounded-full border ${tag.color}`}
+                    >
+                      {tag.label}
+                    </span>
+                  ) : null
+                })}
+              </div>
+
+              {/* Footer with date and actions */}
+              <div className="flex items-center justify-between mt-auto pt-2 border-t border-gray-100">
+                {/* Due date */}
+                {task.dueDate ? (
+                  <span className={`flex items-center gap-1 text-xs ${
+                    isOverdue(task.dueDate) ? 'text-red-600 font-medium' : 'text-gray-500'
+                  }`}>
+                    <Calendar className="w-3 h-3" />
+                    {formatDate(task.dueDate)}
+                    {isOverdue(task.dueDate) && ' !'}
+                  </span>
+                ) : (
+                  <span />
+                )}
 
                 {/* Actions */}
                 <div className="flex items-center gap-1">
@@ -535,9 +534,9 @@ export default function TaskManager() {
                 </div>
               </div>
             </div>
-          ))
-        )}
-      </div>
+          ))}
+        </div>
+      )}
 
       {/* Add Task Modal */}
       {showAddModal && (
