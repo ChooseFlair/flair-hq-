@@ -351,19 +351,19 @@ export default function Marketing() {
               <p className="text-xs text-gray-400 mt-1">Last: {formatSyncTime(syncStatus?.last_sync)}</p>
             </div>
             <div className="bg-white rounded-lg border border-gray-200 p-4">
-              <p className="text-sm text-gray-500">Profiles Synced</p>
-              <p className="text-xl font-bold text-blue-600">{(syncStatus?.profiles_synced || 0).toLocaleString()}</p>
-              <p className="text-xs text-gray-400 mt-1">Total pushed to Klaviyo</p>
-            </div>
-            <div className="bg-white rounded-lg border border-gray-200 p-4">
-              <p className="text-sm text-gray-500">Events Tracked</p>
-              <p className="text-xl font-bold text-purple-600">{(syncStatus?.events_tracked || 0).toLocaleString()}</p>
-              <p className="text-xs text-gray-400 mt-1">Order events sent</p>
-            </div>
-            <div className="bg-white rounded-lg border border-gray-200 p-4">
               <p className="text-sm text-gray-500">Customers</p>
-              <p className="text-xl font-bold text-gray-900">{(syncStatus?.total_customers || 0).toLocaleString()}</p>
-              <p className="text-xs text-gray-400 mt-1">Unique emails</p>
+              <p className="text-xl font-bold text-blue-600">{(syncStatus?.counts?.customers || 0).toLocaleString()}</p>
+              <p className="text-xs text-gray-400 mt-1">Synced to Klaviyo</p>
+            </div>
+            <div className="bg-white rounded-lg border border-gray-200 p-4">
+              <p className="text-sm text-gray-500">Flows</p>
+              <p className="text-xl font-bold text-purple-600">{(syncStatus?.counts?.flows || 0).toLocaleString()}</p>
+              <p className="text-xs text-gray-400 mt-1">Automated flows</p>
+            </div>
+            <div className="bg-white rounded-lg border border-gray-200 p-4">
+              <p className="text-sm text-gray-500">Campaigns</p>
+              <p className="text-xl font-bold text-gray-900">{(syncStatus?.counts?.campaigns || 0).toLocaleString()}</p>
+              <p className="text-xs text-gray-400 mt-1">Email campaigns</p>
             </div>
           </div>
 
@@ -471,35 +471,48 @@ export default function Marketing() {
             </div>
           </div>
 
-          {/* Last Sync Details */}
-          {syncStatus?.synced && (
+          {/* Live Flows from Supabase */}
+          {syncStatus?.liveFlows?.length > 0 && (
             <div className="bg-white rounded-xl border border-gray-200 p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Last Sync Details</h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Live Flows (Synced)</h3>
               <div className="space-y-3">
-                <div className="flex justify-between py-2 border-b border-gray-100">
-                  <span className="text-gray-500">Last Sync Time</span>
-                  <span className="font-medium text-gray-900">{syncStatus.last_sync ? new Date(syncStatus.last_sync).toLocaleString('en-GB') : 'N/A'}</span>
-                </div>
-                <div className="flex justify-between py-2 border-b border-gray-100">
-                  <span className="text-gray-500">Sync Mode</span>
-                  <span className="font-medium text-gray-900 capitalize">{syncStatus.last_sync_mode || 'N/A'}</span>
-                </div>
-                <div className="flex justify-between py-2 border-b border-gray-100">
-                  <span className="text-gray-500">Result</span>
-                  <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
-                    syncStatus.last_sync_result === 'success' ? 'bg-green-100 text-green-800' :
-                    syncStatus.last_sync_result === 'no_new_orders' ? 'bg-yellow-100 text-yellow-800' :
-                    'bg-gray-100 text-gray-600'
-                  }`}>{syncStatus.last_sync_result || 'N/A'}</span>
-                </div>
-                <div className="flex justify-between py-2 border-b border-gray-100">
-                  <span className="text-gray-500">Last Batch - Profiles</span>
-                  <span className="font-medium text-gray-900">{syncStatus.last_batch_profiles || 0}</span>
-                </div>
-                <div className="flex justify-between py-2">
-                  <span className="text-gray-500">Last Batch - Events</span>
-                  <span className="font-medium text-gray-900">{syncStatus.last_batch_events || 0}</span>
-                </div>
+                {syncStatus.liveFlows.map((f, i) => (
+                  <div key={i} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div>
+                      <span className="font-medium text-gray-900">{f.flow_name}</span>
+                      <span className="text-sm text-gray-400 ml-2">({f.trigger_type})</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      {f.recipients > 0 && (
+                        <span className="text-xs text-gray-500">{f.recipients.toLocaleString()} recipients</span>
+                      )}
+                      {f.conversions > 0 && (
+                        <span className="text-xs text-purple-600">{f.conversions} conversions</span>
+                      )}
+                      <span className="text-sm text-green-600 font-medium">Live</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Recent Campaigns from Supabase */}
+          {syncStatus?.recentCampaigns?.length > 0 && (
+            <div className="bg-white rounded-xl border border-gray-200 p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Campaigns (Synced)</h3>
+              <div className="space-y-2">
+                {syncStatus.recentCampaigns.map((c, i) => (
+                  <div key={i} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
+                    <span className="text-sm text-gray-900">{c.campaign_name}</span>
+                    <div className="flex items-center gap-2">
+                      {c.send_time && <span className="text-xs text-gray-400">{new Date(c.send_time).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>}
+                      <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
+                        c.status === 'Sent' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'
+                      }`}>{c.status}</span>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           )}

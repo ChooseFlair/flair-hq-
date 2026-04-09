@@ -2,37 +2,58 @@ import { supabase } from '../../../lib/supabase'
 
 export default async function handler(req, res) {
   try {
-    const { data, error } = await supabase
+    // Get sync status
+    const { data: syncData } = await supabase
       .from('integrations')
       .select('*')
       .eq('id', 'klaviyo_sync')
       .single()
 
-    if (error && error.code !== 'PGRST116') {
-      throw error
-    }
+    // Get counts from synced tables
+    const [
+      { count: flowCount },
+      { count: campaignCount },
+      { count: customerCount },
+      { count: orderCount },
+    ] = await Promise.all([
+      supabase.from('klaviyo_flows').select('*', { count: 'exact', head: true }),
+      supabase.from('klaviyo_campaigns').select('*', { count: 'exact', head: true }),
+      supabase.from('customers').select('*', { count: 'exact', head: true }),
+      supabase.from('orders').select('*', { count: 'exact', head: true }),
+    ])
 
-    if (!data) {
-      return res.json({
-        synced: false,
-        last_sync: null,
-        message: 'Never synced',
-      })
-    }
+    // Get live flows
+    const { data: liveFlows } = await supabase
+      .from('klaviyo_flows')
+      .select('flow_name, status, trigger_type, recipients, conversions, conversion_value, open_rate')
+      .eq('status', 'live')
 
-    const stats = data.access_token ? JSON.parse(data.access_token) : {}
+    // Get recent campaigns
+    const { data: recentCampaigns } = await supabase
+      .from('klaviyo_campaigns')
+      .select('campaign_name, status, send_time')
+      .order('send_time', { ascending: false })
+      .limit(10)
+
+    const stats = syncData?.access_token ? JSON.parse(syncData.access_token) : {}
 
     res.json({
-      synced: true,
-      last_sync: stats.last_sync || data.updated_at,
+      synced: !!syncData,
+      last_sync: stats.last_sync || syncData?.updated_at || null,
       last_sync_mode: stats.last_sync_mode,
       last_sync_result: stats.last_sync_result,
-      profiles_synced: stats.profiles_synced || 0,
-      events_tracked: stats.events_tracked || 0,
-      total_customers: stats.total_customers || 0,
-      last_batch_profiles: stats.last_batch_profiles || 0,
-      last_batch_events: stats.last_batch_events || 0,
-      error_count: stats.error_count || 0,
+      counts: {
+        flows: flowCount || 0,
+        campaigns: campaignCount || 0,
+        customers: customerCount || 0,
+        orders: orderCount || 0,
+      },
+      flows_synced: stats.flows_synced || 0,
+      campaigns_synced: stats.campaigns_synced || 0,
+      profiles_pushed: stats.profiles_pushed || 0,
+      customers_populated: stats.customers_populated || 0,
+      liveFlows: liveFlows || [],
+      recentCampaigns: recentCampaigns || [],
     })
   } catch (e) {
     console.error('Sync status error:', e)
