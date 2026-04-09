@@ -22,6 +22,9 @@ const ChartTooltip = ({ active, payload, label }) => {
 export default function Marketing() {
   const [activeChannel, setActiveChannel] = useState('overview')
   const [klaviyo, setKlaviyo] = useState({ status: 'loading' })
+  const [syncStatus, setSyncStatus] = useState(null)
+  const [syncing, setSyncing] = useState(false)
+  const [syncResult, setSyncResult] = useState(null)
 
   useEffect(() => {
     async function load() {
@@ -35,7 +38,49 @@ export default function Marketing() {
       }
     }
     load()
+    loadSyncStatus()
   }, [])
+
+  async function loadSyncStatus() {
+    try {
+      const res = await fetch('/api/klaviyo/sync-status')
+      const json = await res.json()
+      setSyncStatus(json)
+    } catch {
+      setSyncStatus(null)
+    }
+  }
+
+  async function runSync(mode = 'full') {
+    setSyncing(true)
+    setSyncResult(null)
+    try {
+      const res = await fetch('/api/klaviyo/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode }),
+      })
+      const json = await res.json()
+      if (json.error) throw new Error(json.error)
+      setSyncResult({ success: true, ...json })
+      await loadSyncStatus()
+    } catch (e) {
+      setSyncResult({ success: false, error: e.message })
+    } finally {
+      setSyncing(false)
+    }
+  }
+
+  function formatSyncTime(dateStr) {
+    if (!dateStr) return 'Never'
+    const d = new Date(dateStr)
+    const now = new Date()
+    const diff = Math.floor((now - d) / 1000)
+    if (diff < 60) return 'Just now'
+    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`
+    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`
+    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+  }
 
   const formatCurrency = (value) => `£${parseFloat(value || 0).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
@@ -56,6 +101,7 @@ export default function Marketing() {
         {[
           { key: 'overview', label: 'Overview' },
           { key: 'email', label: 'Email (Klaviyo)' },
+          { key: 'sync', label: 'Klaviyo Sync' },
           { key: 'meta', label: 'Meta Ads' },
         ].map(({ key, label }) => (
           <button
@@ -290,6 +336,174 @@ export default function Marketing() {
             </div>
           </div>
         )
+      )}
+
+      {/* ========== KLAVIYO SYNC ========== */}
+      {activeChannel === 'sync' && (
+        <div className="space-y-6">
+          {/* Sync Status Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="bg-white rounded-lg border border-gray-200 p-4">
+              <p className="text-sm text-gray-500">Sync Status</p>
+              <p className={`text-xl font-bold ${syncStatus?.synced ? 'text-green-600' : 'text-gray-400'}`}>
+                {syncStatus?.synced ? 'Active' : 'Not Synced'}
+              </p>
+              <p className="text-xs text-gray-400 mt-1">Last: {formatSyncTime(syncStatus?.last_sync)}</p>
+            </div>
+            <div className="bg-white rounded-lg border border-gray-200 p-4">
+              <p className="text-sm text-gray-500">Profiles Synced</p>
+              <p className="text-xl font-bold text-blue-600">{(syncStatus?.profiles_synced || 0).toLocaleString()}</p>
+              <p className="text-xs text-gray-400 mt-1">Total pushed to Klaviyo</p>
+            </div>
+            <div className="bg-white rounded-lg border border-gray-200 p-4">
+              <p className="text-sm text-gray-500">Events Tracked</p>
+              <p className="text-xl font-bold text-purple-600">{(syncStatus?.events_tracked || 0).toLocaleString()}</p>
+              <p className="text-xs text-gray-400 mt-1">Order events sent</p>
+            </div>
+            <div className="bg-white rounded-lg border border-gray-200 p-4">
+              <p className="text-sm text-gray-500">Customers</p>
+              <p className="text-xl font-bold text-gray-900">{(syncStatus?.total_customers || 0).toLocaleString()}</p>
+              <p className="text-xs text-gray-400 mt-1">Unique emails</p>
+            </div>
+          </div>
+
+          {/* Sync Actions */}
+          <div className="bg-white rounded-xl border border-gray-200 p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Sync Controls</h3>
+            <p className="text-sm text-gray-500 mb-4">Push your Flair HQ order data and customer profiles to Klaviyo for email marketing segmentation and automation.</p>
+            <div className="flex flex-wrap gap-3">
+              <button
+                onClick={() => runSync('full')}
+                disabled={syncing}
+                className={`px-5 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                  syncing
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    : 'bg-green-600 text-white hover:bg-green-700'
+                }`}
+              >
+                {syncing ? 'Syncing...' : 'Full Sync'}
+              </button>
+              <button
+                onClick={() => runSync('incremental')}
+                disabled={syncing}
+                className={`px-5 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                  syncing
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    : 'bg-blue-600 text-white hover:bg-blue-700'
+                }`}
+              >
+                {syncing ? 'Syncing...' : 'Incremental Sync'}
+              </button>
+            </div>
+            <div className="mt-3 text-xs text-gray-400">
+              <strong>Full Sync:</strong> Re-syncs all orders and customers. <strong>Incremental:</strong> Only syncs new orders since last sync.
+            </div>
+          </div>
+
+          {/* Sync Result */}
+          {syncResult && (
+            <div className={`rounded-xl border p-6 ${syncResult.success ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+              <h3 className={`text-lg font-semibold mb-3 ${syncResult.success ? 'text-green-900' : 'text-red-900'}`}>
+                {syncResult.success ? 'Sync Completed' : 'Sync Failed'}
+              </h3>
+              {syncResult.success ? (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div>
+                    <p className="text-sm text-green-700">Profiles Pushed</p>
+                    <p className="text-lg font-bold text-green-900">{syncResult.profiles_synced || 0}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-green-700">Events Tracked</p>
+                    <p className="text-lg font-bold text-green-900">{syncResult.events_tracked || 0}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-green-700">Total Orders</p>
+                    <p className="text-lg font-bold text-green-900">{syncResult.total_orders || 0}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-green-700">Unique Customers</p>
+                    <p className="text-lg font-bold text-green-900">{syncResult.unique_customers || 0}</p>
+                  </div>
+                  {syncResult.errors && syncResult.errors.length > 0 && (
+                    <div className="col-span-full">
+                      <p className="text-sm text-yellow-700 font-medium">Warnings ({syncResult.errors.length}):</p>
+                      <ul className="text-xs text-yellow-600 mt-1 space-y-1">
+                        {syncResult.errors.slice(0, 5).map((e, i) => <li key={i}>{e}</li>)}
+                        {syncResult.errors.length > 5 && <li>...and {syncResult.errors.length - 5} more</li>}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p className="text-sm text-red-700">{syncResult.error}</p>
+              )}
+            </div>
+          )}
+
+          {/* What Gets Synced */}
+          <div className="bg-white rounded-xl border border-gray-200 p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">What Gets Synced</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="p-4 bg-gray-50 rounded-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center text-sm">-&gt;</div>
+                  <h4 className="font-medium text-gray-900">Flair HQ to Klaviyo</h4>
+                </div>
+                <ul className="text-sm text-gray-600 space-y-1">
+                  <li>Customer profiles (email, name)</li>
+                  <li>Order history (total spent, order count)</li>
+                  <li>Placed Order events for each transaction</li>
+                  <li>Customer lifetime value data</li>
+                </ul>
+              </div>
+              <div className="p-4 bg-gray-50 rounded-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center text-sm">&lt;-</div>
+                  <h4 className="font-medium text-gray-900">Klaviyo to Flair HQ</h4>
+                </div>
+                <ul className="text-sm text-gray-600 space-y-1">
+                  <li>Email metrics (opens, clicks, sent)</li>
+                  <li>Subscriber counts and growth</li>
+                  <li>Flow and campaign performance</li>
+                  <li>Conversion tracking (orders from email)</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          {/* Last Sync Details */}
+          {syncStatus?.synced && (
+            <div className="bg-white rounded-xl border border-gray-200 p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Last Sync Details</h3>
+              <div className="space-y-3">
+                <div className="flex justify-between py-2 border-b border-gray-100">
+                  <span className="text-gray-500">Last Sync Time</span>
+                  <span className="font-medium text-gray-900">{syncStatus.last_sync ? new Date(syncStatus.last_sync).toLocaleString('en-GB') : 'N/A'}</span>
+                </div>
+                <div className="flex justify-between py-2 border-b border-gray-100">
+                  <span className="text-gray-500">Sync Mode</span>
+                  <span className="font-medium text-gray-900 capitalize">{syncStatus.last_sync_mode || 'N/A'}</span>
+                </div>
+                <div className="flex justify-between py-2 border-b border-gray-100">
+                  <span className="text-gray-500">Result</span>
+                  <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
+                    syncStatus.last_sync_result === 'success' ? 'bg-green-100 text-green-800' :
+                    syncStatus.last_sync_result === 'no_new_orders' ? 'bg-yellow-100 text-yellow-800' :
+                    'bg-gray-100 text-gray-600'
+                  }`}>{syncStatus.last_sync_result || 'N/A'}</span>
+                </div>
+                <div className="flex justify-between py-2 border-b border-gray-100">
+                  <span className="text-gray-500">Last Batch - Profiles</span>
+                  <span className="font-medium text-gray-900">{syncStatus.last_batch_profiles || 0}</span>
+                </div>
+                <div className="flex justify-between py-2">
+                  <span className="text-gray-500">Last Batch - Events</span>
+                  <span className="font-medium text-gray-900">{syncStatus.last_batch_events || 0}</span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       )}
 
       {/* ========== META ADS ========== */}
