@@ -90,6 +90,23 @@ Business Overview:
 
 Give a quick health check and one priority action for today.`
 
+    case 'tasks':
+      return `${basePrompt}
+
+Task Manager Data:
+- Active Tasks: ${data?.total || 0}
+- Completed Tasks: ${data?.completed || 0}
+- High Priority: ${data?.urgent || 0}
+- Archived: ${data?.archived || 0}
+
+Tasks by Category:
+${data?.byTag?.map(t => `- ${t.tag}: ${t.count}`).join('\n') || 'N/A'}
+
+Recent Tasks:
+${data?.recentTasks?.map(t => `- ${t.title} (${t.priority}${t.completed ? ', done' : ''})`).join('\n') || 'N/A'}
+
+Analyze task distribution, completion rate, and suggest what to focus on next. Be specific about which category needs attention.`
+
     default:
       return `${basePrompt}
 
@@ -114,6 +131,11 @@ function getStaticSummary(pageType, data) {
       return `• Business operations are running smoothly
 • Monitor pending orders to maintain fulfillment speed
 • Check low stock items to prevent stockouts on bestsellers`
+
+    case 'tasks':
+      return `• Focus on completing high-priority tasks first to maintain momentum
+• Marketing tasks are key for growth - prioritize customer acquisition activities
+• Review completed tasks weekly to identify patterns and optimize your workflow`
 
     default:
       return `• Data analysis complete - key metrics are within expected ranges

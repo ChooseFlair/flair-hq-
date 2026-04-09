@@ -10,6 +10,7 @@ import {
   Clock,
   CheckCircle2,
   ChevronDown,
+  ChevronUp,
   X,
   Filter,
   Upload,
@@ -18,6 +19,8 @@ import {
   Sparkles,
   Loader2,
   Undo2,
+  RefreshCw,
+  Lightbulb,
 } from 'lucide-react'
 
 const TAGS = [
@@ -50,8 +53,14 @@ export default function TaskManager() {
     dueDate: '',
   })
   const [editingTask, setEditingTask] = useState(null)
-  const [loadingStrategic, setLoadingStrategic] = useState(false)
   const [undoPopup, setUndoPopup] = useState(null) // { taskId, taskTitle }
+
+  // AI Summary state
+  const [aiExpanded, setAiExpanded] = useState(true)
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiSummary, setAiSummary] = useState(null)
+  const [aiSuggestions, setAiSuggestions] = useState([])
+  const [suggestLoading, setSuggestLoading] = useState(false)
 
   // Auto-dismiss undo popup after 5 seconds
   useEffect(() => {
@@ -194,32 +203,81 @@ export default function TaskManager() {
     }
   }
 
-  const importStrategicPlan = async () => {
-    setLoadingStrategic(true)
+  // Generate AI summary of current tasks
+  const generateAISummary = async () => {
+    setAiLoading(true)
     try {
-      const res = await fetch('/api/seed-tasks')
-      const data = await res.json()
+      const taskData = {
+        total: stats.total,
+        completed: stats.completed,
+        urgent: stats.urgent,
+        archived: stats.archived,
+        byTag: TAGS.map(tag => ({
+          tag: tag.label,
+          count: tasks.filter(t => !t.archived && t.tags.includes(tag.id)).length
+        })),
+        recentTasks: tasks.filter(t => !t.archived).slice(0, 5).map(t => ({
+          title: t.title,
+          priority: t.priority,
+          completed: t.completed
+        }))
+      }
 
-      if (data.tasks && Array.isArray(data.tasks)) {
-        // Get existing task IDs to avoid duplicates
-        const existingIds = new Set(tasks.map(t => t.id))
+      const res = await fetch('/api/ai/summary', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pageType: 'tasks', data: taskData })
+      })
 
-        // Filter out tasks that already exist
-        const newTasks = data.tasks.filter(t => !existingIds.has(t.id))
+      const result = await res.json()
+      setAiSummary(result.summary)
+    } catch (err) {
+      console.error('AI Summary error:', err)
+      setAiSummary('Unable to generate insights at this time.')
+    } finally {
+      setAiLoading(false)
+    }
+  }
 
-        if (newTasks.length === 0) {
-          alert('Strategic tasks already imported!')
-        } else {
-          setTasks([...newTasks, ...tasks])
-          alert(`Imported ${newTasks.length} strategic tasks!`)
-        }
+  // Generate AI task suggestions
+  const generateSuggestions = async () => {
+    setSuggestLoading(true)
+    try {
+      const res = await fetch('/api/ai/suggest-tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          existingTasks: tasks.filter(t => !t.archived).map(t => t.title),
+          completedTasks: tasks.filter(t => t.completed).map(t => t.title)
+        })
+      })
+
+      const result = await res.json()
+      if (result.suggestions) {
+        setAiSuggestions(result.suggestions)
       }
     } catch (err) {
-      console.error('Error importing strategic tasks:', err)
-      alert('Failed to import strategic tasks')
+      console.error('Suggestions error:', err)
     } finally {
-      setLoadingStrategic(false)
+      setSuggestLoading(false)
     }
+  }
+
+  // Add a suggested task
+  const addSuggestedTask = (suggestion) => {
+    const task = {
+      id: Date.now().toString(),
+      title: suggestion.title,
+      description: suggestion.description || '',
+      tags: suggestion.tags || [],
+      priority: suggestion.priority || 'medium',
+      dueDate: '',
+      completed: false,
+      archived: false,
+      createdAt: new Date().toISOString(),
+    }
+    setTasks([task, ...tasks])
+    setAiSuggestions(aiSuggestions.filter(s => s.title !== suggestion.title))
   }
 
   // Filter tasks
@@ -270,18 +328,6 @@ export default function TaskManager() {
           <p className="text-gray-500 mt-1">Track and manage your business tasks</p>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={importStrategicPlan}
-            disabled={loadingStrategic}
-            className="flex items-center gap-2 px-3 py-2 text-sm text-purple-600 bg-purple-50 hover:bg-purple-100 rounded-lg disabled:opacity-50"
-          >
-            {loadingStrategic ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Sparkles className="w-4 h-4" />
-            )}
-            Strategic Plan
-          </button>
           <label className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg cursor-pointer">
             <Upload className="w-4 h-4" />
             Import
@@ -302,6 +348,120 @@ export default function TaskManager() {
             Add Task
           </button>
         </div>
+      </div>
+
+      {/* AI Insights */}
+      <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-xl overflow-hidden">
+        <div
+          className="flex items-center justify-between px-5 py-4 cursor-pointer"
+          onClick={() => setAiExpanded(!aiExpanded)}
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 bg-purple-100 rounded-lg flex items-center justify-center">
+              <Sparkles className="w-5 h-5 text-purple-600" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-gray-900">AI Insights</h3>
+              <p className="text-xs text-gray-500">Powered by Claude</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                generateAISummary()
+              }}
+              disabled={aiLoading}
+              className="p-2 text-purple-600 hover:bg-purple-100 rounded-lg transition-colors disabled:opacity-50"
+              title="Refresh insights"
+            >
+              <RefreshCw className={`w-4 h-4 ${aiLoading ? 'animate-spin' : ''}`} />
+            </button>
+            {aiExpanded ? (
+              <ChevronUp className="w-5 h-5 text-gray-400" />
+            ) : (
+              <ChevronDown className="w-5 h-5 text-gray-400" />
+            )}
+          </div>
+        </div>
+
+        {aiExpanded && (
+          <div className="px-5 pb-5 space-y-4">
+            {/* Summary */}
+            {aiLoading ? (
+              <div className="flex items-center gap-3 text-gray-500">
+                <div className="w-4 h-4 border-2 border-purple-300 border-t-purple-600 rounded-full animate-spin" />
+                <span className="text-sm">Analyzing your tasks...</span>
+              </div>
+            ) : aiSummary ? (
+              <div className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">
+                {aiSummary}
+              </div>
+            ) : (
+              <div className="text-sm text-gray-500">
+                <button
+                  onClick={generateAISummary}
+                  className="text-purple-600 hover:text-purple-700 font-medium"
+                >
+                  Click to generate AI insights
+                </button>
+              </div>
+            )}
+
+            {/* Suggest Ideas Button */}
+            <div className="pt-3 border-t border-purple-200">
+              <button
+                onClick={generateSuggestions}
+                disabled={suggestLoading}
+                className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 text-sm font-medium"
+              >
+                {suggestLoading ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Lightbulb className="w-4 h-4" />
+                )}
+                Suggest New Ideas
+              </button>
+            </div>
+
+            {/* AI Suggestions */}
+            {aiSuggestions.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-purple-700 uppercase tracking-wide">Suggested Tasks</p>
+                {aiSuggestions.map((suggestion, idx) => (
+                  <div
+                    key={idx}
+                    className="flex items-start justify-between gap-3 p-3 bg-white/60 rounded-lg border border-purple-100"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-gray-900 text-sm">{suggestion.title}</p>
+                      {suggestion.description && (
+                        <p className="text-xs text-gray-500 mt-1 line-clamp-2">{suggestion.description}</p>
+                      )}
+                      <div className="flex items-center gap-1 mt-2">
+                        {suggestion.tags?.map(tagId => {
+                          const tag = TAGS.find(t => t.id === tagId)
+                          return tag ? (
+                            <span key={tagId} className={`px-1.5 py-0.5 text-xs rounded-full ${tag.color}`}>
+                              {tag.label}
+                            </span>
+                          ) : null
+                        })}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => addSuggestedTask(suggestion)}
+                      className="flex-shrink-0 p-2 text-purple-600 hover:bg-purple-100 rounded-lg"
+                      title="Add this task"
+                    >
+                      <Plus className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Stats */}
