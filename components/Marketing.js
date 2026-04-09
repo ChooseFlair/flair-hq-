@@ -19,20 +19,41 @@ import {
   Clock,
   Zap,
 } from 'lucide-react'
+import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import DateRangePicker from './DateRangePicker'
 import AISummary from './AISummary'
 import TaskWidget from './TaskWidget'
 
+function fmtDate(d) {
+  if (!d) return ''
+  const dt = new Date(d)
+  return `${dt.getDate()} ${dt.toLocaleString('en-GB', { month: 'short' })}`
+}
+
+const ChartTooltip = ({ active, payload, label }) => {
+  if (!active || !payload?.length) return null
+  return (
+    <div className="bg-white border border-gray-200 rounded-lg shadow-lg p-3 text-sm">
+      <div className="text-gray-500 mb-1">{fmtDate(label)}</div>
+      {payload.map((p, i) => (
+        <div key={i} style={{ color: p.color }} className="font-medium">{p.name}: {p.value.toLocaleString()}</div>
+      ))}
+    </div>
+  )
+}
+
 export default function Marketing({ activeSubTab, setActiveSubTab }) {
-  // Use prop or default to 'overview'
   const activeChannel = activeSubTab || 'overview'
   const setActiveChannel = (tab) => setActiveSubTab?.(tab)
 
-  const [klaviyoData, setKlaviyoData] = useState(null)
+  const [klaviyo, setKlaviyo] = useState({ status: 'loading' })
   const [metaData, setMetaData] = useState(null)
   const [organicData, setOrganicData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [syncStatus, setSyncStatus] = useState(null)
+  const [syncing, setSyncing] = useState(false)
+  const [syncResult, setSyncResult] = useState(null)
 
   const [dateRange, setDateRange] = useState({
     startDate: subDays(new Date(), 30),
@@ -42,44 +63,82 @@ export default function Marketing({ activeSubTab, setActiveSubTab }) {
 
   useEffect(() => {
     loadData()
+    loadSyncStatus()
   }, [])
 
   const loadData = async () => {
     setLoading(true)
     try {
       const [klaviyoRes, metaRes, organicRes] = await Promise.all([
-        fetch('/api/klaviyo/overview'),
+        fetch('/api/klaviyo'),
         fetch('/api/meta/overview'),
         fetch('/api/facebook/organic'),
       ])
 
-      const klaviyo = await klaviyoRes.json()
+      const klaviyoJson = await klaviyoRes.json()
       const meta = await metaRes.json()
       const organic = await organicRes.json()
 
-      if (klaviyo.needsAuth) {
-        setKlaviyoData({ needsAuth: true })
-      } else if (klaviyo.error) {
-        console.error('Klaviyo error:', klaviyo.error)
+      if (klaviyoJson.error) {
+        setKlaviyo({ status: 'error' })
       } else {
-        setKlaviyoData(klaviyo)
+        setKlaviyo({ ...klaviyoJson, status: 'live' })
       }
 
       setMetaData(meta)
 
-      if (organic.needsAuth) {
-        setOrganicData({ needsAuth: true })
-      } else if (organic.error) {
-        console.error('Facebook organic error:', organic.error)
+      if (organic.needsAuth || organic.error) {
         setOrganicData({ needsAuth: true })
       } else {
         setOrganicData(organic)
       }
     } catch (err) {
       setError(err.message)
+      setKlaviyo({ status: 'error' })
     } finally {
       setLoading(false)
     }
+  }
+
+  async function loadSyncStatus() {
+    try {
+      const res = await fetch('/api/klaviyo/sync-status')
+      const json = await res.json()
+      setSyncStatus(json)
+    } catch {
+      setSyncStatus(null)
+    }
+  }
+
+  async function runSync(mode = 'full') {
+    setSyncing(true)
+    setSyncResult(null)
+    try {
+      const res = await fetch('/api/klaviyo/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode }),
+      })
+      const json = await res.json()
+      if (json.error) throw new Error(json.error)
+      setSyncResult({ success: true, ...json })
+      await loadSyncStatus()
+    } catch (e) {
+      setSyncResult({ success: false, error: e.message })
+    } finally {
+      setSyncing(false)
+    }
+  }
+
+  function formatSyncTime(dateStr) {
+    if (!dateStr) return 'Never'
+    const d = new Date(dateStr)
+    const now = new Date()
+    const diff = Math.floor((now - d) / 1000)
+    if (diff < 60) return 'Just now'
+    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`
+    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`
+    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
   }
 
   const formatCurrency = (value) => `£${parseFloat(value || 0).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -113,8 +172,10 @@ export default function Marketing({ activeSubTab, setActiveSubTab }) {
   }
 
   const insights = metaData?.insights || {}
+  const liveFlows = (klaviyo.flows || []).filter(f => f.status === 'live')
+  const timeSeries = klaviyo.timeSeries || []
+  const isLive = klaviyo.status === 'live'
 
-  // Build AI summary data
   const getAISummaryData = () => ({
     spend: insights.spend,
     roas: insights.roas,
@@ -122,18 +183,14 @@ export default function Marketing({ activeSubTab, setActiveSubTab }) {
     cpa: insights.cpa,
     ctr: insights.ctr,
     organicImpressions: organicData?.summary?.impressions,
-    emailLists: klaviyoData?.stats?.totalLists,
+    emailLists: klaviyo.lists?.length || 0,
   })
 
   return (
     <div className="space-y-6">
-      {/* AI Summary */}
       <AISummary pageType="marketing" data={getAISummaryData()} />
-
-      {/* Task Widget */}
       <TaskWidget filterTag="marketing" title="Marketing Tasks" />
 
-      {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Marketing</h1>
@@ -151,12 +208,12 @@ export default function Marketing({ activeSubTab, setActiveSubTab }) {
         </div>
       </div>
 
-      {/* Channel Tabs */}
       <div className="flex gap-2 flex-wrap">
         {[
           { id: 'overview', label: 'Overview', icon: Eye },
           { id: 'organic', label: 'Organic Social', icon: Share2 },
           { id: 'email', label: 'Email (Klaviyo)', icon: Mail },
+          { id: 'sync', label: 'Klaviyo Sync', icon: Zap },
           { id: 'meta', label: 'Meta Ads', icon: BarChart3 },
         ].map((channel) => {
           const Icon = channel.icon
@@ -183,185 +240,127 @@ export default function Marketing({ activeSubTab, setActiveSubTab }) {
         </div>
       )}
 
-      {/* Overview */}
+      {/* Overview Tab */}
       {activeChannel === 'overview' && (
         <div className="space-y-6">
-          {/* Combined Stats */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="bg-white rounded-xl border border-gray-200 p-5">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center">
-                  <DollarSign className="w-5 h-5 text-blue-600" />
-                </div>
-                <p className="text-sm text-gray-500">Ad Spend (30d)</p>
-              </div>
-              <p className="text-2xl font-bold text-gray-900">
-                {loading ? '...' : formatCurrency(insights.spend)}
-              </p>
+            <div className="bg-white rounded-lg border border-gray-200 p-4">
+              <p className="text-sm text-gray-500">Total Reach</p>
+              <p className="text-xl font-bold text-gray-900">{isLive ? (klaviyo.emailsSent || 0).toLocaleString() : '—'}</p>
+              <p className="text-xs text-gray-400 mt-1">Emails sent (30d)</p>
             </div>
-            <div className="bg-white rounded-xl border border-gray-200 p-5">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 bg-green-50 rounded-lg flex items-center justify-center">
-                  <TrendingUp className="w-5 h-5 text-green-600" />
-                </div>
-                <p className="text-sm text-gray-500">ROAS</p>
-              </div>
-              <p className="text-2xl font-bold text-green-600">
-                {loading ? '...' : `${insights.roas?.toFixed(2)}x`}
-              </p>
+            <div className="bg-white rounded-lg border border-gray-200 p-4">
+              <p className="text-sm text-gray-500">Engagements</p>
+              <p className="text-xl font-bold text-green-600">{isLive ? ((klaviyo.opens || 0) + (klaviyo.clicks || 0)).toLocaleString() : '—'}</p>
+              <p className="text-xs text-gray-400 mt-1">Opens + clicks (30d)</p>
             </div>
-            <div className="bg-white rounded-xl border border-gray-200 p-5">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 bg-purple-50 rounded-lg flex items-center justify-center">
-                  <ShoppingCart className="w-5 h-5 text-purple-600" />
-                </div>
-                <p className="text-sm text-gray-500">Purchases</p>
-              </div>
-              <p className="text-2xl font-bold text-purple-600">
-                {loading ? '...' : insights.purchases}
-              </p>
+            <div className="bg-white rounded-lg border border-gray-200 p-4">
+              <p className="text-sm text-gray-500">Email Subscribers</p>
+              <p className="text-xl font-bold text-blue-600">{isLive ? `${(klaviyo.totalProfiles || 0).toLocaleString()}${klaviyo.hasMoreProfiles ? '+' : ''}` : '—'}</p>
+              <p className="text-xs text-gray-400 mt-1">+{isLive ? klaviyo.newSubscribers || 0 : 0} new (30d)</p>
             </div>
-            <div className="bg-white rounded-xl border border-gray-200 p-5">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 bg-orange-50 rounded-lg flex items-center justify-center">
-                  <Target className="w-5 h-5 text-orange-600" />
-                </div>
-                <p className="text-sm text-gray-500">Ad Revenue</p>
-              </div>
-              <p className="text-2xl font-bold text-orange-600">
-                {loading ? '...' : formatCurrency(insights.purchaseValue)}
-              </p>
+            <div className="bg-white rounded-lg border border-gray-200 p-4">
+              <p className="text-sm text-gray-500">Conversions</p>
+              <p className="text-xl font-bold text-purple-600">{isLive ? (klaviyo.orders || 0).toLocaleString() : '—'}</p>
+              <p className="text-xs text-gray-400 mt-1">Orders from email (30d)</p>
             </div>
           </div>
 
-          {/* Integration Status */}
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Integration Status</h3>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                    <Mail className="w-5 h-5 text-purple-600" />
-                  </div>
-                  <div>
-                    <p className="font-medium text-gray-900">Klaviyo</p>
-                    <p className="text-sm text-gray-500">
-                      {klaviyoData?.stats ? `${klaviyoData.stats.totalCampaigns} campaigns, ${klaviyoData.stats.activeFlows} active flows` : 'Email marketing'}
-                    </p>
-                  </div>
-                </div>
-                <span className={`inline-flex items-center gap-1 px-3 py-1 text-sm font-medium rounded-full ${klaviyoData?.needsAuth ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}`}>
-                  {klaviyoData?.needsAuth ? <Clock className="w-3 h-3" /> : <CheckCircle className="w-3 h-3" />}
-                  {klaviyoData?.needsAuth ? 'Not Connected' : 'Connected'}
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                    <BarChart3 className="w-5 h-5 text-blue-600" />
-                  </div>
-                  <div>
-                    <p className="font-medium text-gray-900">Meta Ads</p>
-                    <p className="text-sm text-gray-500">
-                      {metaData?.account ? `${metaData.account.name} (${formatCurrency(metaData.account.totalSpent)} lifetime)` : 'Facebook & Instagram'}
-                    </p>
-                  </div>
-                </div>
-                <span className="inline-flex items-center gap-1 px-3 py-1 bg-green-100 text-green-800 text-sm font-medium rounded-full">
-                  <CheckCircle className="w-3 h-3" />
-                  Connected
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-gradient-to-r from-blue-100 to-pink-100 rounded-lg flex items-center justify-center">
-                    <Share2 className="w-5 h-5 text-pink-600" />
-                  </div>
-                  <div>
-                    <p className="font-medium text-gray-900">Organic Social</p>
-                    <p className="text-sm text-gray-500">
-                      {organicData?.page ? `${organicData.page.name} (${formatNumber(organicData.page.fanCount)} fans)` : 'Facebook & Instagram organic'}
-                    </p>
-                  </div>
-                </div>
-                <span className={`inline-flex items-center gap-1 px-3 py-1 text-sm font-medium rounded-full ${organicData?.needsAuth ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}`}>
-                  {organicData?.needsAuth ? <Clock className="w-3 h-3" /> : <CheckCircle className="w-3 h-3" />}
-                  {organicData?.needsAuth ? 'Not Connected' : 'Connected'}
-                </span>
-              </div>
+          {isLive && timeSeries.length > 0 && (
+            <div className="bg-white rounded-xl border border-gray-200 p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Daily Engagement (30d)</h3>
+              <ResponsiveContainer width="100%" height={280}>
+                <AreaChart data={timeSeries}>
+                  <defs>
+                    <linearGradient id="ovSent" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#6366f1" stopOpacity={0.2} />
+                      <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="ovOpens" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.2} />
+                      <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                  <XAxis dataKey="date" tickFormatter={fmtDate} stroke="#9ca3af" fontSize={12} />
+                  <YAxis stroke="#9ca3af" fontSize={12} />
+                  <Tooltip content={<ChartTooltip />} />
+                  <Area type="monotone" dataKey="sent" name="Sent" stroke="#6366f1" fill="url(#ovSent)" strokeWidth={2} />
+                  <Area type="monotone" dataKey="opens" name="Opens" stroke="#10b981" fill="url(#ovOpens)" strokeWidth={2} />
+                  <Area type="monotone" dataKey="clicks" name="Clicks" stroke="#f59e0b" fill="none" strokeWidth={2} />
+                </AreaChart>
+              </ResponsiveContainer>
             </div>
-          </div>
+          )}
 
-          {/* Quick Stats Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-              <div className="px-6 py-4 border-b border-gray-200 flex items-center gap-2">
-                <BarChart3 className="w-5 h-5 text-blue-600" />
-                <h3 className="font-semibold text-gray-900">Meta Ads (Last 30 Days)</h3>
-              </div>
-              <div className="p-6">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-sm text-gray-500">Impressions</p>
-                    <p className="text-lg font-semibold">{formatNumber(insights.impressions)}</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="bg-white rounded-xl border border-gray-200 p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Channels</h3>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                      <Mail className="w-5 h-5 text-purple-600" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-gray-900">Klaviyo</p>
+                      <p className="text-sm text-gray-500">{isLive ? `${(klaviyo.emailsSent || 0).toLocaleString()} sent` : 'Email marketing'}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm text-gray-500">Reach</p>
-                    <p className="text-lg font-semibold">{formatNumber(insights.reach)}</p>
+                  <span className={`px-3 py-1 text-sm font-medium rounded-full ${isLive ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                    {isLive ? 'Connected' : klaviyo.status === 'loading' ? 'Loading...' : 'Error'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                      <BarChart3 className="w-5 h-5 text-blue-600" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-gray-900">Meta Ads</p>
+                      <p className="text-sm text-gray-500">{metaData?.account?.name || 'Facebook & Instagram'}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm text-gray-500">Clicks</p>
-                    <p className="text-lg font-semibold">{formatNumber(insights.clicks)}</p>
+                  <span className={`px-3 py-1 text-sm font-medium rounded-full ${metaData?.account ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                    {metaData?.account ? 'Connected' : 'Pending'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-pink-100 rounded-lg flex items-center justify-center">
+                      <Share2 className="w-5 h-5 text-pink-600" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-gray-900">Organic Social</p>
+                      <p className="text-sm text-gray-500">{organicData?.page?.name || 'Facebook & Instagram'}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm text-gray-500">CTR</p>
-                    <p className="text-lg font-semibold">{insights.ctr?.toFixed(2)}%</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-500">CPC</p>
-                    <p className="text-lg font-semibold">{formatCurrency(insights.cpc)}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-500">CPA</p>
-                    <p className="text-lg font-semibold">{formatCurrency(insights.cpa)}</p>
-                  </div>
+                  <span className={`px-3 py-1 text-sm font-medium rounded-full ${!organicData?.needsAuth ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                    {!organicData?.needsAuth ? 'Connected' : 'Not Connected'}
+                  </span>
                 </div>
               </div>
             </div>
-
-            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-              <div className="px-6 py-4 border-b border-gray-200 flex items-center gap-2">
-                <Mail className="w-5 h-5 text-purple-600" />
-                <h3 className="font-semibold text-gray-900">Klaviyo Email</h3>
-              </div>
-              <div className="p-6">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-sm text-gray-500">Lists</p>
-                    <p className="text-lg font-semibold">{klaviyoData?.stats?.totalLists || 0}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-500">Campaigns</p>
-                    <p className="text-lg font-semibold">{klaviyoData?.stats?.totalCampaigns || 0}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-500">Active Flows</p>
-                    <p className="text-lg font-semibold">{klaviyoData?.stats?.activeFlows || 0}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-500">Segments</p>
-                    <p className="text-lg font-semibold">{klaviyoData?.stats?.totalSegments || 0}</p>
-                  </div>
+            <div className="bg-white rounded-xl border border-gray-200 p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Active Automations</h3>
+              {isLive && liveFlows.length > 0 ? (
+                <div className="space-y-3">
+                  {liveFlows.map((f, i) => (
+                    <div key={i} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                      <span className="font-medium text-gray-900">{f.name}</span>
+                      <span className="text-sm text-green-600">Live</span>
+                    </div>
+                  ))}
                 </div>
-              </div>
+              ) : (
+                <p className="text-gray-500 text-center py-4">{isLive ? 'No active flows' : 'Connect Klaviyo to view flows'}</p>
+              )}
             </div>
           </div>
         </div>
       )}
 
-      {/* Organic Social */}
+      {/* Organic Social Tab */}
       {activeChannel === 'organic' && (
         <div className="space-y-6">
           {loading ? (
@@ -378,16 +377,14 @@ export default function Marketing({ activeSubTab, setActiveSubTab }) {
             </div>
           ) : (
             <>
-              {/* Page Info */}
               <div className="bg-white rounded-xl border border-gray-200 p-6">
                 <div className="flex items-center gap-4">
-                  {organicData?.page?.picture && (
-                    <img src={organicData.page.picture} alt={organicData.page.name} className="w-16 h-16 rounded-full" />
-                  )}
+                  <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
+                    <Share2 className="w-8 h-8 text-blue-600" />
+                  </div>
                   <div>
                     <h2 className="text-xl font-bold text-gray-900">{organicData?.page?.name}</h2>
                     <p className="text-gray-500">@{organicData?.page?.username}</p>
-                    <p className="text-sm text-gray-400">{organicData?.page?.category}</p>
                   </div>
                   <div className="ml-auto text-right">
                     <p className="text-2xl font-bold text-blue-600">{formatNumber(organicData?.page?.fanCount || 0)}</p>
@@ -396,7 +393,6 @@ export default function Marketing({ activeSubTab, setActiveSubTab }) {
                 </div>
               </div>
 
-              {/* Organic Stats */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="bg-white rounded-xl border border-gray-200 p-5">
                   <div className="flex items-center gap-3 mb-3">
@@ -430,50 +426,14 @@ export default function Marketing({ activeSubTab, setActiveSubTab }) {
                     <div className="w-10 h-10 bg-orange-50 rounded-lg flex items-center justify-center">
                       <TrendingUp className="w-5 h-5 text-orange-600" />
                     </div>
-                    <p className="text-sm text-gray-500">Page Views</p>
+                    <p className="text-sm text-gray-500">Net Fan Change</p>
                   </div>
-                  <p className="text-2xl font-bold text-orange-600">{formatNumber(organicData?.summary?.pageViews || 0)}</p>
+                  <p className={`text-2xl font-bold ${(organicData?.summary?.netFanChange || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {(organicData?.summary?.netFanChange || 0) >= 0 ? '+' : ''}{organicData?.summary?.netFanChange || 0}
+                  </p>
                 </div>
               </div>
 
-              {/* Engagement & Growth */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-white rounded-xl border border-gray-200 p-6">
-                  <h3 className="font-semibold text-gray-900 mb-4">Engagement (30 Days)</h3>
-                  <div className="space-y-4">
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-600">Post Engagements</span>
-                      <span className="font-semibold">{formatNumber(organicData?.summary?.postEngagements || 0)}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-600">Reactions</span>
-                      <span className="font-semibold">{formatNumber(organicData?.summary?.reactions || 0)}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-white rounded-xl border border-gray-200 p-6">
-                  <h3 className="font-semibold text-gray-900 mb-4">Follower Growth (30 Days)</h3>
-                  <div className="space-y-4">
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-600">New Followers</span>
-                      <span className="font-semibold text-green-600">+{formatNumber(organicData?.summary?.fanAdds || 0)}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-600">Unfollows</span>
-                      <span className="font-semibold text-red-600">-{formatNumber(organicData?.summary?.fanRemoves || 0)}</span>
-                    </div>
-                    <div className="flex justify-between items-center border-t pt-3">
-                      <span className="text-gray-900 font-medium">Net Change</span>
-                      <span className={`font-bold ${(organicData?.summary?.netFanChange || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        {(organicData?.summary?.netFanChange || 0) >= 0 ? '+' : ''}{formatNumber(organicData?.summary?.netFanChange || 0)}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Recent Posts */}
               <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
                 <div className="px-6 py-4 border-b border-gray-200">
                   <h3 className="font-semibold text-gray-900">Recent Posts</h3>
@@ -483,17 +443,14 @@ export default function Marketing({ activeSubTab, setActiveSubTab }) {
                     organicData.recentPosts.slice(0, 5).map((post) => (
                       <div key={post.id} className="px-6 py-4">
                         <div className="flex items-start gap-4">
-                          {post.image && (
-                            <img src={post.image} alt="" className="w-16 h-16 object-cover rounded-lg flex-shrink-0" />
-                          )}
                           <div className="flex-1 min-w-0">
                             <p className="text-gray-900 line-clamp-2">{post.message || '(No text)'}</p>
                             <p className="text-xs text-gray-400 mt-1">{formatDate(post.createdTime)}</p>
                           </div>
                           <div className="flex gap-4 text-sm text-gray-500">
-                            <span className="flex items-center gap-1" title="Reactions"><Heart className="w-4 h-4" /> {post.reactions}</span>
-                            <span className="flex items-center gap-1" title="Comments"><MessageCircle className="w-4 h-4" /> {post.comments}</span>
-                            <span className="flex items-center gap-1" title="Shares"><Repeat className="w-4 h-4" /> {post.shares}</span>
+                            <span className="flex items-center gap-1"><Heart className="w-4 h-4" /> {post.reactions}</span>
+                            <span className="flex items-center gap-1"><MessageCircle className="w-4 h-4" /> {post.comments}</span>
+                            <span className="flex items-center gap-1"><Repeat className="w-4 h-4" /> {post.shares}</span>
                           </div>
                         </div>
                       </div>
@@ -508,122 +465,186 @@ export default function Marketing({ activeSubTab, setActiveSubTab }) {
         </div>
       )}
 
-      {/* Email (Klaviyo) */}
+      {/* Email (Klaviyo) Tab */}
       {activeChannel === 'email' && (
+        klaviyo.status === 'loading' ? (
+          <div className="text-center py-16 text-gray-500">Loading Klaviyo data...</div>
+        ) : klaviyo.status === 'error' ? (
+          <div className="text-center py-16 text-red-500">Failed to connect to Klaviyo</div>
+        ) : (
+          <div className="space-y-6">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="bg-white rounded-lg border border-gray-200 p-4">
+                <p className="text-sm text-gray-500">Subscribers</p>
+                <p className="text-xl font-bold text-gray-900">{(klaviyo.totalProfiles || 0).toLocaleString()}{klaviyo.hasMoreProfiles ? '+' : ''}</p>
+              </div>
+              <div className="bg-white rounded-lg border border-gray-200 p-4">
+                <p className="text-sm text-gray-500">Open Rate</p>
+                <p className="text-xl font-bold text-green-600">{klaviyo.openRate || 0}%</p>
+              </div>
+              <div className="bg-white rounded-lg border border-gray-200 p-4">
+                <p className="text-sm text-gray-500">Click Rate</p>
+                <p className="text-xl font-bold text-blue-600">{klaviyo.clickRate || 0}%</p>
+              </div>
+              <div className="bg-white rounded-lg border border-gray-200 p-4">
+                <p className="text-sm text-gray-500">Orders (30d)</p>
+                <p className="text-xl font-bold text-purple-600">{(klaviyo.orders || 0).toLocaleString()}</p>
+              </div>
+            </div>
+
+            {timeSeries.length > 0 && (
+              <div className="bg-white rounded-xl border border-gray-200 p-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Emails Sent (Daily)</h3>
+                <ResponsiveContainer width="100%" height={220}>
+                  <BarChart data={timeSeries}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                    <XAxis dataKey="date" tickFormatter={fmtDate} stroke="#9ca3af" fontSize={12} />
+                    <YAxis stroke="#9ca3af" fontSize={12} />
+                    <Tooltip content={<ChartTooltip />} />
+                    <Bar dataKey="sent" name="Sent" fill="#6366f1" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+
+            <div className="bg-white rounded-xl border border-gray-200 p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Active Flows</h3>
+              <div className="space-y-3">
+                {liveFlows.length ? liveFlows.map((f, i) => (
+                  <div key={i} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div>
+                      <span className="font-medium text-gray-900">{f.name}</span>
+                      <span className="text-sm text-gray-400 ml-2">({f.trigger})</span>
+                    </div>
+                    <span className="text-sm text-green-600 font-medium">Live</span>
+                  </div>
+                )) : <p className="text-gray-500 text-center py-4">No active flows</p>}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-white rounded-xl border border-gray-200 p-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Campaigns</h3>
+                <div className="space-y-2">
+                  {(klaviyo.campaigns || []).slice(0, 5).map((c, i) => (
+                    <div key={i} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
+                      <span className="text-sm text-gray-900">{c.name}</span>
+                      <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
+                        c.status === 'Sent' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'
+                      }`}>{c.status}</span>
+                    </div>
+                  ))}
+                  {!(klaviyo.campaigns || []).length && <p className="text-gray-500 text-center py-4">No campaigns</p>}
+                </div>
+              </div>
+              <div className="bg-white rounded-xl border border-gray-200 p-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Lists & Segments</h3>
+                <div className="space-y-2">
+                  {(klaviyo.lists || []).map((l, i) => (
+                    <div key={'l'+i} className="flex items-center justify-between py-2 border-b border-gray-100">
+                      <span className="text-sm text-gray-900">{l.name}</span>
+                      <span className="text-xs text-gray-400">List</span>
+                    </div>
+                  ))}
+                  {(klaviyo.segments || []).map((s, i) => (
+                    <div key={'s'+i} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
+                      <span className="text-sm text-gray-900">{s.name}</span>
+                      <span className={`text-xs ${s.active ? 'text-green-600' : 'text-gray-400'}`}>Segment</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      )}
+
+      {/* Klaviyo Sync Tab */}
+      {activeChannel === 'sync' && (
         <div className="space-y-6">
-          {loading ? (
-            <div className="flex items-center justify-center h-64">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="bg-white rounded-lg border border-gray-200 p-4">
+              <p className="text-sm text-gray-500">Sync Status</p>
+              <p className={`text-xl font-bold ${syncStatus?.synced ? 'text-green-600' : 'text-gray-400'}`}>
+                {syncStatus?.synced ? 'Active' : 'Not Synced'}
+              </p>
+              <p className="text-xs text-gray-400 mt-1">Last: {formatSyncTime(syncStatus?.last_sync)}</p>
             </div>
-          ) : klaviyoData?.needsAuth ? (
-            <div className="bg-white rounded-xl border border-gray-200 p-8 text-center">
-              <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Mail className="w-8 h-8 text-purple-600" />
-              </div>
-              <h2 className="text-xl font-semibold text-gray-900 mb-2">Connect Klaviyo</h2>
-              <p className="text-gray-500 mb-6">Add your Klaviyo API key to see email marketing data.</p>
+            <div className="bg-white rounded-lg border border-gray-200 p-4">
+              <p className="text-sm text-gray-500">Customers</p>
+              <p className="text-xl font-bold text-blue-600">{(syncStatus?.counts?.customers || 0).toLocaleString()}</p>
+              <p className="text-xs text-gray-400 mt-1">Synced to Klaviyo</p>
             </div>
-          ) : (
-            <>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="bg-white rounded-xl border border-gray-200 p-5">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="w-10 h-10 bg-purple-50 rounded-lg flex items-center justify-center">
-                      <Users className="w-5 h-5 text-purple-600" />
-                    </div>
-                    <p className="text-sm text-gray-500">Total Lists</p>
-                  </div>
-                  <p className="text-2xl font-bold text-gray-900">{klaviyoData?.stats?.totalLists || 0}</p>
-                </div>
-                <div className="bg-white rounded-xl border border-gray-200 p-5">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center">
-                      <Mail className="w-5 h-5 text-blue-600" />
-                    </div>
-                    <p className="text-sm text-gray-500">Total Campaigns</p>
-                  </div>
-                  <p className="text-2xl font-bold text-blue-600">{klaviyoData?.stats?.totalCampaigns || 0}</p>
-                </div>
-                <div className="bg-white rounded-xl border border-gray-200 p-5">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="w-10 h-10 bg-green-50 rounded-lg flex items-center justify-center">
-                      <Zap className="w-5 h-5 text-green-600" />
-                    </div>
-                    <p className="text-sm text-gray-500">Active Flows</p>
-                  </div>
-                  <p className="text-2xl font-bold text-green-600">{klaviyoData?.stats?.activeFlows || 0}</p>
-                </div>
-                <div className="bg-white rounded-xl border border-gray-200 p-5">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="w-10 h-10 bg-orange-50 rounded-lg flex items-center justify-center">
-                      <Target className="w-5 h-5 text-orange-600" />
-                    </div>
-                    <p className="text-sm text-gray-500">Segments</p>
-                  </div>
-                  <p className="text-2xl font-bold text-orange-600">{klaviyoData?.stats?.totalSegments || 0}</p>
-                </div>
-              </div>
+            <div className="bg-white rounded-lg border border-gray-200 p-4">
+              <p className="text-sm text-gray-500">Flows</p>
+              <p className="text-xl font-bold text-purple-600">{(syncStatus?.counts?.flows || 0).toLocaleString()}</p>
+              <p className="text-xs text-gray-400 mt-1">Automated flows</p>
+            </div>
+            <div className="bg-white rounded-lg border border-gray-200 p-4">
+              <p className="text-sm text-gray-500">Campaigns</p>
+              <p className="text-xl font-bold text-gray-900">{(syncStatus?.counts?.campaigns || 0).toLocaleString()}</p>
+              <p className="text-xs text-gray-400 mt-1">Email campaigns</p>
+            </div>
+          </div>
 
-              {/* Active Flows */}
-              <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                <div className="px-6 py-4 border-b border-gray-200">
-                  <h3 className="font-semibold text-gray-900">Active Flows</h3>
-                </div>
-                <div className="divide-y divide-gray-100">
-                  {klaviyoData?.activeFlows?.length > 0 ? (
-                    klaviyoData.activeFlows.map((flow) => (
-                      <div key={flow.id} className="px-6 py-4 flex items-center justify-between">
-                        <div>
-                          <p className="font-medium text-gray-900">{flow.name}</p>
-                          <p className="text-sm text-gray-500">Created {formatDate(flow.createdAt)}</p>
-                        </div>
-                        <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">
-                          <CheckCircle className="w-3 h-3" /> Live
-                        </span>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="px-6 py-8 text-center text-gray-500">No active flows found</div>
-                  )}
-                </div>
-              </div>
+          <div className="bg-white rounded-xl border border-gray-200 p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Sync Controls</h3>
+            <p className="text-sm text-gray-500 mb-4">Push your Flair HQ order data and customer profiles to Klaviyo.</p>
+            <div className="flex flex-wrap gap-3">
+              <button
+                onClick={() => runSync('full')}
+                disabled={syncing}
+                className={`px-5 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                  syncing ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-green-600 text-white hover:bg-green-700'
+                }`}
+              >
+                {syncing ? 'Syncing...' : 'Full Sync'}
+              </button>
+              <button
+                onClick={() => runSync('incremental')}
+                disabled={syncing}
+                className={`px-5 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                  syncing ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'
+                }`}
+              >
+                {syncing ? 'Syncing...' : 'Incremental Sync'}
+              </button>
+            </div>
+          </div>
 
-              {/* Recent Campaigns */}
-              <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                <div className="px-6 py-4 border-b border-gray-200">
-                  <h3 className="font-semibold text-gray-900">Recent Campaigns</h3>
+          {syncResult && (
+            <div className={`rounded-xl border p-6 ${syncResult.success ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+              <h3 className={`text-lg font-semibold mb-3 ${syncResult.success ? 'text-green-900' : 'text-red-900'}`}>
+                {syncResult.success ? 'Sync Completed' : 'Sync Failed'}
+              </h3>
+              {syncResult.success ? (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div>
+                    <p className="text-sm text-green-700">Profiles Pushed</p>
+                    <p className="text-lg font-bold text-green-900">{syncResult.profiles_synced || 0}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-green-700">Events Tracked</p>
+                    <p className="text-lg font-bold text-green-900">{syncResult.events_tracked || 0}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-green-700">Total Orders</p>
+                    <p className="text-lg font-bold text-green-900">{syncResult.total_orders || 0}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-green-700">Unique Customers</p>
+                    <p className="text-lg font-bold text-green-900">{syncResult.unique_customers || 0}</p>
+                  </div>
                 </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Campaign</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sent</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                      {klaviyoData?.recentCampaigns?.slice(0, 10).map((campaign) => (
-                        <tr key={campaign.id} className="hover:bg-gray-50">
-                          <td className="px-6 py-4 font-medium text-gray-900">{campaign.name}</td>
-                          <td className="px-6 py-4">
-                            <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(campaign.status)}`}>
-                              {campaign.status}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 text-sm text-gray-500">{formatDate(campaign.sendTime)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </>
+              ) : (
+                <p className="text-sm text-red-700">{syncResult.error}</p>
+              )}
+            </div>
           )}
         </div>
       )}
 
-      {/* Meta Ads */}
+      {/* Meta Ads Tab */}
       {activeChannel === 'meta' && (
         <div className="space-y-6">
           {loading ? (
@@ -699,7 +720,6 @@ export default function Marketing({ activeSubTab, setActiveSubTab }) {
                 </div>
               </div>
 
-              {/* Campaigns Table */}
               <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
                 <div className="px-6 py-4 border-b border-gray-200">
                   <h3 className="font-semibold text-gray-900">Campaigns</h3>
@@ -734,15 +754,13 @@ export default function Marketing({ activeSubTab, setActiveSubTab }) {
                 </div>
               </div>
 
-              {/* Account Info */}
               <div className="bg-gray-50 rounded-lg p-4 flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                  <div className={`w-2 h-2 rounded-full ${metaData?.account ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
                   <span className="text-sm text-gray-600">
-                    Connected to {metaData?.account?.name} ({metaData?.account?.id})
+                    {metaData?.account ? `Connected to ${metaData.account.name}` : 'Pending Connection'}
                   </span>
                 </div>
-                <span className="text-xs text-gray-400">Updated: {metaData?.lastUpdated ? formatDate(metaData.lastUpdated) : '-'}</span>
               </div>
             </>
           )}
