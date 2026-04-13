@@ -66,6 +66,28 @@ export default function Finance({ activeSubTab, setActiveSubTab }) {
     loadData()
   }, [])
 
+  // Reload transactions when date range changes
+  useEffect(() => {
+    if (!needsAuth && accounts.length > 0) {
+      loadTransactions()
+    }
+  }, [dateRange])
+
+  const loadTransactions = async () => {
+    try {
+      const fromDate = dateRange.startDate.toISOString()
+      const toDate = dateRange.endDate.toISOString()
+      const txRes = await fetch(`/api/revolut/transactions?from=${fromDate}&to=${toDate}&count=1000`)
+      const txData = await txRes.json()
+
+      if (!txData.error) {
+        setTransactions(txData.transactions || [])
+      }
+    } catch (err) {
+      console.error('Error loading transactions:', err)
+    }
+  }
+
   const loadData = async () => {
     setLoading(true)
     setPaypalLoading(true)
@@ -84,7 +106,10 @@ export default function Finance({ activeSubTab, setActiveSubTab }) {
         setAccounts(accountsData.accounts || [])
         setNeedsAuth(false)
 
-        const txRes = await fetch('/api/revolut/transactions?count=50')
+        // Fetch transactions for the selected date range
+        const fromDate = dateRange.startDate.toISOString()
+        const toDate = dateRange.endDate.toISOString()
+        const txRes = await fetch(`/api/revolut/transactions?from=${fromDate}&to=${toDate}&count=1000`)
         const txData = await txRes.json()
 
         if (!txData.error) {
