@@ -121,7 +121,16 @@ export default function Finance({ activeSubTab, setActiveSubTab }) {
     window.location.href = '/api/revolut/auth'
   }
 
+  // Format currency - Revolut returns account balances in major units (pounds)
   const formatCurrency = (amount, currency = 'GBP') => {
+    return new Intl.NumberFormat('en-GB', {
+      style: 'currency',
+      currency: currency,
+    }).format(amount)
+  }
+
+  // Format for transaction amounts (in minor units - pence)
+  const formatMinorCurrency = (amount, currency = 'GBP') => {
     return new Intl.NumberFormat('en-GB', {
       style: 'currency',
       currency: currency,
@@ -455,7 +464,7 @@ export default function Finance({ activeSubTab, setActiveSubTab }) {
             <p className="text-sm text-gray-500">Total Balance</p>
           </div>
           <p className="text-2xl font-bold text-gray-900">{formatCurrency(getTotalBalance())}</p>
-          <p className="text-xs text-green-600 mt-2">Revolut Business</p>
+          <p className="text-xs text-green-600 mt-2">Revolut Business (raw: {getTotalBalance()})</p>
         </div>
         <div className="bg-white rounded-xl border border-gray-200 p-5">
           <div className="flex items-center gap-3 mb-3">
@@ -657,7 +666,7 @@ export default function Finance({ activeSubTab, setActiveSubTab }) {
                         </p>
                       </div>
                       <p className={`font-semibold ${isCredit ? 'text-green-600' : 'text-red-600'}`}>
-                        {isCredit ? '+' : ''}{formatCurrency(leg.amount || 0, leg.currency || 'GBP')}
+                        {isCredit ? '+' : ''}{formatMinorCurrency(leg.amount || 0, leg.currency || 'GBP')}
                       </p>
                     </div>
                   )
@@ -766,6 +775,7 @@ export default function Finance({ activeSubTab, setActiveSubTab }) {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Account</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Currency</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Balance</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Raw Value</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">State</th>
                 </tr>
               </thead>
@@ -776,6 +786,9 @@ export default function Finance({ activeSubTab, setActiveSubTab }) {
                     <td className="px-6 py-4 text-gray-500">{account.currency}</td>
                     <td className="px-6 py-4 font-semibold text-gray-900">
                       {formatCurrency(account.balance, account.currency)}
+                    </td>
+                    <td className="px-6 py-4 text-xs text-gray-400 font-mono">
+                      {account.balance}
                     </td>
                     <td className="px-6 py-4">
                       <span className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full ${
@@ -835,7 +848,7 @@ export default function Finance({ activeSubTab, setActiveSubTab }) {
                       <td className="px-6 py-4 text-sm text-gray-900">{tx.reference || leg.description || '-'}</td>
                       <td className="px-6 py-4 text-sm text-gray-500 capitalize">{tx.type?.replace('_', ' ') || '-'}</td>
                       <td className={`px-6 py-4 text-sm font-semibold whitespace-nowrap ${isCredit ? 'text-green-600' : 'text-red-600'}`}>
-                        {isCredit ? '+' : ''}{formatCurrency(leg.amount || 0, leg.currency || 'GBP')}
+                        {isCredit ? '+' : ''}{formatMinorCurrency(leg.amount || 0, leg.currency || 'GBP')}
                       </td>
                       <td className="px-6 py-4">
                         <span className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full ${

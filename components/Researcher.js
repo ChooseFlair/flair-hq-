@@ -33,12 +33,28 @@ import {
   Package,
   XCircle,
   Save,
+  Link,
+  ExternalLink as LinkExternal,
 } from 'lucide-react'
 import AlibabaCalculator from './AlibabaCalculator'
 
 export default function Researcher({ activeSubTab, setActiveSubTab }) {
-  const activeTab = activeSubTab || 'trends'
-  const setActiveTab = setActiveSubTab || (() => {})
+  // Persist active tab to localStorage
+  const [localTab, setLocalTab] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('researcher-active-tab') || 'trends'
+    }
+    return 'trends'
+  })
+
+  const activeTab = activeSubTab || localTab
+  const setActiveTab = (tab) => {
+    if (setActiveSubTab) setActiveSubTab(tab)
+    setLocalTab(tab)
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('researcher-active-tab', tab)
+    }
+  }
 
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -56,9 +72,10 @@ export default function Researcher({ activeSubTab, setActiveSubTab }) {
     {
       id: 1,
       name: 'Starter Bundle',
+      url: '',
       items: [
-        { name: 'Walnut Inhaler', unitCost: 8.50, quantity: 1 },
-        { name: 'Spearmint 3-Pack', unitCost: 1.20, quantity: 2 },
+        { name: 'Walnut Inhaler', unitCost: 8.50, quantity: 1, url: '' },
+        { name: 'Spearmint 3-Pack', unitCost: 1.20, quantity: 2, url: '' },
       ],
       sellingPrice: 39.99,
       shippingCost: 3.50,
@@ -67,12 +84,18 @@ export default function Researcher({ activeSubTab, setActiveSubTab }) {
     }
   ])
 
+  // Saved Products List
+  const [savedProducts, setSavedProducts] = useState([])
+  const [productInsights, setProductInsights] = useState('')
+  const [generatingInsights, setGeneratingInsights] = useState(false)
+
   // Business data for calculator
   const [businessData, setBusinessData] = useState({
     metaCAC: 8.50,
+    estimatedCAC: 8.50,
     paypalFeeRate: 0.029,
     paypalFixedFee: 0.30,
-    loading: false
+    loading: true
   })
 
   useEffect(() => {
@@ -83,7 +106,7 @@ export default function Researcher({ activeSubTab, setActiveSubTab }) {
   const loadBusinessData = async () => {
     try {
       const metaRes = await fetch('/api/meta/overview').catch(() => null)
-      const metaData = metaRes ? await metaRes.json() : null
+      const metaData = metaRes?.ok ? await metaRes.json() : null
 
       let metaCAC = 8.50
       if (metaData?.summary) {
@@ -92,11 +115,30 @@ export default function Researcher({ activeSubTab, setActiveSubTab }) {
         if (purchases > 0) metaCAC = spend / purchases
       }
 
-      setBusinessData(prev => ({ ...prev, metaCAC, loading: false }))
+      setBusinessData(prev => ({ ...prev, metaCAC, estimatedCAC: metaCAC, loading: false }))
     } catch {
       setBusinessData(prev => ({ ...prev, loading: false }))
     }
   }
+
+  // Load saved products from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem('flair-saved-products')
+    if (saved) {
+      try {
+        setSavedProducts(JSON.parse(saved))
+      } catch (e) {
+        console.log('Error loading saved products')
+      }
+    }
+  }, [])
+
+  // Save products to localStorage when they change
+  useEffect(() => {
+    if (savedProducts.length > 0) {
+      localStorage.setItem('flair-saved-products', JSON.stringify(savedProducts))
+    }
+  }, [savedProducts])
 
   const loadAllData = async () => {
     setLoading(true)
@@ -167,7 +209,8 @@ export default function Researcher({ activeSubTab, setActiveSubTab }) {
     setBundles(prev => [...prev, {
       id: Date.now(),
       name: '',
-      items: [{ name: '', unitCost: '', quantity: 1 }],
+      url: '',
+      items: [{ name: '', unitCost: '', quantity: 1, url: '' }],
       sellingPrice: '',
       shippingCost: '',
       packagingCost: '',
@@ -186,7 +229,7 @@ export default function Researcher({ activeSubTab, setActiveSubTab }) {
   const addItemToBundle = (bundleId) => {
     setBundles(prev => prev.map(b => {
       if (b.id === bundleId) {
-        return { ...b, items: [...b.items, { name: '', unitCost: '', quantity: 1 }] }
+        return { ...b, items: [...b.items, { name: '', unitCost: '', quantity: 1, url: '' }] }
       }
       return b
     }))
@@ -230,7 +273,7 @@ export default function Researcher({ activeSubTab, setActiveSubTab }) {
     const grossProfit = sellingPrice - totalVariableCosts
     const grossMargin = (grossProfit / sellingPrice) * 100
 
-    const marketingCost = businessData.metaCAC
+    const marketingCost = businessData.estimatedCAC
     const netProfit = grossProfit - marketingCost
     const netMargin = (netProfit / sellingPrice) * 100
 
@@ -255,6 +298,170 @@ export default function Researcher({ activeSubTab, setActiveSubTab }) {
         marketing: marketingCost,
       }
     }
+  }
+
+  // Save product to list
+  const saveProductToList = (bundle) => {
+    const profitability = calculateBundleProfitability(bundle)
+    if (!profitability || !bundle.name) return
+
+    const savedProduct = {
+      id: Date.now(),
+      name: bundle.name,
+      url: bundle.url || '',
+      items: bundle.items.map(item => ({ ...item })),
+      sellingPrice: parseFloat(bundle.sellingPrice),
+      shippingCost: parseFloat(bundle.shippingCost) || 0,
+      packagingCost: parseFloat(bundle.packagingCost) || 0,
+      platformFee: parseFloat(bundle.platformFee) || 2.9,
+      cacUsed: businessData.estimatedCAC,
+      ...profitability,
+      savedAt: new Date().toISOString(),
+    }
+
+    setSavedProducts(prev => [...prev, savedProduct])
+    generateProductInsights([...savedProducts, savedProduct])
+  }
+
+  // Update saved product
+  const updateSavedProduct = (productId, field, value) => {
+    setSavedProducts(prev => prev.map(p => {
+      if (p.id === productId) {
+        const updated = { ...p, [field]: value }
+        // Recalculate if price or costs changed
+        if (['sellingPrice', 'shippingCost', 'packagingCost', 'platformFee', 'cacUsed'].includes(field)) {
+          const recalc = recalculateSavedProduct(updated)
+          return { ...updated, ...recalc }
+        }
+        return updated
+      }
+      return p
+    }))
+  }
+
+  // Recalculate saved product profitability
+  const recalculateSavedProduct = (product) => {
+    const sellingPrice = parseFloat(product.sellingPrice) || 0
+    if (sellingPrice === 0) return product
+
+    const totalCOGS = product.items.reduce((sum, item) => {
+      return sum + (parseFloat(item.unitCost) || 0) * (parseInt(item.quantity) || 1)
+    }, 0)
+
+    const shippingCost = parseFloat(product.shippingCost) || 0
+    const packagingCost = parseFloat(product.packagingCost) || 0
+    const platformFeeRate = (parseFloat(product.platformFee) || 0) / 100
+    const platformFee = sellingPrice * platformFeeRate
+    const paypalFee = (sellingPrice * businessData.paypalFeeRate) + businessData.paypalFixedFee
+
+    const totalVariableCosts = totalCOGS + shippingCost + packagingCost + platformFee + paypalFee
+    const grossProfit = sellingPrice - totalVariableCosts
+    const grossMargin = (grossProfit / sellingPrice) * 100
+
+    const marketingCost = parseFloat(product.cacUsed) || businessData.estimatedCAC
+    const netProfit = grossProfit - marketingCost
+    const netMargin = (netProfit / sellingPrice) * 100
+
+    let verdict = 'unprofitable'
+    if (netMargin >= 20) verdict = 'highly-profitable'
+    else if (netMargin >= 10) verdict = 'profitable'
+    else if (netMargin >= 0) verdict = 'marginal'
+
+    return {
+      totalCOGS,
+      grossProfit,
+      grossMargin,
+      netProfit,
+      netMargin,
+      verdict,
+      breakdown: {
+        cogs: totalCOGS,
+        shipping: shippingCost,
+        packaging: packagingCost,
+        platformFee,
+        paypalFee,
+        marketing: marketingCost,
+      }
+    }
+  }
+
+  // Delete saved product
+  const deleteSavedProduct = (productId) => {
+    const updated = savedProducts.filter(p => p.id !== productId)
+    setSavedProducts(updated)
+    if (updated.length === 0) {
+      localStorage.removeItem('flair-saved-products')
+      setProductInsights('')
+    }
+  }
+
+  // Generate AI insights for saved products
+  const generateProductInsights = async (products = savedProducts) => {
+    if (products.length === 0) return
+
+    setGeneratingInsights(true)
+
+    const productSummary = products.map(p => ({
+      name: p.name,
+      price: p.sellingPrice,
+      cogs: p.totalCOGS,
+      netProfit: p.netProfit,
+      netMargin: p.netMargin,
+      verdict: p.verdict,
+      cac: p.cacUsed
+    }))
+
+    try {
+      const res = await fetch('/api/ai/research', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query: `Analyze these products and provide insights: ${JSON.stringify(productSummary)}.
+                  Include: best performer, pricing suggestions, CAC impact analysis, bundle opportunities.`
+        }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setProductInsights(data.response)
+      } else {
+        generateFallbackInsights(products)
+      }
+    } catch {
+      generateFallbackInsights(products)
+    }
+
+    setGeneratingInsights(false)
+  }
+
+  const generateFallbackInsights = (products) => {
+    const profitable = products.filter(p => p.netMargin >= 10)
+    const marginal = products.filter(p => p.netMargin >= 0 && p.netMargin < 10)
+    const unprofitable = products.filter(p => p.netMargin < 0)
+    const avgMargin = products.reduce((sum, p) => sum + p.netMargin, 0) / products.length
+    const avgCAC = products.reduce((sum, p) => sum + (p.cacUsed || 0), 0) / products.length
+    const bestProduct = products.reduce((best, p) => p.netMargin > (best?.netMargin || -100) ? p : best, null)
+
+    setProductInsights(`**Product Portfolio Analysis**
+
+**Summary:** ${products.length} products analyzed
+
+**Performance Breakdown:**
+- ${profitable.length} highly profitable (>10% margin)
+- ${marginal.length} marginal (0-10% margin)
+- ${unprofitable.length} unprofitable (<0% margin)
+
+**Top Performer:** ${bestProduct?.name || 'N/A'}
+- Net Margin: ${bestProduct?.netMargin?.toFixed(1) || 0}%
+- Net Profit: £${bestProduct?.netProfit?.toFixed(2) || 0}
+
+**CAC Impact Analysis:**
+- Average CAC used: £${avgCAC.toFixed(2)}
+- If you reduce CAC by £1, average margin increases by ~${(1 / (products[0]?.sellingPrice || 30) * 100).toFixed(1)}%
+
+**Recommendations:**
+${unprofitable.length > 0 ? `- Consider repricing or discontinuing: ${unprofitable.map(p => p.name).join(', ')}` : '- All products are profitable!'}
+${avgMargin < 15 ? '- Focus on reducing COGS or increasing prices to improve margins' : '- Strong margins overall, focus on scaling'}
+${avgCAC > 10 ? '- CAC is high - optimize Meta targeting or test organic channels' : '- CAC is well controlled'}`)
   }
 
   // AI Functions
@@ -577,14 +784,37 @@ UK aromatherapy market growing at 15% annually. Key drivers:
       {/* Profitability Calculator Tab */}
       {activeTab === 'calculator' && (
         <div className="space-y-6">
+          {/* Header with CAC Settings */}
           <div className="bg-flair-50 border border-flair-200 rounded-2xl p-4">
-            <div className="flex items-start gap-3">
-              <Target className="w-5 h-5 text-flair-600 mt-0.5" />
-              <div>
-                <h3 className="font-semibold text-flair-700">Bundle Profitability Calculator</h3>
-                <p className="text-sm text-flair-500 mt-1">
-                  Create product bundles and calculate profitability with your current CAC (£{businessData.metaCAC.toFixed(2)}) and fees.
-                </p>
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <Target className="w-5 h-5 text-flair-600 mt-0.5" />
+                <div>
+                  <h3 className="font-semibold text-flair-700">Bundle Profitability Calculator</h3>
+                  <p className="text-sm text-flair-500 mt-1">
+                    Create bundles, calculate profitability, and save to your product list.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-4 bg-white/50 rounded-xl p-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-flair-500">Meta CAC (live):</span>
+                  <span className="text-sm font-semibold text-flair-700">£{businessData.metaCAC.toFixed(2)}</span>
+                </div>
+                <div className="h-6 w-px bg-flair-200"></div>
+                <div className="flex items-center gap-2">
+                  <label className="text-xs text-flair-500">Est. CAC:</label>
+                  <div className="flex items-center">
+                    <span className="text-sm text-flair-400">£</span>
+                    <input
+                      type="number"
+                      step="0.50"
+                      value={businessData.estimatedCAC}
+                      onChange={(e) => setBusinessData(prev => ({ ...prev, estimatedCAC: parseFloat(e.target.value) || 0 }))}
+                      className="w-16 px-2 py-1 bg-white border border-flair-200 rounded-lg text-sm font-semibold text-flair-700 focus:border-flair-400 outline-none"
+                    />
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -610,37 +840,86 @@ UK aromatherapy market growing at 15% annually. Key drivers:
                 <div className="p-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
                   {/* Left - Inputs */}
                   <div className="space-y-4">
+                    {/* Bundle URL */}
+                    <div>
+                      <label className="block text-sm font-medium text-flair-600 mb-2">Product/Source URL</label>
+                      <div className="flex gap-2">
+                        <div className="flex-1 relative">
+                          <Link className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-flair-400" />
+                          <input
+                            type="url"
+                            value={bundle.url || ''}
+                            onChange={(e) => updateBundle(bundle.id, 'url', e.target.value)}
+                            placeholder="https://alibaba.com/product/..."
+                            className="w-full pl-9 pr-3 py-2 bg-white/50 border border-flair-100 rounded-xl text-sm focus:bg-white/80 focus:border-flair-300 outline-none"
+                          />
+                        </div>
+                        {bundle.url && (
+                          <a
+                            href={bundle.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-3 py-2 bg-flair-100 text-flair-600 rounded-xl hover:bg-flair-200 transition-colors"
+                          >
+                            <LinkExternal className="w-4 h-4" />
+                          </a>
+                        )}
+                      </div>
+                    </div>
+
                     <div>
                       <label className="block text-sm font-medium text-flair-600 mb-2">Bundle Items</label>
-                      <div className="space-y-2">
+                      <div className="space-y-3">
                         {bundle.items.map((item, itemIndex) => (
-                          <div key={itemIndex} className="flex gap-2 items-center">
-                            <input
-                              type="text"
-                              value={item.name}
-                              onChange={(e) => updateBundleItem(bundle.id, itemIndex, 'name', e.target.value)}
-                              placeholder="Product name"
-                              className="flex-1 px-3 py-2 bg-white/50 border border-flair-100 rounded-xl text-sm focus:bg-white/80 focus:border-flair-300 outline-none"
-                            />
-                            <input
-                              type="number"
-                              value={item.unitCost}
-                              onChange={(e) => updateBundleItem(bundle.id, itemIndex, 'unitCost', e.target.value)}
-                              placeholder="Cost"
-                              className="w-20 px-3 py-2 bg-white/50 border border-flair-100 rounded-xl text-sm focus:bg-white/80 focus:border-flair-300 outline-none"
-                            />
-                            <span className="text-flair-400 text-sm">×</span>
-                            <input
-                              type="number"
-                              value={item.quantity}
-                              onChange={(e) => updateBundleItem(bundle.id, itemIndex, 'quantity', e.target.value)}
-                              className="w-16 px-3 py-2 bg-white/50 border border-flair-100 rounded-xl text-sm focus:bg-white/80 focus:border-flair-300 outline-none"
-                            />
-                            {bundle.items.length > 1 && (
-                              <button onClick={() => removeItemFromBundle(bundle.id, itemIndex)} className="text-flair-400 hover:text-red-500">
-                                <XCircle className="w-5 h-5" />
-                              </button>
-                            )}
+                          <div key={itemIndex} className="space-y-2 p-3 bg-flair-50/50 rounded-xl">
+                            <div className="flex gap-2 items-center">
+                              <input
+                                type="text"
+                                value={item.name}
+                                onChange={(e) => updateBundleItem(bundle.id, itemIndex, 'name', e.target.value)}
+                                placeholder="Product name"
+                                className="flex-1 px-3 py-2 bg-white/80 border border-flair-100 rounded-lg text-sm focus:bg-white focus:border-flair-300 outline-none"
+                              />
+                              <input
+                                type="number"
+                                value={item.unitCost}
+                                onChange={(e) => updateBundleItem(bundle.id, itemIndex, 'unitCost', e.target.value)}
+                                placeholder="Cost"
+                                className="w-20 px-3 py-2 bg-white/80 border border-flair-100 rounded-lg text-sm focus:bg-white focus:border-flair-300 outline-none"
+                              />
+                              <span className="text-flair-400 text-sm">×</span>
+                              <input
+                                type="number"
+                                value={item.quantity}
+                                onChange={(e) => updateBundleItem(bundle.id, itemIndex, 'quantity', e.target.value)}
+                                className="w-16 px-3 py-2 bg-white/80 border border-flair-100 rounded-lg text-sm focus:bg-white focus:border-flair-300 outline-none"
+                              />
+                              {bundle.items.length > 1 && (
+                                <button onClick={() => removeItemFromBundle(bundle.id, itemIndex)} className="text-flair-400 hover:text-red-500">
+                                  <XCircle className="w-5 h-5" />
+                                </button>
+                              )}
+                            </div>
+                            <div className="flex gap-2">
+                              <Link className="w-4 h-4 text-flair-300 mt-2 flex-shrink-0" />
+                              <input
+                                type="url"
+                                value={item.url || ''}
+                                onChange={(e) => updateBundleItem(bundle.id, itemIndex, 'url', e.target.value)}
+                                placeholder="Item source URL (optional)"
+                                className="flex-1 px-3 py-1.5 bg-white/60 border border-flair-100 rounded-lg text-xs focus:bg-white focus:border-flair-300 outline-none"
+                              />
+                              {item.url && (
+                                <a
+                                  href={item.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="px-2 py-1.5 text-flair-500 hover:text-flair-700"
+                                >
+                                  <LinkExternal className="w-3 h-3" />
+                                </a>
+                              )}
+                            </div>
                           </div>
                         ))}
                         <button
@@ -741,6 +1020,16 @@ UK aromatherapy market growing at 15% annually. Key drivers:
                             </p>
                           </div>
                         </div>
+
+                        {/* Save to List Button */}
+                        <button
+                          onClick={() => saveProductToList(bundle)}
+                          disabled={!bundle.name}
+                          className="w-full mt-4 flex items-center justify-center gap-2 px-4 py-3 gradient-flair text-white font-medium rounded-xl hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                        >
+                          <Save className="w-4 h-4" />
+                          Save to Product List
+                        </button>
                       </div>
                     ) : (
                       <div className="h-full flex items-center justify-center text-flair-400 bg-flair-50 rounded-2xl p-8">
@@ -762,6 +1051,175 @@ UK aromatherapy market growing at 15% annually. Key drivers:
           >
             <PlusCircle className="w-5 h-5" /> Add Another Bundle
           </button>
+
+          {/* Saved Products List */}
+          {savedProducts.length > 0 && (
+            <div className="bg-white/60 backdrop-blur-xl border border-white/50 rounded-2xl overflow-hidden">
+              <div className="px-6 py-4 border-b border-flair-100/50 bg-white/30 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Package className="w-5 h-5 text-flair-600" />
+                  <h3 className="font-semibold text-flair-700">Saved Product List</h3>
+                  <span className="px-2 py-0.5 bg-flair-100 text-flair-600 text-xs rounded-full">{savedProducts.length}</span>
+                </div>
+                <button
+                  onClick={() => generateProductInsights()}
+                  disabled={generatingInsights}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-purple-100 text-purple-700 rounded-lg text-sm font-medium hover:bg-purple-200 transition-colors disabled:opacity-50"
+                >
+                  <Sparkles className={`w-4 h-4 ${generatingInsights ? 'animate-spin' : ''}`} />
+                  {generatingInsights ? 'Analyzing...' : 'Get AI Insights'}
+                </button>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-flair-50/50">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-flair-600 uppercase">Product</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-flair-600 uppercase">URL</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-flair-600 uppercase">Price</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-flair-600 uppercase">COGS</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-flair-600 uppercase">CAC</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-flair-600 uppercase">Net Profit</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-flair-600 uppercase">Margin</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-flair-600 uppercase">Status</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-flair-600 uppercase"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-flair-100/50">
+                    {savedProducts.map((product) => (
+                      <tr key={product.id} className="hover:bg-flair-50/30 transition-colors">
+                        <td className="px-4 py-3">
+                          <input
+                            type="text"
+                            value={product.name}
+                            onChange={(e) => updateSavedProduct(product.id, 'name', e.target.value)}
+                            className="font-medium text-flair-700 bg-transparent border-b border-transparent hover:border-flair-200 focus:border-flair-400 outline-none w-full"
+                          />
+                          <p className="text-xs text-flair-400 mt-0.5">{product.items.length} item(s)</p>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-1">
+                            <input
+                              type="url"
+                              value={product.url || ''}
+                              onChange={(e) => updateSavedProduct(product.id, 'url', e.target.value)}
+                              placeholder="Add URL"
+                              className="w-20 text-xs text-flair-500 bg-transparent border-b border-transparent hover:border-flair-200 focus:border-flair-400 outline-none truncate"
+                            />
+                            {product.url && (
+                              <a
+                                href={product.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-flair-500 hover:text-flair-700 flex-shrink-0"
+                              >
+                                <LinkExternal className="w-3.5 h-3.5" />
+                              </a>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center">
+                            <span className="text-flair-400 text-sm">£</span>
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={product.sellingPrice}
+                              onChange={(e) => updateSavedProduct(product.id, 'sellingPrice', parseFloat(e.target.value) || 0)}
+                              className="w-16 font-medium text-flair-700 bg-transparent border-b border-transparent hover:border-flair-200 focus:border-flair-400 outline-none"
+                            />
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-flair-600">{formatCurrency(product.totalCOGS)}</td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center">
+                            <span className="text-flair-400 text-sm">£</span>
+                            <input
+                              type="number"
+                              step="0.50"
+                              value={product.cacUsed}
+                              onChange={(e) => updateSavedProduct(product.id, 'cacUsed', parseFloat(e.target.value) || 0)}
+                              className="w-12 text-sm text-flair-600 bg-transparent border-b border-transparent hover:border-flair-200 focus:border-flair-400 outline-none"
+                            />
+                          </div>
+                        </td>
+                        <td className={`px-4 py-3 text-sm font-semibold ${product.netProfit >= 0 ? 'text-sage-600' : 'text-red-600'}`}>
+                          {formatCurrency(product.netProfit)}
+                        </td>
+                        <td className={`px-4 py-3 text-sm font-semibold ${product.netMargin >= 10 ? 'text-sage-600' : product.netMargin >= 0 ? 'text-yellow-600' : 'text-red-600'}`}>
+                          {product.netMargin.toFixed(1)}%
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-lg ${
+                            product.verdict === 'highly-profitable' ? 'bg-sage-100 text-sage-700' :
+                            product.verdict === 'profitable' ? 'bg-green-100 text-green-700' :
+                            product.verdict === 'marginal' ? 'bg-yellow-100 text-yellow-700' :
+                            'bg-red-100 text-red-700'
+                          }`}>
+                            {product.verdict.replace('-', ' ')}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <button
+                            onClick={() => deleteSavedProduct(product.id)}
+                            className="text-flair-400 hover:text-red-500 transition-colors"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Summary Row */}
+              <div className="px-6 py-4 bg-flair-50/50 border-t border-flair-100/50">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div>
+                    <p className="text-xs text-flair-500">Total Products</p>
+                    <p className="text-lg font-bold text-flair-700">{savedProducts.length}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-flair-500">Avg Net Margin</p>
+                    <p className="text-lg font-bold text-flair-700">
+                      {(savedProducts.reduce((sum, p) => sum + p.netMargin, 0) / savedProducts.length).toFixed(1)}%
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-flair-500">Profitable</p>
+                    <p className="text-lg font-bold text-sage-600">
+                      {savedProducts.filter(p => p.netMargin >= 10).length}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-flair-500">Needs Review</p>
+                    <p className="text-lg font-bold text-yellow-600">
+                      {savedProducts.filter(p => p.netMargin < 10).length}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* AI Insights */}
+          {productInsights && (
+            <div className="bg-gradient-to-br from-purple-50 to-purple-100 border border-purple-200 rounded-2xl p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-8 h-8 bg-purple-600 rounded-xl flex items-center justify-center text-white">
+                  <Sparkles className="w-4 h-4" />
+                </div>
+                <h4 className="font-semibold text-purple-900">AI Product Insights</h4>
+              </div>
+              <div className="prose prose-sm max-w-none">
+                <div className="whitespace-pre-wrap text-purple-800 leading-relaxed text-sm">
+                  {productInsights}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
