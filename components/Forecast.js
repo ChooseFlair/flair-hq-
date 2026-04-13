@@ -78,10 +78,10 @@ export default function Forecast() {
 
   // Calculate all metrics
   const metrics = useMemo(() => {
-    // Revolut balance
+    // Revolut balance (API returns amounts in pounds, not pence)
     const revolutBalance = revolutData.accounts
       .filter(a => a.currency === 'GBP')
-      .reduce((sum, a) => sum + (a.balance || 0), 0) / 100
+      .reduce((sum, a) => sum + (a.balance || 0), 0)
 
     // PayPal balance
     const paypalBalance = paypalData?.balance?.total_balance?.value
@@ -103,11 +103,11 @@ export default function Forecast() {
 
     const revolutIncome = revolutThisMonth
       .filter(t => t.legs?.[0]?.amount > 0)
-      .reduce((sum, t) => sum + (t.legs?.[0]?.amount || 0), 0) / 100
+      .reduce((sum, t) => sum + (t.legs?.[0]?.amount || 0), 0)
 
     const revolutExpenses = revolutThisMonth
       .filter(t => t.legs?.[0]?.amount < 0)
-      .reduce((sum, t) => sum + Math.abs(t.legs?.[0]?.amount || 0), 0) / 100
+      .reduce((sum, t) => sum + Math.abs(t.legs?.[0]?.amount || 0), 0)
 
     // PayPal income this month
     const paypalIncome = paypalData?.summary?.totalIncome || 0
