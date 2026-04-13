@@ -191,11 +191,11 @@ export default function Finance({ activeSubTab, setActiveSubTab }) {
     paypalFees: paypalData?.summary?.totalFees ? formatPayPalCurrency(paypalData.summary.totalFees) : 'N/A',
   })
 
-  // Process data for cash flow chart (last 14 days)
+  // Process data for cash flow chart (uses selected date range)
   const cashFlowData = useMemo(() => {
     const days = eachDayOfInterval({
-      start: subDays(new Date(), 13),
-      end: new Date()
+      start: startOfDay(dateRange.startDate),
+      end: startOfDay(dateRange.endDate)
     })
 
     return days.map(day => {
@@ -223,7 +223,7 @@ export default function Finance({ activeSubTab, setActiveSubTab }) {
         net: income - spend
       }
     })
-  }, [transactions])
+  }, [transactions, dateRange])
 
   // Process data for income sources pie chart
   const incomeSourcesData = useMemo(() => {
@@ -525,7 +525,7 @@ export default function Finance({ activeSubTab, setActiveSubTab }) {
         <div className="space-y-6">
           {/* Cash Flow Chart */}
           <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <h3 className="font-semibold text-gray-900 mb-4">Cash Flow (Last 14 Days)</h3>
+            <h3 className="font-semibold text-gray-900 mb-4">Cash Flow ({format(dateRange.startDate, 'MMM d')} - {format(dateRange.endDate, 'MMM d')})</h3>
             <div className="h-72">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={cashFlowData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
