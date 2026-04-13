@@ -129,12 +129,12 @@ export default function Finance({ activeSubTab, setActiveSubTab }) {
     }).format(amount)
   }
 
-  // Format for transaction amounts (in minor units - pence)
+  // Format for transaction amounts (Revolut returns amounts in major units - pounds)
   const formatMinorCurrency = (amount, currency = 'GBP') => {
     return new Intl.NumberFormat('en-GB', {
       style: 'currency',
       currency: currency,
-    }).format(amount / 100)
+    }).format(amount)
   }
 
   const formatPayPalCurrency = (amount, currency = 'GBP') => {
@@ -210,11 +210,11 @@ export default function Finance({ activeSubTab, setActiveSubTab }) {
 
       const income = dayTransactions
         .filter(t => t.legs?.[0]?.amount > 0)
-        .reduce((sum, t) => sum + (t.legs?.[0]?.amount || 0), 0) / 100
+        .reduce((sum, t) => sum + (t.legs?.[0]?.amount || 0), 0)
 
       const spend = dayTransactions
         .filter(t => t.legs?.[0]?.amount < 0)
-        .reduce((sum, t) => sum + Math.abs(t.legs?.[0]?.amount || 0), 0) / 100
+        .reduce((sum, t) => sum + Math.abs(t.legs?.[0]?.amount || 0), 0)
 
       return {
         date: format(day, 'MMM d'),
@@ -227,7 +227,7 @@ export default function Finance({ activeSubTab, setActiveSubTab }) {
 
   // Process data for income sources pie chart
   const incomeSourcesData = useMemo(() => {
-    const revolutIncome = getMonthlyIncome() / 100
+    const revolutIncome = getMonthlyIncome()
     const paypalIncome = paypalData?.summary?.totalIncome || 0
 
     const data = []
@@ -271,7 +271,7 @@ export default function Finance({ activeSubTab, setActiveSubTab }) {
       }
 
       if (!categories[category]) categories[category] = 0
-      categories[category] += Math.abs(tx.legs?.[0]?.amount || 0) / 100
+      categories[category] += Math.abs(tx.legs?.[0]?.amount || 0)
     })
 
     const categoryData = Object.entries(categories)
@@ -287,9 +287,9 @@ export default function Finance({ activeSubTab, setActiveSubTab }) {
     })
 
     // Calculate metrics
-    const totalExpenses = expenseTransactions.reduce((sum, t) => sum + Math.abs(t.legs?.[0]?.amount || 0), 0) / 100
+    const totalExpenses = expenseTransactions.reduce((sum, t) => sum + Math.abs(t.legs?.[0]?.amount || 0), 0)
     const avgTransactionSize = transactions.length > 0
-      ? transactions.reduce((sum, t) => sum + Math.abs(t.legs?.[0]?.amount || 0), 0) / transactions.length / 100
+      ? transactions.reduce((sum, t) => sum + Math.abs(t.legs?.[0]?.amount || 0), 0) / transactions.length
       : 0
 
     return {
