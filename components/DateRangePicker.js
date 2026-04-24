@@ -1,12 +1,15 @@
 import { useState } from 'react'
-import { format, subDays, startOfYear } from 'date-fns'
+import { format, subDays, subMonths, subYears, startOfYear } from 'date-fns'
 import { Calendar, ChevronDown } from 'lucide-react'
 
 const presets = [
-  { label: '7 days', value: '7d', days: 7 },
-  { label: '30 days', value: '30d', days: 30 },
-  { label: '90 days', value: '90d', days: 90 },
+  { label: '7d', value: '7d', days: 7 },
+  { label: '30d', value: '30d', days: 30 },
+  { label: '90d', value: '90d', days: 90 },
+  { label: '6mo', value: '6m', months: 6 },
+  { label: '1yr', value: '1y', years: 1 },
   { label: 'YTD', value: 'ytd', days: null },
+  { label: 'All', value: 'all', years: 5 },
 ]
 
 export default function DateRangePicker({ value, onChange }) {
@@ -20,6 +23,10 @@ export default function DateRangePicker({ value, onChange }) {
 
     if (preset.value === 'ytd') {
       startDate = startOfYear(new Date())
+    } else if (preset.months) {
+      startDate = subMonths(new Date(), preset.months)
+    } else if (preset.years) {
+      startDate = subYears(new Date(), preset.years)
     } else {
       startDate = subDays(new Date(), preset.days)
     }
