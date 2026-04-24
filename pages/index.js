@@ -8,6 +8,7 @@ import BusinessHub from '../components/BusinessHub'
 import Orders from '../components/Orders'
 import Products from '../components/Products'
 import Marketing from '../components/Marketing'
+import PnL from '../components/PnL'
 import Researcher from '../components/Researcher'
 
 export default function Home() {
@@ -19,6 +20,8 @@ export default function Home() {
         return <Overview />
       case 'notifications':
         return <Notifications />
+      case 'pnl':
+        return <PnL />
       case 'finance':
         return <Finance />
       case 'hub':
