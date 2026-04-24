@@ -88,10 +88,30 @@ export default function PnL() {
   const [loading, setLoading] = useState(true)
   const [activeChart, setActiveChart] = useState('revenue')
   const [dateRange, setDateRange] = useState('all')
+  const [syncing, setSyncing] = useState(false)
+  const [syncMsg, setSyncMsg] = useState(null)
+  const [windsorSources, setWindsorSources] = useState(null)
 
   useEffect(() => {
     loadData()
   }, [dateRange])
+
+  async function syncWindsor() {
+    setSyncing(true)
+    setSyncMsg(null)
+    try {
+      const res = await fetch('/api/windsor?action=sync&date_from=2025-05-01')
+      const json = await res.json()
+      if (json.error) throw new Error(json.error)
+      setWindsorSources(json.sources)
+      setSyncMsg({ ok: true, text: `Synced ${json.syncResult?.months_updated || 0} months from ${json.sources?.length || 0} sources (${json.sources?.join(', ') || 'none'}). Total spend: £${json.totalSpend?.toFixed(2)}` })
+      await loadData()
+    } catch (e) {
+      setSyncMsg({ ok: false, text: e.message })
+    } finally {
+      setSyncing(false)
+    }
+  }
 
   async function loadData() {
     setLoading(true)
@@ -157,7 +177,7 @@ export default function PnL() {
           <h1 className="text-2xl font-bold text-gray-900">Profit & Loss</h1>
           <p className="text-gray-500 mt-1">Monthly financial breakdown from live order data.</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           {[
             { key: 'all', label: 'All Time' },
             { key: '12m', label: '12 Months' },
@@ -176,8 +196,24 @@ export default function PnL() {
               {label}
             </button>
           ))}
+          <button
+            onClick={syncWindsor}
+            disabled={syncing}
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+              syncing ? 'bg-gray-100 text-gray-400' : 'bg-blue-600 text-white hover:bg-blue-700'
+            }`}
+          >
+            {syncing ? 'Syncing...' : 'Sync Ad Spend'}
+          </button>
         </div>
       </div>
+
+      {/* Windsor Sync Result */}
+      {syncMsg && (
+        <div className={`rounded-lg border p-3 text-sm ${syncMsg.ok ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-800'}`}>
+          {syncMsg.text}
+        </div>
+      )}
 
       {/* Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
@@ -349,7 +385,7 @@ export default function PnL() {
             <p className="font-semibold text-gray-900">{(data.rates.shippingFulfilment * 100).toFixed(1)}% of revenue</p>
           </div>
         </div>
-        <p className="text-xs text-gray-400 mt-3">Revenue and orders pulled from live Supabase data. Ad spend from pnl_monthly_overrides table. Rates can be adjusted in the API.</p>
+        <p className="text-xs text-gray-400 mt-3">Revenue and orders pulled from live Supabase data. Ad spend synced from Windsor AI (Google Ads, Meta, etc). Hit "Sync Ad Spend" to pull latest data.</p>
       </div>
     </div>
   )
