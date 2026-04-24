@@ -5,7 +5,6 @@ import Overview from '../components/Overview'
 import TaskManager from '../components/TaskManager'
 import Finance from '../components/Finance'
 import Forecast from '../components/Forecast'
-import Orders from '../components/Orders'
 import Products from '../components/Products'
 import Marketing from '../components/Marketing'
 import PnL from '../components/PnL'
@@ -27,8 +26,6 @@ export default function Home() {
         return <Finance activeSubTab={activeSubTab} setActiveSubTab={setActiveSubTab} />
       case 'forecast':
         return <Forecast />
-      case 'orders':
-        return <Orders activeSubTab={activeSubTab} setActiveSubTab={setActiveSubTab} />
       case 'products':
         return <Products activeSubTab={activeSubTab} setActiveSubTab={setActiveSubTab} />
       case 'marketing':
