@@ -46,16 +46,6 @@ const navigation = [
   },
   { id: 'forecast', name: 'Forecast', icon: LineChart },
   {
-    id: 'orders',
-    name: 'Orders',
-    icon: Package,
-    children: [
-      { id: 'orders-analytics', name: 'Analytics', subTab: 'analytics', icon: BarChart3 },
-      { id: 'orders-list', name: 'All Orders', subTab: 'orders', icon: ListOrdered },
-      { id: 'orders-customers', name: 'Customers', subTab: 'customers', icon: Users },
-    ]
-  },
-  {
     id: 'products',
     name: 'Products',
     icon: ShoppingBag,
