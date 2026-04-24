@@ -102,12 +102,12 @@ export default function PnL() {
     try {
       const res = await fetch('/api/windsor?action=sync&date_from=2025-05-01')
       const json = await res.json()
-      if (json.error) throw new Error(json.error)
+      if (!res.ok || json.error) throw new Error(json.error || `API returned ${res.status}`)
       setWindsorSources(json.sources)
       setSyncMsg({ ok: true, text: `Synced ${json.syncResult?.months_updated || 0} months from ${json.sources?.length || 0} sources (${json.sources?.join(', ') || 'none'}). Total spend: £${json.totalSpend?.toFixed(2)}` })
       await loadData()
     } catch (e) {
-      setSyncMsg({ ok: false, text: e.message })
+      setSyncMsg({ ok: false, text: `Sync failed: ${e.message}` })
     } finally {
       setSyncing(false)
     }
