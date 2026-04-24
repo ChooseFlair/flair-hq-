@@ -1,0 +1,212 @@
+@import url('https://fonts.googleapis.com/css2?family=Almarai:wght@300;400;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --flair-forest: 44 74 62;
+  --flair-sage: 143 175 143;
+  --flair-cream: 224 216 204;
+  --foreground-rgb: 30, 50, 42;
+  --background-rgb: 252, 251, 249;
+}
+
+body {
+  font-family: 'Almarai', system-ui, sans-serif;
+  color: rgb(var(--foreground-rgb));
+  background: linear-gradient(135deg, rgb(252, 251, 249) 0%, rgb(244, 247, 245) 100%);
+  min-height: 100vh;
+}
+
+/* Glassmorphism utilities */
+@layer utilities {
+  .glass {
+    background: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+  }
+
+  .glass-dark {
+    background: rgba(44, 74, 62, 0.8);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .glass-sidebar {
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-right: 1px solid rgba(44, 74, 62, 0.1);
+  }
+
+  .glass-header {
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-bottom: 1px solid rgba(44, 74, 62, 0.08);
+  }
+
+  .glass-card {
+    background: rgba(255, 255, 255, 0.6);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    box-shadow: 0 8px 32px 0 rgba(44, 74, 62, 0.08);
+  }
+
+  .glass-card-hover:hover {
+    background: rgba(255, 255, 255, 0.8);
+    box-shadow: 0 12px 40px 0 rgba(44, 74, 62, 0.12);
+  }
+
+  .glass-button {
+    background: rgba(44, 74, 62, 0.9);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+
+  .glass-input {
+    background: rgba(255, 255, 255, 0.5);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(44, 74, 62, 0.15);
+  }
+
+  .glass-input:focus {
+    background: rgba(255, 255, 255, 0.8);
+    border-color: rgba(44, 74, 62, 0.3);
+  }
+
+  .gradient-flair {
+    background: linear-gradient(135deg, rgb(44, 74, 62) 0%, rgb(86, 120, 98) 100%);
+  }
+
+  .gradient-flair-light {
+    background: linear-gradient(135deg, rgb(244, 247, 245) 0%, rgb(224, 232, 227) 100%);
+  }
+
+  .gradient-sage {
+    background: linear-gradient(135deg, rgb(143, 175, 143) 0%, rgb(106, 147, 106) 100%);
+  }
+
+  .text-gradient-flair {
+    background: linear-gradient(135deg, rgb(44, 74, 62) 0%, rgb(86, 120, 98) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+}
+
+/* Custom scrollbar - Flair themed */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(244, 247, 245, 0.5);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(44, 74, 62, 0.2);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(44, 74, 62, 0.4);
+}
+
+/* Smooth transitions */
+* {
+  transition-property: background-color, border-color, color, fill, stroke, box-shadow, transform, backdrop-filter;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+/* Card hover effects */
+.card-lift {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card-lift:hover {
+  transform: translateY(-2px);
+}
+
+/* Flair button styles */
+.btn-flair {
+  @apply px-4 py-2 rounded-xl font-medium transition-all;
+  @apply bg-flair-700 text-white;
+  @apply hover:bg-flair-600 hover:shadow-lg;
+  @apply active:scale-[0.98];
+}
+
+.btn-flair-outline {
+  @apply px-4 py-2 rounded-xl font-medium transition-all;
+  @apply border border-flair-700 text-flair-700;
+  @apply hover:bg-flair-50;
+  @apply active:scale-[0.98];
+}
+
+.btn-sage {
+  @apply px-4 py-2 rounded-xl font-medium transition-all;
+  @apply bg-sage-400 text-white;
+  @apply hover:bg-sage-500 hover:shadow-lg;
+  @apply active:scale-[0.98];
+}
+
+/* Focus states */
+input:focus, button:focus, textarea:focus, select:focus {
+  outline: none;
+  ring: 2px;
+  ring-color: rgba(44, 74, 62, 0.3);
+}
+
+/* Metric cards */
+.metric-card {
+  @apply rounded-2xl p-5 transition-all duration-200;
+  @apply glass-card card-lift;
+}
+
+/* Navigation active state */
+.nav-active {
+  @apply bg-flair-50 text-flair-700 font-medium;
+  box-shadow: inset 3px 0 0 rgb(44, 74, 62);
+}
+
+/* Subtle animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.animate-pulse-soft {
+  animation: pulse-soft 2s ease-in-out infinite;
+}
+
+/* Badge styles */
+.badge-flair {
+  @apply px-2 py-0.5 text-xs font-medium rounded-full;
+  @apply bg-flair-100 text-flair-700;
+}
+
+.badge-sage {
+  @apply px-2 py-0.5 text-xs font-medium rounded-full;
+  @apply bg-sage-100 text-sage-700;
+}
+
+.badge-cream {
+  @apply px-2 py-0.5 text-xs font-medium rounded-full;
+  @apply bg-cream-100 text-cream-700;
+}
