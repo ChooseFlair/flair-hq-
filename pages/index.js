@@ -2,9 +2,9 @@ import { useState } from 'react'
 import Head from 'next/head'
 import Layout from '../components/Layout'
 import Overview from '../components/Overview'
-import Notifications from '../components/Notifications'
+import TaskManager from '../components/TaskManager'
 import Finance from '../components/Finance'
-import BusinessHub from '../components/BusinessHub'
+import Forecast from '../components/Forecast'
 import Orders from '../components/Orders'
 import Products from '../components/Products'
 import Marketing from '../components/Marketing'
@@ -13,27 +13,28 @@ import Researcher from '../components/Researcher'
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState('overview')
+  const [activeSubTab, setActiveSubTab] = useState(null)
 
   const renderContent = () => {
     switch (activeTab) {
       case 'overview':
         return <Overview />
-      case 'notifications':
-        return <Notifications />
+      case 'tasks':
+        return <TaskManager />
       case 'pnl':
         return <PnL />
       case 'finance':
-        return <Finance />
-      case 'hub':
-        return <BusinessHub />
+        return <Finance activeSubTab={activeSubTab} setActiveSubTab={setActiveSubTab} />
+      case 'forecast':
+        return <Forecast />
       case 'orders':
-        return <Orders />
+        return <Orders activeSubTab={activeSubTab} setActiveSubTab={setActiveSubTab} />
       case 'products':
-        return <Products />
+        return <Products activeSubTab={activeSubTab} setActiveSubTab={setActiveSubTab} />
       case 'marketing':
-        return <Marketing />
+        return <Marketing activeSubTab={activeSubTab} setActiveSubTab={setActiveSubTab} />
       case 'researcher':
-        return <Researcher />
+        return <Researcher activeSubTab={activeSubTab} setActiveSubTab={setActiveSubTab} />
       default:
         return <Overview />
     }
@@ -48,7 +49,12 @@ export default function Home() {
         <link rel="icon" href="/favicon.ico" />
       </Head>
 
-      <Layout activeTab={activeTab} setActiveTab={setActiveTab}>
+      <Layout
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        activeSubTab={activeSubTab}
+        setActiveSubTab={setActiveSubTab}
+      >
         {renderContent()}
       </Layout>
     </>
