@@ -12,18 +12,43 @@ async function windsorFetch(connector, fields, dateFrom, dateTo) {
     _renderer: 'json',
   })
   const url = `${BASE}/${connector}?${params}`
-  const res = await fetch(url)
-  if (!res.ok) {
+
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 25000)
+
+  try {
+    const res = await fetch(url, { signal: controller.signal })
+    clearTimeout(timeout)
+
     const text = await res.text()
-    throw new Error(`Windsor API ${res.status}: ${text}`)
+
+    if (!res.ok) {
+      return { error: `Windsor API ${res.status}: ${text.substring(0, 200)}` }
+    }
+
+    try {
+      return JSON.parse(text)
+    } catch {
+      return { error: `Invalid JSON from Windsor: ${text.substring(0, 200)}` }
+    }
+  } catch (e) {
+    clearTimeout(timeout)
+    if (e.name === 'AbortError') {
+      return { error: 'Windsor API timed out after 25s' }
+    }
+    return { error: `Windsor fetch failed: ${e.message}` }
   }
-  return res.json()
 }
 
-// Aggregate daily rows into monthly totals by source
-function aggregateMonthly(data) {
+function aggregateMonthly(rawData) {
   const monthly = {}
-  const rows = data?.data || data || []
+
+  // Windsor returns { data: [...] } or just [...]
+  const rows = Array.isArray(rawData) ? rawData : (rawData?.data || [])
+
+  if (!Array.isArray(rows)) {
+    return { aggregated: [], rawShape: typeof rows, rawKeys: Object.keys(rawData || {}) }
+  }
 
   for (const row of rows) {
     if (!row.date) continue
@@ -32,19 +57,16 @@ function aggregateMonthly(data) {
 
     const key = `${month}::${source}`
     if (!monthly[key]) {
-      monthly[key] = { month, source, spend: 0, clicks: 0, impressions: 0, conversions: 0, revenue: 0 }
+      monthly[key] = { month, source, spend: 0, clicks: 0, impressions: 0 }
     }
     monthly[key].spend += parseFloat(row.spend || 0)
     monthly[key].clicks += parseInt(row.clicks || 0)
     monthly[key].impressions += parseInt(row.impressions || 0)
-    monthly[key].conversions += parseFloat(row.conversions || 0)
-    monthly[key].revenue += parseFloat(row.revenue || 0)
   }
 
-  return Object.values(monthly)
+  return { aggregated: Object.values(monthly) }
 }
 
-// Save monthly ad spend to pnl_monthly_overrides
 async function saveToSupabase(monthlyData) {
   const byMonth = {}
 
@@ -52,9 +74,10 @@ async function saveToSupabase(monthlyData) {
     if (!byMonth[row.month]) {
       byMonth[row.month] = { meta_spend: 0, google_spend: 0 }
     }
-    if (row.source.includes('facebook') || row.source.includes('meta') || row.source.includes('instagram')) {
+    const src = row.source
+    if (src.includes('facebook') || src.includes('meta') || src.includes('instagram')) {
       byMonth[row.month].meta_spend += row.spend
-    } else if (row.source.includes('google') || row.source.includes('adwords')) {
+    } else if (src.includes('google') || src.includes('adwords')) {
       byMonth[row.month].google_spend += row.spend
     }
   }
@@ -74,52 +97,59 @@ async function saveToSupabase(monthlyData) {
 }
 
 export default async function handler(req, res) {
+  const { action = 'fetch', date_from, date_to } = req.query
+
+  const from = date_from || '2025-05-01'
+  const to = date_to || new Date().toISOString().split('T')[0]
+
   try {
-    const { action = 'fetch', date_from, date_to } = req.query
-
-    const from = date_from || '2025-05-01'
-    const to = date_to || new Date().toISOString().split('T')[0]
-
-    // Pull all connected sources
     const data = await windsorFetch('all', [
-      'source', 'campaign', 'spend', 'clicks', 'impressions', 'conversions', 'revenue', 'date'
+      'source', 'campaign', 'spend', 'clicks', 'impressions', 'date'
     ], from, to)
 
-    const monthly = aggregateMonthly(data)
+    // If Windsor returned an error
+    if (data?.error) {
+      return res.status(502).json({ error: data.error })
+    }
 
-    // Get unique sources
-    const sources = [...new Set(monthly.map(r => r.source))]
+    const { aggregated, rawShape, rawKeys } = aggregateMonthly(data)
 
-    // Calculate totals per source
+    if (!aggregated) {
+      return res.status(500).json({
+        error: 'Unexpected Windsor response format',
+        debug: { rawShape, rawKeys, sampleKeys: Object.keys(data || {}).slice(0, 10) },
+      })
+    }
+
+    const sources = [...new Set(aggregated.map(r => r.source))]
+
     const sourceTotals = {}
-    for (const row of monthly) {
+    for (const row of aggregated) {
       if (!sourceTotals[row.source]) {
-        sourceTotals[row.source] = { spend: 0, clicks: 0, impressions: 0, conversions: 0, revenue: 0 }
+        sourceTotals[row.source] = { spend: 0, clicks: 0, impressions: 0 }
       }
       sourceTotals[row.source].spend += row.spend
       sourceTotals[row.source].clicks += row.clicks
       sourceTotals[row.source].impressions += row.impressions
-      sourceTotals[row.source].conversions += row.conversions
-      sourceTotals[row.source].revenue += row.revenue
     }
 
-    // If sync requested, save to Supabase
     let syncResult = null
-    if (action === 'sync') {
-      const updated = await saveToSupabase(monthly)
+    if (action === 'sync' && aggregated.length > 0) {
+      const updated = await saveToSupabase(aggregated)
       syncResult = { months_updated: updated }
     }
 
     res.json({
       sources,
       sourceTotals,
-      monthly,
+      monthly: aggregated,
+      rowCount: aggregated.length,
       dateRange: { from, to },
-      totalSpend: monthly.reduce((sum, r) => sum + r.spend, 0),
+      totalSpend: aggregated.reduce((sum, r) => sum + r.spend, 0),
       ...(syncResult && { syncResult }),
     })
   } catch (e) {
-    console.error('Windsor API error:', e)
-    res.status(500).json({ error: e.message || 'Failed to fetch Windsor data' })
+    console.error('Windsor handler error:', e)
+    res.status(500).json({ error: e.message || 'Failed to process Windsor data' })
   }
 }
