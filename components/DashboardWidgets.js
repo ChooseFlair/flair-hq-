@@ -23,9 +23,9 @@ function StatusDot({ status }) {
 function Stat({ label, value, hint }) {
   return (
     <div className="flex-1 min-w-[110px] border border-cyan-500/15 rounded-lg bg-cyan-500/[0.02] px-3 py-2 hover:border-cyan-400/30 hover:bg-cyan-500/[0.05] transition-all">
-      <div className="text-[9px] font-mono tracking-[0.2em] text-cyan-500/50">{label}</div>
+      <div className="text-[9px] font-mono tracking-[0.2em] text-cyan-300">{label}</div>
       <div className="text-cyan-100 font-mono text-base mt-0.5">{value}</div>
-      {hint && <div className="text-[9px] font-mono text-cyan-500/30 mt-0.5">{hint}</div>}
+      {hint && <div className="text-[9px] font-mono text-cyan-400/70 mt-0.5">{hint}</div>}
     </div>
   )
 }
@@ -93,7 +93,7 @@ export default function DashboardWidgets() {
                 className={`text-[10px] font-mono px-2.5 py-1 rounded border transition-all tracking-wider ${
                   range === r.id
                     ? 'border-cyan-400/50 bg-cyan-400/10 text-cyan-200'
-                    : 'border-cyan-500/10 text-cyan-500/40 hover:text-cyan-300 hover:border-cyan-400/30'
+                    : 'border-cyan-500/10 text-cyan-300/80 hover:text-cyan-300 hover:border-cyan-400/30'
                 }`}
               >
                 {r.label}
@@ -125,9 +125,9 @@ export default function DashboardWidgets() {
                       <StatusDot status={showStatus} />
                     )}
                     <span className={
-                      showStatus === 'ok' ? 'text-emerald-500/60'
-                      : showStatus === 'warn' ? 'text-amber-500/70'
-                      : 'text-rose-500/70'
+                      showStatus === 'ok' ? 'text-emerald-300'
+                      : showStatus === 'warn' ? 'text-amber-300'
+                      : 'text-rose-300'
                     }>{c.name}</span>
                   </button>
                 )
@@ -152,7 +152,7 @@ export default function DashboardWidgets() {
 
             <button
               onClick={() => setExpanded(e => !e)}
-              className="text-cyan-500/40 hover:text-cyan-300 transition-colors p-1"
+              className="text-cyan-300/80 hover:text-cyan-300 transition-colors p-1"
               title={expanded ? 'Collapse' : 'Expand'}
             >
               <svg className={`w-3 h-3 transition-transform ${expanded ? '' : 'rotate-180'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
