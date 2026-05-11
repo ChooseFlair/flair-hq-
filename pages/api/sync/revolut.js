@@ -54,7 +54,9 @@ export default async function handler(req, res) {
 
     await supabase.from('integrations').upsert({
       id: 'revolut_sync',
+      provider: 'revolut',
       last_sync: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
       meta: { transactions: list.length },
     })
 

@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import DashboardWidgets from './DashboardWidgets'
+import Bookmarks from './Bookmarks'
 
 const SUGGESTIONS = [
   'How are sales doing this week?',
@@ -152,6 +153,7 @@ export default function Jarvis() {
   const [voiceOut, setVoiceOut] = useState(false)
   const [interim, setInterim] = useState('')
   const [speechSupported, setSpeechSupported] = useState(false)
+  const [bookmarksOpen, setBookmarksOpen] = useState(false)
   const scrollRef = useRef(null)
   const inputRef = useRef(null)
   const recogRef = useRef(null)
@@ -362,6 +364,15 @@ export default function Jarvis() {
               )}
             </svg>
           </button>
+          <button
+            onClick={() => setBookmarksOpen(true)}
+            title="Quick links"
+            className="p-1.5 rounded border border-cyan-300/40 text-cyan-200 hover:text-cyan-100 hover:border-cyan-300/70 transition-all"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+            </svg>
+          </button>
           <Link
             href="/integrations"
             title="Integrations &amp; setup"
@@ -376,6 +387,8 @@ export default function Jarvis() {
       </div>
 
       <DashboardWidgets />
+
+      <Bookmarks open={bookmarksOpen} onClose={() => setBookmarksOpen(false)} />
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto relative z-20 jarvis-scrollbar">
         {!hasMessages ? (
