@@ -17,7 +17,7 @@ function StatusBadge({ status, reason }) {
     <div className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded border ${s.border} ${s.bg}`}>
       <span className={`w-1.5 h-1.5 rounded-full ${s.color.replace('text-', 'bg-')}`} />
       <span className={`text-[10px] font-mono tracking-wider ${s.color}`}>{s.label}</span>
-      <span className="text-cyan-500/40 text-[10px] font-mono">{reason}</span>
+      <span className="text-cyan-300/80 text-[10px] font-mono">{reason}</span>
     </div>
   )
 }
@@ -54,7 +54,7 @@ function ConnectorCard({ connector, onSync }) {
             <h3 className="text-cyan-100 font-mono text-base tracking-wider">{connector.name.toUpperCase()}</h3>
             <StatusBadge status={connector.status} reason={connector.statusReason} />
           </div>
-          <p className="text-cyan-500/50 text-xs mt-1 font-mono">{connector.description}</p>
+          <p className="text-cyan-300 text-xs mt-1 font-mono">{connector.description}</p>
         </div>
 
         {connector.syncPath && (
@@ -88,7 +88,7 @@ function ConnectorCard({ connector, onSync }) {
             }`}>
               <span>{v.present ? '✓' : '✗'}</span>
               <span>{v.name}</span>
-              {v.alt && !v.present && <span className="text-cyan-500/40">(or {v.alt})</span>}
+              {v.alt && !v.present && <span className="text-cyan-300/80">(or {v.alt})</span>}
             </div>
           ))}
         </div>
@@ -106,17 +106,17 @@ function ConnectorCard({ connector, onSync }) {
       )}
 
       {connector.lastSync && (
-        <div className="mt-2 text-[10px] font-mono text-cyan-500/40">
+        <div className="mt-2 text-[10px] font-mono text-cyan-300/80">
           Last sync: {new Date(connector.lastSync).toLocaleString()}
         </div>
       )}
 
       {(response || error || connector.lastResult) && (
         <div className="mt-3 pt-3 border-t border-cyan-500/10">
-          <div className="text-[9px] font-mono text-cyan-500/50 tracking-widest mb-1">
+          <div className="text-[9px] font-mono text-cyan-300 tracking-widest mb-1">
             {response ? `HTTP ${response.httpStatus} RESPONSE` : error ? 'ERROR' : 'LAST RESULT'}
           </div>
-          <pre className="text-[10px] font-mono text-cyan-200/70 bg-black/40 border border-cyan-500/10 rounded p-2 overflow-x-auto whitespace-pre-wrap break-all max-h-48">
+          <pre className="text-[10px] font-mono text-cyan-100 bg-black/40 border border-cyan-500/10 rounded p-2 overflow-x-auto whitespace-pre-wrap break-all max-h-48">
             {error || JSON.stringify(response?.body || connector.lastResult, null, 2)}
           </pre>
         </div>
@@ -128,7 +128,7 @@ function ConnectorCard({ connector, onSync }) {
             href={connector.setupUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-[10px] font-mono text-cyan-500/40 hover:text-cyan-300 tracking-wider"
+            className="text-[10px] font-mono text-cyan-300/80 hover:text-cyan-300 tracking-wider"
           >
             SETUP DOCS →
           </a>
@@ -177,7 +177,7 @@ export default function IntegrationsPage() {
         <div className="border-b border-cyan-500/10 px-6 py-4 flex items-center justify-between">
           <div>
             <h1 className="text-cyan-300 font-mono text-sm tracking-[0.3em] uppercase">Integrations</h1>
-            <p className="text-cyan-500/40 text-[10px] font-mono tracking-widest">CONNECTOR HEALTH &amp; SETUP</p>
+            <p className="text-cyan-300/80 text-[10px] font-mono tracking-widest">CONNECTOR HEALTH &amp; SETUP</p>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -193,7 +193,7 @@ export default function IntegrationsPage() {
             </button>
             <Link
               href="/"
-              className="text-[10px] font-mono px-3 py-1.5 rounded border border-cyan-500/15 text-cyan-400/70 hover:text-cyan-200 hover:border-cyan-400/40 tracking-wider"
+              className="text-[10px] font-mono px-3 py-1.5 rounded border border-cyan-500/15 text-cyan-300 hover:text-cyan-200 hover:border-cyan-400/40 tracking-wider"
             >
               ← JARVIS
             </Link>
@@ -201,7 +201,7 @@ export default function IntegrationsPage() {
         </div>
 
         <div className="max-w-4xl mx-auto px-6 py-6">
-          {loading && !data && <div className="text-cyan-500/40 font-mono text-sm">Loading...</div>}
+          {loading && !data && <div className="text-cyan-300/80 font-mono text-sm">Loading...</div>}
           {data?.error && <div className="text-rose-400 font-mono text-sm">Error: {data.error}</div>}
           {data?.connectors && (
             <div className="space-y-3">
@@ -210,7 +210,7 @@ export default function IntegrationsPage() {
               ))}
             </div>
           )}
-          <div className="mt-6 text-[10px] font-mono text-cyan-500/30 tracking-wider">
+          <div className="mt-6 text-[10px] font-mono text-cyan-300/70 tracking-wider">
             Env vars are configured in Vercel → Settings → Environment Variables. After saving, redeploy for changes to take effect.
           </div>
         </div>
