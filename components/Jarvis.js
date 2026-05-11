@@ -97,8 +97,17 @@ export default function Jarvis() {
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
+  const [listening, setListening] = useState(false)
+  const [speaking, setSpeaking] = useState(false)
+  const [voiceOut, setVoiceOut] = useState(false)
+  const [interim, setInterim] = useState('')
+  const [speechSupported, setSpeechSupported] = useState(false)
   const scrollRef = useRef(null)
   const inputRef = useRef(null)
+  const recogRef = useRef(null)
+  const voiceOutRef = useRef(false)
+
+  useEffect(() => { voiceOutRef.current = voiceOut }, [voiceOut])
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
@@ -106,11 +115,83 @@ export default function Jarvis() {
 
   useEffect(() => { inputRef.current?.focus() }, [])
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition
+    if (!SR) return
+    setSpeechSupported(true)
+    const rec = new SR()
+    rec.continuous = false
+    rec.interimResults = true
+    rec.lang = 'en-GB'
+    rec.onresult = (event) => {
+      let interimText = ''
+      let finalText = ''
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const t = event.results[i][0].transcript
+        if (event.results[i].isFinal) finalText += t
+        else interimText += t
+      }
+      setInterim(interimText)
+      if (finalText.trim()) {
+        setInterim('')
+        send(finalText.trim())
+      }
+    }
+    rec.onerror = () => { setListening(false); setInterim('') }
+    rec.onend = () => { setListening(false); setInterim('') }
+    recogRef.current = rec
+    return () => { try { rec.abort() } catch {} }
+  }, [])
+
+  function speak(text) {
+    if (typeof window === 'undefined' || !window.speechSynthesis) return
+    window.speechSynthesis.cancel()
+    const clean = text
+      .replace(/```[\s\S]*?```/g, '')
+      .replace(/[*_#`>]/g, '')
+      .replace(/\n+/g, '. ')
+      .replace(/\s+/g, ' ')
+      .trim()
+    if (!clean) return
+    const utter = new SpeechSynthesisUtterance(clean)
+    utter.rate = 1.05
+    utter.pitch = 0.95
+    const voices = window.speechSynthesis.getVoices()
+    const pick =
+      voices.find(v => /en-GB/i.test(v.lang) && /male|daniel|oliver/i.test(v.name)) ||
+      voices.find(v => /Google UK English Male/i.test(v.name)) ||
+      voices.find(v => /en-GB/i.test(v.lang)) ||
+      voices.find(v => /en-US/i.test(v.lang))
+    if (pick) utter.voice = pick
+    utter.onstart = () => setSpeaking(true)
+    utter.onend = () => setSpeaking(false)
+    utter.onerror = () => setSpeaking(false)
+    window.speechSynthesis.speak(utter)
+  }
+
+  function toggleMic() {
+    if (!recogRef.current) return
+    if (listening) {
+      try { recogRef.current.stop() } catch {}
+      setListening(false)
+      return
+    }
+    if (typeof window !== 'undefined') window.speechSynthesis?.cancel()
+    setSpeaking(false)
+    try {
+      recogRef.current.start()
+      setListening(true)
+    } catch {}
+  }
+
   async function send(text) {
     const msg = text || input.trim()
     if (!msg || loading) return
     setMessages(prev => [...prev, { role: 'user', content: msg }])
     setInput('')
+    setInterim('')
+    setListening(false)
     setLoading(true)
     try {
       const res = await fetch('/api/jarvis', {
@@ -123,6 +204,7 @@ export default function Jarvis() {
         setMessages(prev => [...prev, { role: 'assistant', content: `Error: ${json.error || 'Unknown'}`, error: true }])
       } else {
         setMessages(prev => [...prev, { role: 'assistant', content: json.response, tools: json.tools_used || [] }])
+        if (voiceOutRef.current) speak(json.response)
       }
     } catch (e) {
       setMessages(prev => [...prev, { role: 'assistant', content: `Connection error: ${e.message}`, error: true }])
@@ -136,6 +218,7 @@ export default function Jarvis() {
   }
 
   const hasMessages = messages.length > 0
+  const active = loading || listening || speaking
 
   return (
     <div className="h-screen flex flex-col bg-black overflow-hidden relative">
@@ -157,6 +240,20 @@ export default function Jarvis() {
         .jarvis-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(0,220,255,0.4); }
         @keyframes scanline { 0% { transform: translateY(-100%); } 100% { transform: translateY(100vh); } }
         .scanline { animation: scanline 8s linear infinite; }
+        @keyframes jarvisFloat {
+          0%, 100% { transform: translate(0, 0); }
+          25% { transform: translate(8px, -6px); }
+          50% { transform: translate(-6px, 4px); }
+          75% { transform: translate(4px, 6px); }
+        }
+        .jarvis-float { animation: jarvisFloat 14s ease-in-out infinite; }
+        .jarvis-listen-tint svg { filter: drop-shadow(0 0 35px rgba(34, 211, 238, 0.55)) hue-rotate(-15deg); }
+        .jarvis-speak-tint svg { filter: drop-shadow(0 0 45px rgba(168, 85, 247, 0.55)) hue-rotate(40deg); }
+        @keyframes micPulseRing {
+          0% { transform: scale(1); opacity: 0.6; }
+          100% { transform: scale(1.8); opacity: 0; }
+        }
+        .mic-pulse-ring { animation: micPulseRing 1.4s ease-out infinite; }
       `}</style>
 
       <div className="absolute inset-0 pointer-events-none z-50 overflow-hidden opacity-[0.03]">
@@ -165,9 +262,17 @@ export default function Jarvis() {
 
       <div className="absolute inset-0 pointer-events-none z-40" style={{ background: 'radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.6) 100%)' }} />
 
-      <div className={`transition-all duration-1000 ${hasMessages ? 'opacity-20 scale-75' : 'opacity-100 scale-100'}`}>
-        <HudRings active={loading} />
+      <div className={`transition-all duration-1000 jarvis-float ${hasMessages ? 'opacity-30 scale-75' : 'opacity-100 scale-100'} ${listening ? 'jarvis-listen-tint' : ''} ${speaking ? 'jarvis-speak-tint' : ''}`}>
+        <HudRings active={active} />
       </div>
+
+      {(listening || interim) && (
+        <div className="absolute left-1/2 -translate-x-1/2 top-1/2 -translate-y-[-180px] z-30 pointer-events-none">
+          <div className="px-5 py-2 rounded-full border border-cyan-400/40 bg-black/60 backdrop-blur-sm text-cyan-200 text-sm font-mono tracking-wide max-w-[80vw] text-center">
+            {interim || 'Listening...'}
+          </div>
+        </div>
+      )}
 
       <div className="relative z-20 px-6 py-3 flex items-center justify-between border-b border-cyan-500/10">
         <div className="flex items-center gap-3">
@@ -187,9 +292,27 @@ export default function Jarvis() {
           <span className="hidden sm:block">META</span>
           <span className="hidden sm:block">WINDSOR</span>
           <div className="flex items-center gap-1.5">
-            <div className={`w-1.5 h-1.5 rounded-full ${loading ? 'bg-cyan-400 animate-pulse' : 'bg-emerald-500/60'}`} />
-            <span className={loading ? 'text-cyan-400' : 'text-emerald-500/40'}>{loading ? 'PROCESSING' : 'ONLINE'}</span>
+            <div className={`w-1.5 h-1.5 rounded-full ${active ? 'bg-cyan-400 animate-pulse' : 'bg-emerald-500/60'}`} />
+            <span className={active ? 'text-cyan-400' : 'text-emerald-500/40'}>
+              {listening ? 'LISTENING' : speaking ? 'SPEAKING' : loading ? 'PROCESSING' : 'ONLINE'}
+            </span>
           </div>
+          <button
+            onClick={() => {
+              if (voiceOut && typeof window !== 'undefined') window.speechSynthesis?.cancel()
+              setVoiceOut(v => !v)
+            }}
+            title={voiceOut ? 'Voice replies: ON' : 'Voice replies: OFF'}
+            className={`p-1.5 rounded border transition-all ${voiceOut ? 'border-cyan-400/50 bg-cyan-400/10 text-cyan-300' : 'border-cyan-500/15 text-cyan-500/40 hover:text-cyan-300 hover:border-cyan-400/30'}`}
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              {voiceOut ? (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072M17.95 6.05a8 8 0 010 11.9M11 5L6 9H2v6h4l5 4V5z" />
+              ) : (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5L6 9H2v6h4l5 4V5z M22 9l-6 6 M16 9l6 6" />
+              )}
+            </svg>
+          </button>
         </div>
       </div>
 
@@ -263,15 +386,42 @@ export default function Jarvis() {
         )}
       </div>
 
-      <div className="relative z-20 px-4 py-3 border-t border-cyan-500/10">
-        <div className="flex items-end gap-2 max-w-4xl mx-auto">
+      <div className="relative z-20 px-4 pt-2 pb-5 border-t border-cyan-500/10 flex flex-col items-center gap-3">
+        <div className="relative flex items-center justify-center">
+          {listening && (
+            <>
+              <span className="absolute inset-0 rounded-full border-2 border-cyan-400 mic-pulse-ring" />
+              <span className="absolute inset-0 rounded-full border-2 border-cyan-400 mic-pulse-ring" style={{ animationDelay: '0.5s' }} />
+            </>
+          )}
+          <button
+            onClick={toggleMic}
+            disabled={!speechSupported}
+            title={!speechSupported ? 'Voice input not supported in this browser' : listening ? 'Stop listening' : 'Tap to speak'}
+            className={`relative w-16 h-16 rounded-full border-2 flex items-center justify-center transition-all duration-300 ${
+              !speechSupported
+                ? 'border-cyan-500/10 text-cyan-500/20 cursor-not-allowed'
+                : listening
+                  ? 'border-cyan-400 bg-cyan-400/20 text-cyan-100 shadow-lg shadow-cyan-400/40'
+                  : speaking
+                    ? 'border-purple-400/60 bg-purple-400/10 text-purple-200 shadow-lg shadow-purple-400/30'
+                    : 'border-cyan-500/30 bg-cyan-500/[0.04] text-cyan-300 hover:border-cyan-400/60 hover:bg-cyan-400/10 hover:shadow-lg hover:shadow-cyan-400/20'
+            }`}
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-14 0m7 7v3m-4 0h8M12 3a3 3 0 00-3 3v5a3 3 0 006 0V6a3 3 0 00-3-3z" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="flex items-end gap-2 w-full max-w-4xl mx-auto">
           <div className="flex-1 border border-cyan-500/15 rounded-lg bg-cyan-500/[0.02] focus-within:border-cyan-400/30 focus-within:bg-cyan-500/[0.04] transition-all duration-300">
             <textarea
               ref={inputRef}
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="> Ask Jarvis..."
+              placeholder={listening ? '> Listening...' : '> Ask Jarvis...'}
               rows={1}
               className="w-full bg-transparent text-cyan-200 placeholder-cyan-500/20 px-4 py-3 text-sm font-mono resize-none focus:outline-none"
               style={{ maxHeight: '120px' }}
