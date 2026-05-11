@@ -49,21 +49,6 @@ function mapOrder(o) {
   }
 }
 
-function mapCustomer(c) {
-  return {
-    shopify_id: String(c.id),
-    email: c.email,
-    first_name: c.first_name,
-    last_name: c.last_name,
-    phone: c.phone,
-    order_count: c.orders_count || 0,
-    total_spent: parseFloat(c.total_spent || 0),
-    tags: c.tags ? c.tags.split(',').map(t => t.trim()).filter(Boolean) : null,
-    created_at: c.created_at,
-    updated_at: c.updated_at,
-  }
-}
-
 export default async function handler(req, res) {
   const shop = process.env.SHOPIFY_SHOP_DOMAIN
   const token = process.env.SHOPIFY_ADMIN_TOKEN
@@ -78,7 +63,6 @@ export default async function handler(req, res) {
 
   const since = new Date(Date.now() - 90 * 86400000).toISOString()
   let orderCount = 0
-  let customerCount = 0
   const errors = []
 
   try {
@@ -99,40 +83,20 @@ export default async function handler(req, res) {
     errors.push(`orders: ${e.message}`)
   }
 
-  try {
-    let url = `https://${shop}/admin/api/${API_VERSION}/customers.json?limit=250&updated_at_min=${encodeURIComponent(since)}`
-    let pages = 0
-    while (url && pages < 4) {
-      const { data, nextUrl } = await fetchShopify(url, token)
-      if (data.customers?.length) {
-        const rows = data.customers.map(mapCustomer).filter(r => r.email)
-        if (rows.length) {
-          const { error } = await supabase.from('customers').upsert(rows, { onConflict: 'shopify_id', ignoreDuplicates: false })
-          if (error) errors.push(`customers: ${error.message}`)
-          else customerCount += rows.length
-        }
-      }
-      url = nextUrl
-      pages++
-    }
-  } catch (e) {
-    errors.push(`customers: ${e.message}`)
-  }
-
-  try {
-    await supabase.from('integrations').upsert({
-      id: 'shopify_sync',
-      last_sync: new Date().toISOString(),
-      meta: { orders: orderCount, customers: customerCount, errors },
-    })
-  } catch {}
+  const { error: trackErr } = await supabase.from('integrations').upsert({
+    id: 'shopify_sync',
+    provider: 'shopify',
+    last_sync: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    meta: { orders: orderCount, errors },
+  })
+  if (trackErr) errors.push(`tracking: ${trackErr.message}`)
 
   const ok = errors.length === 0
   res.status(200).json({
     name: 'Shopify',
     status: ok ? 'ok' : 'partial',
     orders: orderCount,
-    customers: customerCount,
     errors,
   })
 }

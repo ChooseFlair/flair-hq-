@@ -36,7 +36,9 @@ export default async function handler(req, res) {
 
     const snapshot = {
       id: 'meta_30d',
+      provider: 'meta',
       last_sync: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
       meta: {
         spend: parseFloat(insight.spend || 0),
         impressions: parseInt(insight.impressions || 0),
