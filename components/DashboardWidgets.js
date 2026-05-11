@@ -33,6 +33,7 @@ function Stat({ label, value, hint }) {
 export default function DashboardWidgets() {
   const [range, setRange] = useState('today')
   const [data, setData] = useState(null)
+  const [connectors, setConnectors] = useState([])
   const [loading, setLoading] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const [syncMsg, setSyncMsg] = useState('')
@@ -42,17 +43,32 @@ export default function DashboardWidgets() {
   const load = useCallback(async (r) => {
     setLoading(true)
     try {
-      const res = await fetch(`/api/dashboard/summary?range=${r}`)
-      const json = await res.json()
-      setData(json)
+      const [sumRes, statusRes] = await Promise.all([
+        fetch(`/api/dashboard/summary?range=${r}`),
+        fetch('/api/dashboard/connector-status'),
+      ])
+      const sumJson = await sumRes.json()
+      const statusJson = await statusRes.json()
+      setData(sumJson)
+      setConnectors((statusJson.connectors || []).map(c => ({
+        name: c.name.toUpperCase(),
+        status: c.status === 'ok' ? 'ok' : c.status === 'not_configured' ? 'warn' : 'error',
+        detail: c.statusReason || c.message || '',
+      })))
     } catch (e) {
-      setData({ error: e.message, connectors: [], issues: [{ name: 'API', status: 'error', message: e.message }] })
+      setData({ error: e.message, issues: [{ name: 'API', status: 'error', message: e.message }] })
     } finally {
       setLoading(false)
     }
   }, [])
 
   useEffect(() => { load(range) }, [range, load])
+
+  useEffect(() => {
+    const onFocus = () => load(range)
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
+  }, [range, load])
 
   async function resync(connector = null) {
     if (syncing) return
@@ -103,7 +119,7 @@ export default function DashboardWidgets() {
 
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2 text-[9px] font-mono">
-              {(data?.connectors || []).map(c => {
+              {connectors.map(c => {
                 const prog = syncProgress?.find(p => p.name.toUpperCase() === c.name)
                 const isLoading = prog?.status === 'syncing'
                 const showStatus = prog?.status === 'ok' ? 'ok' : prog?.status === 'error' ? 'error' : prog?.status === 'partial' ? 'warn' : prog?.status === 'not_configured' ? 'warn' : c.status
