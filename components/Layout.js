@@ -28,9 +28,11 @@ import {
   MessageSquare,
   ExternalLink,
   Leaf,
+  Zap,
 } from 'lucide-react'
 
 const navigation = [
+  { id: 'jarvis', name: 'Jarvis AI', icon: Zap },
   { id: 'overview', name: 'Overview', icon: LayoutDashboard },
   { id: 'tasks', name: 'Task Manager', icon: ClipboardList },
   { id: 'pnl', name: 'P&L', icon: DollarSign },
@@ -118,14 +120,12 @@ export default function Layout({ children, activeTab, setActiveTab, activeSubTab
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-cream-50 via-white to-flair-50">
-      {/* Decorative background elements */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-40 -right-40 w-80 h-80 bg-flair-100 rounded-full opacity-30 blur-3xl"></div>
         <div className="absolute top-1/2 -left-40 w-96 h-96 bg-sage-100 rounded-full opacity-20 blur-3xl"></div>
         <div className="absolute -bottom-40 right-1/3 w-80 h-80 bg-cream-200 rounded-full opacity-30 blur-3xl"></div>
       </div>
 
-      {/* Header */}
       <header className="glass-header fixed top-0 left-0 right-0 z-30 shadow-sm">
         <div className="flex items-center justify-between px-5 py-3">
           <div className="flex items-center gap-4">
@@ -163,7 +163,6 @@ export default function Layout({ children, activeTab, setActiveTab, activeSubTab
       </header>
 
       <div className="flex pt-[60px]">
-        {/* Sidebar */}
         <aside className={`fixed left-0 top-[60px] h-[calc(100vh-60px)] glass-sidebar transition-all duration-300 z-20 ${sidebarOpen ? 'w-64' : 'w-0 lg:w-16'} overflow-hidden`}>
           <nav className="p-3 space-y-1 overflow-y-auto h-[calc(100%-120px)]">
             {navigation.map((item) => {
@@ -174,7 +173,6 @@ export default function Layout({ children, activeTab, setActiveTab, activeSubTab
 
               return (
                 <div key={item.id}>
-                  {/* Parent Item */}
                   <button
                     onClick={() => handleNavClick(item)}
                     className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-left transition-all duration-200 ${
@@ -200,7 +198,6 @@ export default function Layout({ children, activeTab, setActiveTab, activeSubTab
                     )}
                   </button>
 
-                  {/* Children */}
                   {hasChildren && isExpanded && sidebarOpen && (
                     <div className="mt-1 ml-4 pl-3 border-l-2 border-flair-100 space-y-0.5">
                       {item.children.map((child) => {
@@ -228,7 +225,6 @@ export default function Layout({ children, activeTab, setActiveTab, activeSubTab
             })}
           </nav>
 
-          {/* Bottom Card */}
           <div className={`absolute bottom-4 left-3 right-3 ${sidebarOpen ? 'block' : 'hidden'}`}>
             <div className="gradient-flair rounded-2xl p-4 text-white shadow-lg shadow-flair-700/30">
               <div className="flex items-center gap-2 mb-2">
@@ -251,7 +247,6 @@ export default function Layout({ children, activeTab, setActiveTab, activeSubTab
           </div>
         </aside>
 
-        {/* Main Content */}
         <main className={`flex-1 transition-all duration-300 ${sidebarOpen ? 'lg:ml-64' : 'lg:ml-16'} relative z-10`}>
           <div className="p-6 max-w-7xl mx-auto">
             {children}
@@ -259,7 +254,6 @@ export default function Layout({ children, activeTab, setActiveTab, activeSubTab
         </main>
       </div>
 
-      {/* Mobile Sidebar Overlay */}
       {sidebarOpen && (
         <div
           className="fixed inset-0 bg-flair-900/20 backdrop-blur-sm z-10 lg:hidden"
