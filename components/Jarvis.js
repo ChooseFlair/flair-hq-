@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import DashboardWidgets from './DashboardWidgets'
 
 const SUGGESTIONS = [
   'How are sales doing this week?',
@@ -338,10 +339,6 @@ export default function Jarvis() {
           </div>
         </div>
         <div className="flex items-center gap-4 text-[10px] font-mono text-cyan-500/30 tracking-wider">
-          <span className="hidden sm:block">SHOPIFY</span>
-          <span className="hidden sm:block">KLAVIYO</span>
-          <span className="hidden sm:block">META</span>
-          <span className="hidden sm:block">WINDSOR</span>
           <div className="flex items-center gap-1.5">
             <div className={`w-1.5 h-1.5 rounded-full ${active ? 'bg-cyan-400 animate-pulse' : 'bg-emerald-500/60'}`} />
             <span className={active ? 'text-cyan-400' : 'text-emerald-500/40'}>
@@ -366,6 +363,8 @@ export default function Jarvis() {
           </button>
         </div>
       </div>
+
+      <DashboardWidgets />
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto relative z-20 jarvis-scrollbar">
         {!hasMessages ? (
