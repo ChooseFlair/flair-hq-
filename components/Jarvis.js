@@ -99,7 +99,7 @@ export default function Jarvis() {
   }
 
   return (
-    <div className="h-[calc(100vh-7rem)] flex flex-col bg-gradient-to-b from-gray-950 via-gray-900 to-gray-950 rounded-2xl border border-gray-800 overflow-hidden">
+    <div className="h-screen flex flex-col bg-gradient-to-b from-gray-950 via-gray-900 to-gray-950 overflow-hidden">
       {/* Header */}
       <div className="px-6 py-4 border-b border-gray-800/50 bg-gray-900/50 backdrop-blur flex items-center gap-3">
         <div className="relative">
@@ -111,7 +111,7 @@ export default function Jarvis() {
           <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-400 rounded-full border-2 border-gray-900" />
         </div>
         <div>
-          <h1 className="text-white font-bold text-lg">Jarvis</h1>
+          <h1 className="text-white font-bold text-lg">Flair HQ — Jarvis</h1>
           <p className="text-gray-400 text-xs">Connected to Shopify, Klaviyo, Meta Ads, Google Ads, Revolut</p>
         </div>
       </div>
