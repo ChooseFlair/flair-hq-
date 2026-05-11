@@ -1,7 +1,7 @@
 import { supabase } from '../../lib/supabase'
 
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY
-const KLAVIYO_KEY = 'pk_bce69162bc267f14cbb31eff287d6c10c8'
+const KLAVIYO_KEY = process.env.KLAVIYO_API_KEY || 'pk_bce69162bc267f14cbb31eff287d6c10c8'
 const WINDSOR_KEY = 'cc92158d0eb0f1faa257c0414780b6c10961'
 
 async function getOrdersSummary() {
