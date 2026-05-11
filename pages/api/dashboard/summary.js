@@ -57,43 +57,42 @@ export default async function handler(req, res) {
 
   const connectors = []
 
-  try {
-    const { count } = await supabase.from('orders').select('*', { count: 'exact', head: true })
-    connectors.push({ name: 'SHOPIFY', status: count > 0 ? 'ok' : 'warn', detail: `${count || 0} orders` })
-  } catch (e) {
-    connectors.push({ name: 'SHOPIFY', status: 'error', detail: 'unreachable' })
-    issues.push({ name: 'Shopify', status: 'error', message: e.message })
-  }
+  const CONNECTOR_DEFS = [
+    { name: 'SHOPIFY', rowId: 'shopify_sync', envCheck: () => process.env.SHOPIFY_SHOP_DOMAIN && process.env.SHOPIFY_ADMIN_TOKEN },
+    { name: 'KLAVIYO', rowId: 'klaviyo_sync', envCheck: () => true },
+    { name: 'META', rowId: 'meta_30d', envCheck: () => (process.env.META_ACCESS_TOKEN || process.env.FACEBOOK_ACCESS_TOKEN) && process.env.META_AD_ACCOUNT_ID },
+    { name: 'PAYPAL', rowId: 'paypal_sync', envCheck: () => process.env.PAYPAL_CLIENT_ID && process.env.PAYPAL_SECRET },
+    { name: 'REVOLUT', rowId: 'revolut_sync', envCheck: () => process.env.REVOLUT_CLIENT_ID },
+    { name: 'WINDSOR', rowId: null, envCheck: () => true },
+  ]
 
+  let rows = []
   try {
-    const { data: kl } = await supabase.from('integrations').select('*').eq('id', 'klaviyo_sync').maybeSingle()
-    if (!kl) {
-      connectors.push({ name: 'KLAVIYO', status: 'warn', detail: 'never synced' })
-    } else {
-      const last = kl.last_sync || kl.updated_at
-      const ageH = last ? (Date.now() - new Date(last).getTime()) / 3600000 : 9999
-      connectors.push({
-        name: 'KLAVIYO',
-        status: ageH < 24 ? 'ok' : ageH < 72 ? 'warn' : 'error',
-        detail: last ? `${ageH < 1 ? Math.round(ageH * 60) + 'm' : Math.round(ageH) + 'h'} ago` : 'no sync',
-      })
-      if (ageH >= 72) issues.push({ name: 'Klaviyo', status: 'error', message: `Last sync ${Math.round(ageH)}h ago` })
+    const { data } = await supabase.from('integrations').select('*').in('id', CONNECTOR_DEFS.map(c => c.rowId).filter(Boolean))
+    rows = data || []
+  } catch {}
+
+  for (const def of CONNECTOR_DEFS) {
+    if (!def.envCheck()) {
+      connectors.push({ name: def.name, status: 'warn', detail: 'not configured' })
+      continue
     }
-  } catch (e) {
-    connectors.push({ name: 'KLAVIYO', status: 'error', detail: 'unreachable' })
+    if (!def.rowId) {
+      connectors.push({ name: def.name, status: 'ok', detail: 'live' })
+      continue
+    }
+    const row = rows.find(r => r.id === def.rowId)
+    if (!row) {
+      connectors.push({ name: def.name, status: 'warn', detail: 'never synced' })
+      continue
+    }
+    const last = row.last_sync || row.updated_at
+    const ageH = last ? (Date.now() - new Date(last).getTime()) / 3600000 : 9999
+    const status = ageH < 24 ? 'ok' : ageH < 72 ? 'warn' : 'error'
+    const detail = last ? `${ageH < 1 ? Math.round(ageH * 60) + 'm' : Math.round(ageH) + 'h'} ago` : 'no sync'
+    connectors.push({ name: def.name, status, detail })
+    if (status === 'error') issues.push({ name: def.name, status: 'error', message: `Last sync ${detail}` })
   }
-
-  connectors.push({
-    name: 'META',
-    status: process.env.META_ACCESS_TOKEN || process.env.FACEBOOK_ACCESS_TOKEN ? 'ok' : 'warn',
-    detail: process.env.META_ACCESS_TOKEN || process.env.FACEBOOK_ACCESS_TOKEN ? 'connected' : 'cached only',
-  })
-
-  connectors.push({
-    name: 'WINDSOR',
-    status: 'ok',
-    detail: 'connected',
-  })
 
   res.status(200).json({
     range,
