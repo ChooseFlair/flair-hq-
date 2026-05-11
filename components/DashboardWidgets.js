@@ -36,6 +36,7 @@ export default function DashboardWidgets() {
   const [loading, setLoading] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const [syncMsg, setSyncMsg] = useState('')
+  const [syncProgress, setSyncProgress] = useState(null)
   const [expanded, setExpanded] = useState(true)
 
   const load = useCallback(async (r) => {
@@ -53,20 +54,27 @@ export default function DashboardWidgets() {
 
   useEffect(() => { load(range) }, [range, load])
 
-  async function resync() {
+  async function resync(connector = null) {
     if (syncing) return
     setSyncing(true)
-    setSyncMsg('Syncing...')
+    setSyncMsg(connector ? `${connector}...` : 'Syncing...')
+    const pendingNames = connector ? [connector] : ['Shopify', 'Klaviyo', 'Meta', 'PayPal', 'Revolut']
+    setSyncProgress(pendingNames.map(n => ({ name: n, status: 'syncing' })))
     try {
-      const res = await fetch('/api/dashboard/resync', { method: 'POST' })
+      const url = connector ? `/api/dashboard/resync?connector=${connector.toLowerCase()}` : '/api/dashboard/resync'
+      const res = await fetch(url, { method: 'POST' })
       const json = await res.json()
-      setSyncMsg(json.ok ? 'Synced ✓' : 'Partial')
+      setSyncProgress(json.results || [])
+      const okCount = (json.results || []).filter(r => r.status === 'ok').length
+      const total = (json.results || []).length
+      setSyncMsg(okCount === total ? 'Synced ✓' : `${okCount}/${total}`)
       await load(range)
     } catch (e) {
       setSyncMsg('Failed')
+      setSyncProgress(prev => (prev || []).map(p => ({ ...p, status: 'error', message: e.message })))
     } finally {
       setSyncing(false)
-      setTimeout(() => setSyncMsg(''), 3000)
+      setTimeout(() => { setSyncMsg(''); setSyncProgress(null) }, 6000)
     }
   }
 
@@ -95,20 +103,39 @@ export default function DashboardWidgets() {
 
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2 text-[9px] font-mono">
-              {(data?.connectors || []).map(c => (
-                <div key={c.name} className="flex items-center gap-1" title={c.detail || ''}>
-                  <StatusDot status={c.status} />
-                  <span className={
-                    c.status === 'ok' ? 'text-emerald-500/60'
-                    : c.status === 'warn' ? 'text-amber-500/70'
-                    : 'text-rose-500/70'
-                  }>{c.name}</span>
-                </div>
-              ))}
+              {(data?.connectors || []).map(c => {
+                const prog = syncProgress?.find(p => p.name.toUpperCase() === c.name)
+                const isLoading = prog?.status === 'syncing'
+                const showStatus = prog?.status === 'ok' ? 'ok' : prog?.status === 'error' ? 'error' : prog?.status === 'partial' ? 'warn' : prog?.status === 'not_configured' ? 'warn' : c.status
+                const titleText = prog?.message || prog?.status || c.detail || ''
+                return (
+                  <button
+                    key={c.name}
+                    onClick={() => !syncing && resync(c.name.charAt(0) + c.name.slice(1).toLowerCase())}
+                    disabled={syncing}
+                    className="flex items-center gap-1 hover:opacity-80 transition-opacity disabled:cursor-wait"
+                    title={`${titleText} — click to resync just this`}
+                  >
+                    {isLoading ? (
+                      <svg className="w-2 h-2 animate-spin text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="10" strokeWidth="3" opacity="0.3" />
+                        <path strokeWidth="3" strokeLinecap="round" d="M22 12a10 10 0 00-10-10" />
+                      </svg>
+                    ) : (
+                      <StatusDot status={showStatus} />
+                    )}
+                    <span className={
+                      showStatus === 'ok' ? 'text-emerald-500/60'
+                      : showStatus === 'warn' ? 'text-amber-500/70'
+                      : 'text-rose-500/70'
+                    }>{c.name}</span>
+                  </button>
+                )
+              })}
             </div>
 
             <button
-              onClick={resync}
+              onClick={() => resync()}
               disabled={syncing}
               className={`flex items-center gap-1.5 text-[10px] font-mono px-2.5 py-1 rounded border transition-all tracking-wider ${
                 syncing
