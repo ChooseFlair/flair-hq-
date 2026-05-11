@@ -1,10 +1,8 @@
 import { supabase } from '../../lib/supabase'
 
-const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY
+const GEMINI_KEY = process.env.GEMINI_API_KEY
 const KLAVIYO_KEY = 'pk_bce69162bc267f14cbb31eff287d6c10c8'
 const WINDSOR_KEY = 'cc92158d0eb0f1faa257c0414780b6c10961'
-
-// ─── Data fetching tools ───────────────────────────────────────
 
 async function getOrdersSummary() {
   const { data: orders } = await supabase
@@ -153,8 +151,6 @@ async function getProducts() {
   return data || []
 }
 
-// ─── Tool definitions for Claude ───────────────────────────────
-
 const TOOLS = [
   { name: 'get_orders_summary', description: 'Get overall order stats: total orders, revenue, AOV, 7-day and 30-day breakdowns, refund count', fn: getOrdersSummary },
   { name: 'get_recent_orders', description: 'Get the most recent orders with details (order number, email, price, status)', fn: () => getRecentOrders(10) },
@@ -167,13 +163,32 @@ const TOOLS = [
   { name: 'get_products', description: 'Get product catalog: titles, prices, inventory levels, SKUs', fn: getProducts },
 ]
 
-const TOOL_DEFS = TOOLS.map(t => ({
-  name: t.name,
-  description: t.description,
-  input_schema: { type: 'object', properties: {}, required: [] },
-}))
+const GEMINI_TOOL_DEFS = [{
+  function_declarations: TOOLS.map(t => ({
+    name: t.name,
+    description: t.description,
+    parameters: { type: 'OBJECT', properties: {}, required: [] },
+  }))
+}]
 
-// ─── Main handler ──────────────────────────────────────────────
+const SYSTEM_PROMPT = `You are Jarvis, the AI business assistant for Flair — a UK-based aromatherapy inhaler brand (chooseflair.com). You help the founder Karl run his business by providing data-driven insights and recommendations.
+
+You have access to real-time business tools. Use them to answer questions with actual data. Be concise, direct, and actionable. Use £ for currency. When showing numbers, be specific.
+
+Personality: Confident, sharp, slightly witty — like a trusted business partner. Don't be robotic. Address the user casually. Keep responses focused and under 300 words unless detailed analysis is requested.
+
+Connected systems: Shopify orders (via Supabase), Klaviyo email marketing, Meta/Facebook Ads, Google Ads (via Windsor AI), PayPal, Revolut banking.
+
+You can also chat about anything — business strategy, ideas, general questions. You're Karl's go-to AI.`
+
+function buildContents(history, message) {
+  const contents = []
+  for (const m of history.slice(-10)) {
+    contents.push({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] })
+  }
+  contents.push({ role: 'user', parts: [{ text: message }] })
+  return contents
+}
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' })
@@ -181,86 +196,78 @@ export default async function handler(req, res) {
   const { message, history = [] } = req.body
   if (!message) return res.status(400).json({ error: 'No message provided' })
 
-  if (!ANTHROPIC_KEY) {
-    return res.status(500).json({ error: 'ANTHROPIC_API_KEY not configured' })
+  if (!GEMINI_KEY) {
+    return res.status(500).json({ error: 'GEMINI_API_KEY not configured. Add it to your Vercel environment variables (free from aistudio.google.com).' })
   }
 
-  const systemPrompt = `You are Jarvis, the AI business assistant for Flair — a UK-based aromatherapy inhaler brand (chooseflair.com). You help the founder Karl run his business by providing data-driven insights and recommendations.
-
-You have access to real-time business tools. Use them to answer questions with actual data. Be concise, direct, and actionable. Use £ for currency. When showing numbers, be specific.
-
-Personality: Confident, sharp, slightly witty — like a trusted business partner. Don't be robotic. Address the user casually. Keep responses focused and under 300 words unless detailed analysis is requested.
-
-Connected systems: Shopify orders (via Supabase), Klaviyo email marketing, Meta/Facebook Ads, Google Ads (via Windsor AI), PayPal, Revolut banking.`
-
-  const messages = [
-    ...history.slice(-10).map(m => ({ role: m.role, content: m.content })),
-    { role: 'user', content: message },
-  ]
+  const contents = buildContents(history, message)
 
   try {
-    // Step 1: Send to Claude with tools
-    const claudeRes = await fetch('https://api.anthropic.com/v1/messages', {
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`
+
+    const geminiRes = await fetch(geminiUrl, {
       method: 'POST',
-      headers: {
-        'x-api-key': ANTHROPIC_KEY,
-        'anthropic-version': '2023-06-01',
-        'content-type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1024,
-        system: systemPrompt,
-        tools: TOOL_DEFS,
-        messages,
+        system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
+        contents,
+        tools: GEMINI_TOOL_DEFS,
       }),
     })
 
-    if (!claudeRes.ok) {
-      const err = await claudeRes.text()
-      return res.status(502).json({ error: `Claude API ${claudeRes.status}: ${err.substring(0, 200)}` })
+    if (!geminiRes.ok) {
+      const err = await geminiRes.text()
+      return res.status(502).json({ error: `Gemini API ${geminiRes.status}: ${err.substring(0, 200)}` })
     }
 
-    let result = await claudeRes.json()
+    let result = await geminiRes.json()
+    let toolsUsed = []
 
-    // Step 2: If Claude wants to use tools, execute them
-    let toolResults = []
-    while (result.stop_reason === 'tool_use') {
-      const toolCalls = result.content.filter(c => c.type === 'tool_use')
+    // Handle tool calls in a loop
+    let loopContents = [...contents]
+    let maxLoops = 5
 
-      for (const call of toolCalls) {
-        const tool = TOOLS.find(t => t.name === call.name)
+    while (maxLoops-- > 0) {
+      const candidate = result.candidates?.[0]
+      if (!candidate) break
+
+      const parts = candidate.content?.parts || []
+      const functionCalls = parts.filter(p => p.functionCall)
+
+      if (functionCalls.length === 0) break
+
+      // Add model's response to conversation
+      loopContents.push({ role: 'model', parts })
+
+      // Execute all function calls
+      const functionResponses = []
+      for (const fc of functionCalls) {
+        const tool = TOOLS.find(t => t.name === fc.functionCall.name)
         let toolResult
         try {
           toolResult = tool ? await tool.fn() : { error: 'Unknown tool' }
         } catch (e) {
           toolResult = { error: e.message }
         }
-        toolResults.push({
-          type: 'tool_result',
-          tool_use_id: call.id,
-          content: JSON.stringify(toolResult),
+        toolsUsed.push(fc.functionCall.name)
+        functionResponses.push({
+          functionResponse: {
+            name: fc.functionCall.name,
+            response: toolResult,
+          }
         })
       }
 
-      // Step 3: Send tool results back to Claude
-      const followUp = await fetch('https://api.anthropic.com/v1/messages', {
+      // Send tool results back
+      loopContents.push({ role: 'user', parts: functionResponses })
+
+      const followUp = await fetch(geminiUrl, {
         method: 'POST',
-        headers: {
-          'x-api-key': ANTHROPIC_KEY,
-          'anthropic-version': '2023-06-01',
-          'content-type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 1024,
-          system: systemPrompt,
-          tools: TOOL_DEFS,
-          messages: [
-            ...messages,
-            { role: 'assistant', content: result.content },
-            { role: 'user', content: toolResults },
-          ],
+          system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
+          contents: loopContents,
+          tools: GEMINI_TOOL_DEFS,
         }),
       })
 
@@ -268,13 +275,14 @@ Connected systems: Shopify orders (via Supabase), Klaviyo email marketing, Meta/
       result = await followUp.json()
     }
 
-    // Extract text response
-    const textBlocks = (result.content || []).filter(c => c.type === 'text')
-    const response = textBlocks.map(c => c.text).join('\n') || 'I couldn\'t generate a response.'
+    // Extract final text
+    const candidate = result.candidates?.[0]
+    const textParts = (candidate?.content?.parts || []).filter(p => p.text)
+    const response = textParts.map(p => p.text).join('\n') || 'I couldn\'t generate a response.'
 
     res.json({
       response,
-      tools_used: toolResults.length > 0 ? TOOLS.filter(t => toolResults.some(r => JSON.stringify(r).includes(t.name))).map(t => t.name) : [],
+      tools_used: [...new Set(toolsUsed)],
     })
   } catch (e) {
     console.error('Jarvis error:', e)
