@@ -330,19 +330,19 @@ export default function Jarvis() {
       <div className="relative z-20 px-6 py-3 flex items-center justify-between border-b border-cyan-500/10">
         <div className="flex items-center gap-3">
           <div className="relative">
-            <div className={`w-8 h-8 rounded-full border ${loading ? 'border-cyan-400 shadow-lg shadow-cyan-400/30' : 'border-cyan-500/30'} flex items-center justify-center transition-all duration-500`}>
-              <div className={`w-2 h-2 rounded-full ${loading ? 'bg-cyan-400 animate-ping' : 'bg-cyan-500/60'}`} />
+            <div className={`w-8 h-8 rounded-full border ${loading ? 'border-cyan-300 shadow-lg shadow-cyan-400/40' : 'border-cyan-300/70'} flex items-center justify-center transition-all duration-500`}>
+              <div className={`w-2 h-2 rounded-full ${loading ? 'bg-cyan-300 animate-ping' : 'bg-cyan-300'}`} />
             </div>
           </div>
           <div>
-            <h1 className="text-cyan-300 font-mono text-sm tracking-[0.3em] uppercase">Jarvis</h1>
-            <p className="text-cyan-500/40 text-[10px] font-mono tracking-widest">FLAIR HQ SYSTEM v2.0</p>
+            <h1 className="text-cyan-200 font-mono text-sm tracking-[0.3em] uppercase">Jarvis</h1>
+            <p className="text-cyan-300/80 text-[10px] font-mono tracking-widest">FLAIR HQ SYSTEM v2.0</p>
           </div>
         </div>
-        <div className="flex items-center gap-4 text-[10px] font-mono text-cyan-500/30 tracking-wider">
+        <div className="flex items-center gap-4 text-[10px] font-mono text-cyan-300 tracking-wider">
           <div className="flex items-center gap-1.5">
-            <div className={`w-1.5 h-1.5 rounded-full ${active ? 'bg-cyan-400 animate-pulse' : 'bg-emerald-500/60'}`} />
-            <span className={active ? 'text-cyan-400' : 'text-emerald-500/40'}>
+            <div className={`w-1.5 h-1.5 rounded-full ${active ? 'bg-cyan-300 animate-pulse' : 'bg-emerald-300'}`} />
+            <span className={active ? 'text-cyan-200' : 'text-emerald-300'}>
               {listening ? 'LISTENING' : speaking ? 'SPEAKING' : loading ? 'PROCESSING' : 'ONLINE'}
             </span>
           </div>
@@ -352,7 +352,7 @@ export default function Jarvis() {
               setVoiceOut(v => !v)
             }}
             title={voiceOut ? 'Voice replies: ON' : 'Voice replies: OFF'}
-            className={`p-1.5 rounded border transition-all ${voiceOut ? 'border-cyan-400/50 bg-cyan-400/10 text-cyan-300' : 'border-cyan-500/15 text-cyan-500/40 hover:text-cyan-300 hover:border-cyan-400/30'}`}
+            className={`p-1.5 rounded border transition-all ${voiceOut ? 'border-cyan-300 bg-cyan-400/15 text-cyan-100' : 'border-cyan-300/40 text-cyan-200 hover:text-cyan-100 hover:border-cyan-300/70'}`}
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               {voiceOut ? (
@@ -365,7 +365,7 @@ export default function Jarvis() {
           <Link
             href="/integrations"
             title="Integrations &amp; setup"
-            className="p-1.5 rounded border border-cyan-500/15 text-cyan-500/40 hover:text-cyan-300 hover:border-cyan-400/30 transition-all"
+            className="p-1.5 rounded border border-cyan-300/40 text-cyan-200 hover:text-cyan-100 hover:border-cyan-300/70 transition-all"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
