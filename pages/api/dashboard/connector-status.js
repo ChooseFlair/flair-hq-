@@ -22,16 +22,19 @@ async function pingKlaviyo() {
   } catch (e) { return { status: 'error', message: e.message } }
 }
 
+const WINDSOR_KEY = 'cc92158d0eb0f1faa257c0414780b6c10961'
+
 async function pingMeta() {
-  const token = process.env.META_ACCESS_TOKEN || process.env.FACEBOOK_ACCESS_TOKEN
-  const account = process.env.META_AD_ACCOUNT_ID
-  if (!token || !account) return { status: 'not_configured', envVars: [{ name: 'META_ACCESS_TOKEN', present: !!token, alt: 'FACEBOOK_ACCESS_TOKEN' }, { name: 'META_AD_ACCOUNT_ID', present: !!account }] }
-  const id = account.startsWith('act_') ? account : `act_${account}`
+  const from = new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0]
+  const to = new Date().toISOString().split('T')[0]
   try {
-    const r = await fetch(`https://graph.facebook.com/v21.0/${id}?fields=name,currency&access_token=${encodeURIComponent(token)}`)
-    if (!r.ok) return { status: 'error', message: `HTTP ${r.status}` }
-    const j = await r.json()
-    return { status: 'ok', detail: j.name || 'connected' }
+    const url = `https://connectors.windsor.ai/facebook?api_key=${WINDSOR_KEY}&fields=source,spend,date&date_from=${from}&date_to=${to}&_renderer=json`
+    const r = await fetch(url)
+    if (!r.ok) return { status: 'error', message: `Windsor HTTP ${r.status}` }
+    const data = await r.json()
+    const rows = Array.isArray(data) ? data : (data?.data || [])
+    const spend = rows.reduce((s, row) => s + parseFloat(row.spend || 0), 0)
+    return { status: 'ok', detail: `via Windsor — £${spend.toFixed(0)} last 7d` }
   } catch (e) { return { status: 'error', message: e.message } }
 }
 
