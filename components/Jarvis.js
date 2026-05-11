@@ -38,56 +38,104 @@ function formatInline(text) {
   })
 }
 
-function HudRings({ active }) {
+const ORB_PALETTES = {
+  idle:       { core: '34,211,238',  halo: '99,102,241',  accent: '125,211,252' },
+  listening:  { core: '34,211,238',  halo: '6,182,212',   accent: '165,243,252' },
+  processing: { core: '139,92,246',  halo: '34,211,238',  accent: '196,181,253' },
+  speaking:   { core: '168,85,247',  halo: '236,72,153',  accent: '244,114,182' },
+}
+
+function JarvisOrb({ state }) {
+  const c = ORB_PALETTES[state] || ORB_PALETTES.idle
+  const speed = state === 'idle' ? 1 : state === 'listening' ? 2.2 : state === 'speaking' ? 1.8 : 3
+  const orbPulseDur = `${(6 / speed).toFixed(2)}s`
+  const orbitDur = `${(40 / speed).toFixed(0)}s`
+  const morphDur = `${(10 / speed).toFixed(2)}s`
+
   return (
-    <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden">
-      <svg viewBox="0 0 800 800" className="w-[700px] h-[700px] opacity-60" style={{ filter: 'drop-shadow(0 0 20px rgba(0, 255, 255, 0.15))' }}>
-        <g className={active ? 'hud-spin-fast' : 'hud-spin-slow'}>
-          <circle cx="400" cy="400" r="350" fill="none" stroke="rgba(0,220,255,0.15)" strokeWidth="1" />
-          <path d="M 400 50 A 350 350 0 0 1 750 400" fill="none" stroke="rgba(0,220,255,0.5)" strokeWidth="2" strokeLinecap="round" />
-          <path d="M 400 750 A 350 350 0 0 1 50 400" fill="none" stroke="rgba(0,220,255,0.3)" strokeWidth="1.5" strokeLinecap="round" />
-          {Array.from({ length: 72 }).map((_, j) => {
-            const angle = (j * 5 * Math.PI) / 180
-            const r1 = 345, r2 = j % 6 === 0 ? 335 : 340
-            return <line key={j} x1={400 + r1 * Math.cos(angle)} y1={400 + r1 * Math.sin(angle)} x2={400 + r2 * Math.cos(angle)} y2={400 + r2 * Math.sin(angle)} stroke={j % 6 === 0 ? 'rgba(0,220,255,0.6)' : 'rgba(0,220,255,0.2)'} strokeWidth={j % 6 === 0 ? 1.5 : 0.5} />
-          })}
-        </g>
-
-        <g className={active ? 'hud-spin-counter-fast' : 'hud-spin-counter'}>
-          <circle cx="400" cy="400" r="280" fill="none" stroke="rgba(0,220,255,0.1)" strokeWidth="1" />
-          <path d="M 400 120 A 280 280 0 0 1 680 400" fill="none" stroke="rgba(0,220,255,0.4)" strokeWidth="2" strokeDasharray="8 4" strokeLinecap="round" />
-          <path d="M 120 400 A 280 280 0 0 1 400 120" fill="none" stroke="rgba(0,220,255,0.25)" strokeWidth="1.5" strokeDasharray="12 6" strokeLinecap="round" />
-          {Array.from({ length: 48 }).map((_, j) => {
-            const angle = (j * 7.5 * Math.PI) / 180
-            return <circle key={j} cx={400 + 280 * Math.cos(angle)} cy={400 + 280 * Math.sin(angle)} r={j % 4 === 0 ? 2.5 : 1} fill={j % 4 === 0 ? 'rgba(0,220,255,0.6)' : 'rgba(0,220,255,0.2)'} />
-          })}
-        </g>
-
-        <g className={active ? 'hud-spin-inner-fast' : 'hud-spin-inner'}>
-          <circle cx="400" cy="400" r="200" fill="none" stroke="rgba(0,220,255,0.08)" strokeWidth="1" />
-          <path d="M 600 400 A 200 200 0 0 1 400 600" fill="none" stroke="rgba(0,220,255,0.5)" strokeWidth="2.5" strokeLinecap="round" />
-          <path d="M 200 400 A 200 200 0 0 1 400 200" fill="none" stroke="rgba(0,220,255,0.35)" strokeWidth="2" strokeLinecap="round" />
-          <path d="M 400 200 A 200 200 0 0 1 600 400" fill="none" stroke="rgba(0,220,255,0.15)" strokeWidth="1" strokeDasharray="4 8" strokeLinecap="round" />
-        </g>
-
-        <g className={active ? 'hud-pulse-fast' : 'hud-pulse'}>
-          <circle cx="400" cy="400" r="120" fill="none" stroke="rgba(0,220,255,0.2)" strokeWidth="1" />
-          <circle cx="400" cy="400" r="115" fill="none" stroke="rgba(0,220,255,0.08)" strokeWidth="8" />
-          {Array.from({ length: 24 }).map((_, j) => {
-            const angle = (j * 15 * Math.PI) / 180
-            return <line key={j} x1={400 + 112 * Math.cos(angle)} y1={400 + 112 * Math.sin(angle)} x2={400 + 120 * Math.cos(angle)} y2={400 + 120 * Math.sin(angle)} stroke="rgba(0,220,255,0.3)" strokeWidth="1" />
-          })}
-        </g>
-
-        <circle cx="400" cy="400" r="60" fill="url(#centerGlow)" className={active ? 'hud-pulse-fast' : 'hud-pulse'} />
-        <circle cx="400" cy="400" r="4" fill="rgba(0,220,255,0.8)" />
-
+    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+      <svg viewBox="0 0 800 800" className="w-[min(85vmin,820px)] h-[min(85vmin,820px)]" style={{ filter: `drop-shadow(0 0 40px rgba(${c.core},0.35))` }}>
         <defs>
-          <radialGradient id="centerGlow">
-            <stop offset="0%" stopColor="rgba(0,220,255,0.08)" />
-            <stop offset="100%" stopColor="rgba(0,220,255,0)" />
+          <radialGradient id="orbGlow">
+            <stop offset="0%" stopColor={`rgba(${c.accent},0.95)`} />
+            <stop offset="30%" stopColor={`rgba(${c.core},0.55)`} />
+            <stop offset="60%" stopColor={`rgba(${c.halo},0.18)`} />
+            <stop offset="100%" stopColor="rgba(0,0,0,0)" />
           </radialGradient>
+          <radialGradient id="orbSurface" cx="40%" cy="35%">
+            <stop offset="0%" stopColor={`rgba(${c.accent},0.85)`} />
+            <stop offset="40%" stopColor={`rgba(${c.core},0.35)`} />
+            <stop offset="80%" stopColor={`rgba(${c.halo},0.45)`} />
+            <stop offset="100%" stopColor={`rgba(${c.halo},0.85)`} />
+          </radialGradient>
+          <radialGradient id="orbHighlight" cx="35%" cy="30%">
+            <stop offset="0%" stopColor="rgba(255,255,255,0.5)" />
+            <stop offset="40%" stopColor="rgba(255,255,255,0.05)" />
+            <stop offset="100%" stopColor="rgba(255,255,255,0)" />
+          </radialGradient>
+          <filter id="orbTurbulence" x="-20%" y="-20%" width="140%" height="140%">
+            <feTurbulence type="fractalNoise" baseFrequency="0.012" numOctaves="2" seed="3" result="noise">
+              <animate attributeName="baseFrequency" values="0.010;0.020;0.013;0.010" dur={morphDur} repeatCount="indefinite" />
+            </feTurbulence>
+            <feDisplacementMap in="SourceGraphic" in2="noise" scale={state === 'speaking' ? 32 : state === 'listening' ? 24 : 14} />
+          </filter>
+          <filter id="orbBlur">
+            <feGaussianBlur stdDeviation="3" />
+          </filter>
         </defs>
+
+        <circle cx="400" cy="400" r="380" fill="url(#orbGlow)" opacity="0.35" />
+
+        <g style={{ transformOrigin: '400px 400px', animation: `orbOrbit ${orbitDur} linear infinite` }}>
+          {Array.from({ length: 32 }).map((_, i) => {
+            const a = (i / 32) * Math.PI * 2
+            const r = 300 + (i % 3) * 8
+            const size = i % 4 === 0 ? 3 : i % 2 === 0 ? 1.6 : 0.9
+            return <circle key={i} cx={400 + r * Math.cos(a)} cy={400 + r * Math.sin(a)} r={size} fill={`rgba(${c.accent},${i % 4 === 0 ? 0.9 : 0.4})`} />
+          })}
+        </g>
+
+        <g style={{ transformOrigin: '400px 400px', animation: `orbOrbitReverse ${parseFloat(orbitDur) * 0.65}s linear infinite` }}>
+          {Array.from({ length: 18 }).map((_, i) => {
+            const a = (i / 18) * Math.PI * 2
+            const r = 245
+            return <circle key={i} cx={400 + r * Math.cos(a)} cy={400 + r * Math.sin(a)} r={i % 3 === 0 ? 2 : 1} fill={`rgba(${c.core},0.6)`} />
+          })}
+          <circle cx="400" cy="400" r="245" fill="none" stroke={`rgba(${c.core},0.18)`} strokeWidth="0.8" strokeDasharray="2 14" />
+        </g>
+
+        <g style={{ transformOrigin: '400px 400px', animation: `orbOrbit ${parseFloat(orbitDur) * 1.4}s linear infinite` }}>
+          <circle cx="400" cy="400" r="200" fill="none" stroke={`rgba(${c.halo},0.25)`} strokeWidth="1" strokeDasharray="1 6" />
+          <path d={`M 400 ${400 - 200} A 200 200 0 0 1 ${400 + 200} 400`} fill="none" stroke={`rgba(${c.accent},0.55)`} strokeWidth="2" strokeLinecap="round" />
+          <path d={`M 400 ${400 + 200} A 200 200 0 0 1 ${400 - 200} 400`} fill="none" stroke={`rgba(${c.core},0.35)`} strokeWidth="1.5" strokeLinecap="round" />
+        </g>
+
+        <g filter="url(#orbTurbulence)" style={{ transformOrigin: '400px 400px', animation: `orbBreathe ${orbPulseDur} ease-in-out infinite` }}>
+          <circle cx="400" cy="400" r="155" fill="url(#orbSurface)" />
+          <circle cx="400" cy="400" r="155" fill="none" stroke={`rgba(${c.accent},0.7)`} strokeWidth="1.2" />
+        </g>
+
+        <circle cx="400" cy="400" r="155" fill="url(#orbHighlight)" style={{ transformOrigin: '400px 400px', animation: `orbBreathe ${orbPulseDur} ease-in-out infinite` }} />
+
+        <circle cx="400" cy="400" r="50" fill={`rgba(${c.accent},0.25)`} filter="url(#orbBlur)" style={{ transformOrigin: '400px 400px', animation: `orbCorePulse ${(parseFloat(orbPulseDur) / 1.8).toFixed(2)}s ease-in-out infinite` }} />
+        <circle cx="400" cy="400" r="6" fill={`rgba(255,255,255,0.95)`} style={{ transformOrigin: '400px 400px', animation: `orbCorePulse ${(parseFloat(orbPulseDur) / 1.8).toFixed(2)}s ease-in-out infinite` }} />
+
+        {(state === 'speaking' || state === 'listening') && (
+          <g>
+            {[0, 1, 2].map(i => (
+              <circle
+                key={i}
+                cx="400"
+                cy="400"
+                r="160"
+                fill="none"
+                stroke={`rgba(${c.core},0.5)`}
+                strokeWidth="1.5"
+                style={{ transformOrigin: '400px 400px', animation: `orbRipple 2.4s ease-out infinite`, animationDelay: `${i * 0.8}s`, opacity: 0 }}
+              />
+            ))}
+          </g>
+        )}
       </svg>
     </div>
   )
@@ -223,37 +271,40 @@ export default function Jarvis() {
   return (
     <div className="h-screen flex flex-col bg-black overflow-hidden relative">
       <style jsx global>{`
-        @keyframes hudSpinSlow { from { transform: rotate(0deg); transform-origin: 400px 400px; } to { transform: rotate(360deg); transform-origin: 400px 400px; } }
-        @keyframes hudSpinCounter { from { transform: rotate(360deg); transform-origin: 400px 400px; } to { transform: rotate(0deg); transform-origin: 400px 400px; } }
-        @keyframes hudPulse { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
-        .hud-spin-slow { animation: hudSpinSlow 60s linear infinite; }
-        .hud-spin-fast { animation: hudSpinSlow 8s linear infinite; }
-        .hud-spin-counter { animation: hudSpinCounter 45s linear infinite; }
-        .hud-spin-counter-fast { animation: hudSpinCounter 6s linear infinite; }
-        .hud-spin-inner { animation: hudSpinSlow 30s linear infinite; }
-        .hud-spin-inner-fast { animation: hudSpinSlow 4s linear infinite; }
-        .hud-pulse { animation: hudPulse 4s ease-in-out infinite; }
-        .hud-pulse-fast { animation: hudPulse 1.2s ease-in-out infinite; }
-        .jarvis-scrollbar::-webkit-scrollbar { width: 4px; }
-        .jarvis-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .jarvis-scrollbar::-webkit-scrollbar-thumb { background: rgba(0,220,255,0.2); border-radius: 4px; }
-        .jarvis-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(0,220,255,0.4); }
+        @keyframes orbOrbit { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes orbOrbitReverse { from { transform: rotate(360deg); } to { transform: rotate(0deg); } }
+        @keyframes orbBreathe {
+          0%, 100% { transform: scale(1); }
+          50% { transform: scale(1.08); }
+        }
+        @keyframes orbCorePulse {
+          0%, 100% { transform: scale(1); opacity: 0.9; }
+          50% { transform: scale(1.3); opacity: 1; }
+        }
+        @keyframes orbRipple {
+          0% { transform: scale(1); opacity: 0.7; }
+          80% { opacity: 0; }
+          100% { transform: scale(2.4); opacity: 0; }
+        }
+        @keyframes jarvisDrift {
+          0%, 100% { transform: translate(0, 0); }
+          20% { transform: translate(10px, -14px); }
+          40% { transform: translate(-12px, 8px); }
+          60% { transform: translate(14px, 10px); }
+          80% { transform: translate(-8px, -6px); }
+        }
+        .jarvis-drift { animation: jarvisDrift 18s ease-in-out infinite; }
         @keyframes scanline { 0% { transform: translateY(-100%); } 100% { transform: translateY(100vh); } }
         .scanline { animation: scanline 8s linear infinite; }
-        @keyframes jarvisFloat {
-          0%, 100% { transform: translate(0, 0); }
-          25% { transform: translate(8px, -6px); }
-          50% { transform: translate(-6px, 4px); }
-          75% { transform: translate(4px, 6px); }
-        }
-        .jarvis-float { animation: jarvisFloat 14s ease-in-out infinite; }
-        .jarvis-listen-tint svg { filter: drop-shadow(0 0 35px rgba(34, 211, 238, 0.55)) hue-rotate(-15deg); }
-        .jarvis-speak-tint svg { filter: drop-shadow(0 0 45px rgba(168, 85, 247, 0.55)) hue-rotate(40deg); }
         @keyframes micPulseRing {
           0% { transform: scale(1); opacity: 0.6; }
           100% { transform: scale(1.8); opacity: 0; }
         }
         .mic-pulse-ring { animation: micPulseRing 1.4s ease-out infinite; }
+        .jarvis-scrollbar::-webkit-scrollbar { width: 4px; }
+        .jarvis-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .jarvis-scrollbar::-webkit-scrollbar-thumb { background: rgba(0,220,255,0.2); border-radius: 4px; }
+        .jarvis-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(0,220,255,0.4); }
       `}</style>
 
       <div className="absolute inset-0 pointer-events-none z-50 overflow-hidden opacity-[0.03]">
@@ -262,8 +313,8 @@ export default function Jarvis() {
 
       <div className="absolute inset-0 pointer-events-none z-40" style={{ background: 'radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.6) 100%)' }} />
 
-      <div className={`transition-all duration-1000 jarvis-float ${hasMessages ? 'opacity-30 scale-75' : 'opacity-100 scale-100'} ${listening ? 'jarvis-listen-tint' : ''} ${speaking ? 'jarvis-speak-tint' : ''}`}>
-        <HudRings active={active} />
+      <div className={`absolute inset-0 transition-all duration-1000 jarvis-drift ${hasMessages ? 'opacity-40 scale-[0.55] translate-y-[-10%]' : 'opacity-100 scale-100'}`}>
+        <JarvisOrb state={speaking ? 'speaking' : loading ? 'processing' : listening ? 'listening' : 'idle'} />
       </div>
 
       {(listening || interim) && (
