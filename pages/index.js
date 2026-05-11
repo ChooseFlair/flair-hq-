@@ -8,6 +8,7 @@ import Forecast from '../components/Forecast'
 import Products from '../components/Products'
 import Marketing from '../components/Marketing'
 import PnL from '../components/PnL'
+import Jarvis from '../components/Jarvis'
 import Researcher from '../components/Researcher'
 
 export default function Home() {
@@ -16,6 +17,8 @@ export default function Home() {
 
   const renderContent = () => {
     switch (activeTab) {
+      case 'jarvis':
+        return <Jarvis />
       case 'overview':
         return <Overview />
       case 'tasks':
