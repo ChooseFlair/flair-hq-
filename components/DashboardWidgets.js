@@ -184,6 +184,8 @@ export default function DashboardWidgets() {
             <Stat label="ORDERS" value={loading ? '...' : fmtInt(data?.orderCount)} />
             <Stat label="CUSTOMERS" value={loading ? '...' : fmtInt(data?.customerCount)} />
             <Stat label="AOV" value={loading ? '...' : fmtMoney(data?.aov)} />
+            <Stat label="AD SPEND" value={loading ? '...' : fmtMoney(data?.adSpend)} />
+            <Stat label="ROAS" value={loading ? '...' : (data?.roas ? `${data.roas.toFixed(2)}x` : '—')} />
           </div>
 
           {hasIssues && (

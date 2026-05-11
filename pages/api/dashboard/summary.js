@@ -1,6 +1,7 @@
 export const config = { maxDuration: 30 }
 
 const API_VERSION = '2024-10'
+const WINDSOR_KEY = 'cc92158d0eb0f1faa257c0414780b6c10961'
 
 function rangeBounds(range) {
   const now = new Date()
@@ -59,10 +60,16 @@ export default async function handler(req, res) {
   let orderCount = 0
   let customerCount = 0
   let aov = 0
+  let adSpend = 0
 
-  if (!shop || !token) {
-    issues.push({ name: 'Shopify', status: 'error', message: 'SHOPIFY_SHOP_DOMAIN / SHOPIFY_ADMIN_TOKEN missing' })
-  } else {
+  const dateFrom = from.toISOString().split('T')[0]
+  const dateTo = to.toISOString().split('T')[0]
+
+  async function shopify() {
+    if (!shop || !token) {
+      issues.push({ name: 'Shopify', status: 'error', message: 'SHOPIFY_SHOP_DOMAIN / SHOPIFY_ADMIN_TOKEN missing' })
+      return
+    }
     try {
       const orders = await fetchShopifyOrders(shop, token, from, to)
       const paid = orders.filter(o => o.financial_status !== 'refunded' && o.financial_status !== 'voided')
@@ -75,6 +82,23 @@ export default async function handler(req, res) {
     }
   }
 
+  async function windsor() {
+    try {
+      const url = `https://connectors.windsor.ai/facebook?api_key=${WINDSOR_KEY}&fields=spend,date&date_from=${dateFrom}&date_to=${dateTo}&_renderer=json`
+      const r = await fetch(url)
+      if (!r.ok) { issues.push({ name: 'Windsor', status: 'error', message: `HTTP ${r.status}` }); return }
+      const data = await r.json()
+      const rows = Array.isArray(data) ? data : (data?.data || [])
+      adSpend = rows.reduce((s, row) => s + parseFloat(row.spend || 0), 0)
+    } catch (e) {
+      issues.push({ name: 'Windsor', status: 'error', message: e.message })
+    }
+  }
+
+  await Promise.all([shopify(), windsor()])
+
+  const roas = adSpend > 0 ? revenue / adSpend : 0
+
   res.status(200).json({
     range,
     label,
@@ -84,6 +108,8 @@ export default async function handler(req, res) {
     orderCount,
     customerCount,
     aov: Number(aov.toFixed(2)),
+    adSpend: Number(adSpend.toFixed(2)),
+    roas: Number(roas.toFixed(2)),
     issues,
     generatedAt: new Date().toISOString(),
   })
