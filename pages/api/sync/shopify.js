@@ -27,8 +27,8 @@ async function fetchShopify(url, token) {
 
 function mapOrder(o) {
   return {
-    id: String(o.id),
-    order_number: o.order_number || o.name,
+    shopify_id: String(o.id),
+    order_number: typeof o.order_number === 'number' ? o.order_number : parseInt(o.order_number || 0) || null,
     email: o.email,
     total_price: parseFloat(o.total_price || 0),
     subtotal_price: parseFloat(o.subtotal_price || 0),
@@ -36,6 +36,14 @@ function mapOrder(o) {
     total_discount: parseFloat(o.total_discounts || 0),
     financial_status: o.financial_status,
     fulfillment_status: o.fulfillment_status,
+    source: o.source_name,
+    landing_site: o.landing_site,
+    referring_site: o.referring_site,
+    discount_codes: o.discount_codes || null,
+    line_items: o.line_items || null,
+    shipping_address: o.shipping_address || null,
+    note: o.note,
+    tags: o.tags ? o.tags.split(',').map(t => t.trim()).filter(Boolean) : null,
     created_at: o.created_at,
     updated_at: o.updated_at,
   }
@@ -43,12 +51,14 @@ function mapOrder(o) {
 
 function mapCustomer(c) {
   return {
-    id: String(c.id),
+    shopify_id: String(c.id),
     email: c.email,
     first_name: c.first_name,
     last_name: c.last_name,
-    orders_count: c.orders_count || 0,
+    phone: c.phone,
+    order_count: c.orders_count || 0,
     total_spent: parseFloat(c.total_spent || 0),
+    tags: c.tags ? c.tags.split(',').map(t => t.trim()).filter(Boolean) : null,
     created_at: c.created_at,
     updated_at: c.updated_at,
   }
@@ -78,7 +88,7 @@ export default async function handler(req, res) {
       const { data, nextUrl } = await fetchShopify(url, token)
       if (data.orders?.length) {
         const rows = data.orders.map(mapOrder)
-        const { error } = await supabase.from('orders').upsert(rows, { onConflict: 'id' })
+        const { error } = await supabase.from('orders').upsert(rows, { onConflict: 'shopify_id', ignoreDuplicates: false })
         if (error) errors.push(`orders: ${error.message}`)
         else orderCount += rows.length
       }
@@ -96,7 +106,7 @@ export default async function handler(req, res) {
       const { data, nextUrl } = await fetchShopify(url, token)
       if (data.customers?.length) {
         const rows = data.customers.map(mapCustomer)
-        const { error } = await supabase.from('customers').upsert(rows, { onConflict: 'id' })
+        const { error } = await supabase.from('customers').upsert(rows, { onConflict: 'shopify_id', ignoreDuplicates: false })
         if (error) errors.push(`customers: ${error.message}`)
         else customerCount += rows.length
       }
