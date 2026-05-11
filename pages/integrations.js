@@ -28,12 +28,12 @@ function ConnectorCard({ connector, onSync }) {
   const [error, setError] = useState(null)
 
   async function runSync() {
-    if (syncing || !connector.syncPath) return
+    if (syncing) return
     setSyncing(true)
     setError(null)
     setResponse(null)
     try {
-      const res = await fetch(connector.syncPath, { method: connector.syncMethod || 'GET' })
+      const res = await fetch(`/api/dashboard/resync?connector=${encodeURIComponent(connector.name)}`, { method: 'POST' })
       const text = await res.text()
       let json = null
       try { json = JSON.parse(text) } catch { json = { raw: text } }
@@ -57,7 +57,7 @@ function ConnectorCard({ connector, onSync }) {
           <p className="text-cyan-300 text-xs mt-1 font-mono">{connector.description}</p>
         </div>
 
-        {connector.syncPath && (
+        {connector.status !== 'not_configured' && (
           <button
             onClick={runSync}
             disabled={syncing}
@@ -75,12 +75,12 @@ function ConnectorCard({ connector, onSync }) {
                 </svg>
                 SYNCING...
               </span>
-            ) : 'SYNC NOW'}
+            ) : 'TEST'}
           </button>
         )}
       </div>
 
-      {connector.envVars.length > 0 && (
+      {connector.envVars?.length > 0 && (
         <div className="mt-3 flex flex-wrap gap-2">
           {connector.envVars.map(v => (
             <div key={v.name} className={`flex items-center gap-1.5 text-[10px] font-mono px-2 py-0.5 rounded border ${
@@ -94,30 +94,13 @@ function ConnectorCard({ connector, onSync }) {
         </div>
       )}
 
-      {connector.requiresOAuth && (
-        <div className="mt-2">
-          <a
-            href={connector.requiresOAuth}
-            className="text-[10px] font-mono text-cyan-400 hover:text-cyan-200 underline tracking-wider"
-          >
-            {connector.oauthDone ? 'RECONNECT OAUTH' : 'COMPLETE OAUTH SETUP →'}
-          </a>
-        </div>
-      )}
-
-      {connector.lastSync && (
-        <div className="mt-2 text-[10px] font-mono text-cyan-300/80">
-          Last sync: {new Date(connector.lastSync).toLocaleString()}
-        </div>
-      )}
-
-      {(response || error || connector.lastResult) && (
+      {(response || error) && (
         <div className="mt-3 pt-3 border-t border-cyan-500/10">
           <div className="text-[9px] font-mono text-cyan-300 tracking-widest mb-1">
-            {response ? `HTTP ${response.httpStatus} RESPONSE` : error ? 'ERROR' : 'LAST RESULT'}
+            {response ? `HTTP ${response.httpStatus} RESPONSE` : 'ERROR'}
           </div>
           <pre className="text-[10px] font-mono text-cyan-100 bg-black/40 border border-cyan-500/10 rounded p-2 overflow-x-auto whitespace-pre-wrap break-all max-h-48">
-            {error || JSON.stringify(response?.body || connector.lastResult, null, 2)}
+            {error || JSON.stringify(response?.body, null, 2)}
           </pre>
         </div>
       )}
