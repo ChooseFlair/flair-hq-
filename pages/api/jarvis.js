@@ -1,6 +1,6 @@
 import { supabase } from '../../lib/supabase'
 
-const GEMINI_KEY = process.env.GEMINI_API_KEY
+const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY
 const KLAVIYO_KEY = 'pk_bce69162bc267f14cbb31eff287d6c10c8'
 const WINDSOR_KEY = 'cc92158d0eb0f1faa257c0414780b6c10961'
 
@@ -163,13 +163,11 @@ const TOOLS = [
   { name: 'get_products', description: 'Get product catalog: titles, prices, inventory levels, SKUs', fn: getProducts },
 ]
 
-const GEMINI_TOOL_DEFS = [{
-  function_declarations: TOOLS.map(t => ({
-    name: t.name,
-    description: t.description,
-    parameters: { type: 'OBJECT', properties: {}, required: [] },
-  }))
-}]
+const TOOL_DEFS = TOOLS.map(t => ({
+  name: t.name,
+  description: t.description,
+  input_schema: { type: 'object', properties: {}, required: [] },
+}))
 
 const SYSTEM_PROMPT = `You are Jarvis, the AI business assistant for Flair — a UK-based aromatherapy inhaler brand (chooseflair.com). You help the founder Karl run his business by providing data-driven insights and recommendations.
 
@@ -181,93 +179,86 @@ Connected systems: Shopify orders (via Supabase), Klaviyo email marketing, Meta/
 
 You can also chat about anything — business strategy, ideas, general questions. You're Karl's go-to AI.`
 
-function buildContents(history, message) {
-  const contents = []
-  for (const m of history.slice(-10)) {
-    contents.push({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] })
-  }
-  contents.push({ role: 'user', parts: [{ text: message }] })
-  return contents
-}
-
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' })
 
   const { message, history = [] } = req.body
   if (!message) return res.status(400).json({ error: 'No message provided' })
 
-  if (!GEMINI_KEY) {
-    return res.status(500).json({ error: 'GEMINI_API_KEY not configured. Add it to your Vercel environment variables (free from aistudio.google.com).' })
+  if (!ANTHROPIC_KEY) {
+    return res.status(500).json({ error: 'ANTHROPIC_API_KEY not configured. Get free $5 credits at console.anthropic.com, then add the key to Vercel env vars.' })
   }
 
-  const contents = buildContents(history, message)
+  const messages = [
+    ...history.slice(-10).map(m => ({ role: m.role, content: m.content })),
+    { role: 'user', content: message },
+  ]
 
   try {
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`
-
-    const geminiRes = await fetch(geminiUrl, {
+    const claudeRes = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'x-api-key': ANTHROPIC_KEY,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json',
+      },
       body: JSON.stringify({
-        system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
-        contents,
-        tools: GEMINI_TOOL_DEFS,
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1024,
+        system: SYSTEM_PROMPT,
+        tools: TOOL_DEFS,
+        messages,
       }),
     })
 
-    if (!geminiRes.ok) {
-      const err = await geminiRes.text()
-      return res.status(502).json({ error: `Gemini API ${geminiRes.status}: ${err.substring(0, 200)}` })
+    if (!claudeRes.ok) {
+      const err = await claudeRes.text()
+      return res.status(502).json({ error: `Claude API ${claudeRes.status}: ${err.substring(0, 200)}` })
     }
 
-    let result = await geminiRes.json()
-    let toolsUsed = []
+    let result = await claudeRes.json()
+    let toolResults = []
+    let allMessages = [...messages]
 
-    // Handle tool calls in a loop
-    let loopContents = [...contents]
-    let maxLoops = 5
+    while (result.stop_reason === 'tool_use') {
+      const toolCalls = result.content.filter(c => c.type === 'tool_use')
+      const batchResults = []
 
-    while (maxLoops-- > 0) {
-      const candidate = result.candidates?.[0]
-      if (!candidate) break
-
-      const parts = candidate.content?.parts || []
-      const functionCalls = parts.filter(p => p.functionCall)
-
-      if (functionCalls.length === 0) break
-
-      // Add model's response to conversation
-      loopContents.push({ role: 'model', parts })
-
-      // Execute all function calls
-      const functionResponses = []
-      for (const fc of functionCalls) {
-        const tool = TOOLS.find(t => t.name === fc.functionCall.name)
+      for (const call of toolCalls) {
+        const tool = TOOLS.find(t => t.name === call.name)
         let toolResult
         try {
           toolResult = tool ? await tool.fn() : { error: 'Unknown tool' }
         } catch (e) {
           toolResult = { error: e.message }
         }
-        toolsUsed.push(fc.functionCall.name)
-        functionResponses.push({
-          functionResponse: {
-            name: fc.functionCall.name,
-            response: toolResult,
-          }
+        batchResults.push({
+          type: 'tool_result',
+          tool_use_id: call.id,
+          content: JSON.stringify(toolResult),
         })
+        toolResults.push(call.name)
       }
 
-      // Send tool results back
-      loopContents.push({ role: 'user', parts: functionResponses })
+      allMessages = [
+        ...allMessages,
+        { role: 'assistant', content: result.content },
+        { role: 'user', content: batchResults },
+      ]
 
-      const followUp = await fetch(geminiUrl, {
+      const followUp = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'x-api-key': ANTHROPIC_KEY,
+          'anthropic-version': '2023-06-01',
+          'content-type': 'application/json',
+        },
         body: JSON.stringify({
-          system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
-          contents: loopContents,
-          tools: GEMINI_TOOL_DEFS,
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 1024,
+          system: SYSTEM_PROMPT,
+          tools: TOOL_DEFS,
+          messages: allMessages,
         }),
       })
 
@@ -275,14 +266,12 @@ export default async function handler(req, res) {
       result = await followUp.json()
     }
 
-    // Extract final text
-    const candidate = result.candidates?.[0]
-    const textParts = (candidate?.content?.parts || []).filter(p => p.text)
-    const response = textParts.map(p => p.text).join('\n') || 'I couldn\'t generate a response.'
+    const textBlocks = (result.content || []).filter(c => c.type === 'text')
+    const response = textBlocks.map(c => c.text).join('\n') || 'I couldn\'t generate a response.'
 
     res.json({
       response,
-      tools_used: [...new Set(toolsUsed)],
+      tools_used: [...new Set(toolResults)],
     })
   } catch (e) {
     console.error('Jarvis error:', e)
