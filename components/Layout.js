@@ -28,9 +28,11 @@ import {
   MessageSquare,
   ExternalLink,
   Leaf,
+  Zap,
 } from 'lucide-react'
 
 const navigation = [
+  { id: 'jarvis', name: 'Jarvis AI', icon: Zap },
   { id: 'overview', name: 'Overview', icon: LayoutDashboard },
   { id: 'tasks', name: 'Task Manager', icon: ClipboardList },
   { id: 'pnl', name: 'P&L', icon: DollarSign },
