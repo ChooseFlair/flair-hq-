@@ -1,114 +1,76 @@
-import { supabase } from '../../../lib/supabase'
+export const config = { maxDuration: 30 }
+
+async function pingShopify() {
+  const shop = process.env.SHOPIFY_SHOP_DOMAIN
+  const token = process.env.SHOPIFY_ADMIN_TOKEN
+  if (!shop || !token) return { status: 'not_configured', envVars: [{ name: 'SHOPIFY_SHOP_DOMAIN', present: !!shop }, { name: 'SHOPIFY_ADMIN_TOKEN', present: !!token }] }
+  try {
+    const r = await fetch(`https://${shop}/admin/api/2024-10/shop.json`, { headers: { 'X-Shopify-Access-Token': token, 'Accept': 'application/json' } })
+    if (!r.ok) return { status: 'error', message: `HTTP ${r.status}` }
+    const j = await r.json()
+    return { status: 'ok', detail: j.shop?.name || 'connected' }
+  } catch (e) { return { status: 'error', message: e.message } }
+}
+
+async function pingKlaviyo() {
+  const key = process.env.KLAVIYO_API_KEY
+  if (!key) return { status: 'not_configured', envVars: [{ name: 'KLAVIYO_API_KEY', present: false }] }
+  try {
+    const r = await fetch('https://a.klaviyo.com/api/accounts/', { headers: { 'Authorization': `Klaviyo-API-Key ${key}`, 'revision': '2024-10-15', 'Accept': 'application/json' } })
+    if (!r.ok) return { status: 'error', message: `HTTP ${r.status}` }
+    return { status: 'ok', detail: 'connected' }
+  } catch (e) { return { status: 'error', message: e.message } }
+}
+
+async function pingMeta() {
+  const token = process.env.META_ACCESS_TOKEN || process.env.FACEBOOK_ACCESS_TOKEN
+  const account = process.env.META_AD_ACCOUNT_ID
+  if (!token || !account) return { status: 'not_configured', envVars: [{ name: 'META_ACCESS_TOKEN', present: !!token, alt: 'FACEBOOK_ACCESS_TOKEN' }, { name: 'META_AD_ACCOUNT_ID', present: !!account }] }
+  const id = account.startsWith('act_') ? account : `act_${account}`
+  try {
+    const r = await fetch(`https://graph.facebook.com/v21.0/${id}?fields=name,currency&access_token=${encodeURIComponent(token)}`)
+    if (!r.ok) return { status: 'error', message: `HTTP ${r.status}` }
+    const j = await r.json()
+    return { status: 'ok', detail: j.name || 'connected' }
+  } catch (e) { return { status: 'error', message: e.message } }
+}
+
+async function pingPayPal() {
+  const id = process.env.PAYPAL_CLIENT_ID
+  const secret = process.env.PAYPAL_SECRET
+  if (!id || !secret) return { status: 'not_configured', envVars: [{ name: 'PAYPAL_CLIENT_ID', present: !!id }, { name: 'PAYPAL_SECRET', present: !!secret }] }
+  try {
+    const auth = Buffer.from(`${id}:${secret}`).toString('base64')
+    const r = await fetch('https://api-m.paypal.com/v1/oauth2/token', {
+      method: 'POST',
+      headers: { 'Authorization': `Basic ${auth}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: 'grant_type=client_credentials',
+    })
+    if (!r.ok) return { status: 'error', message: `HTTP ${r.status}` }
+    return { status: 'ok', detail: 'connected' }
+  } catch (e) { return { status: 'error', message: e.message } }
+}
 
 const CONNECTORS = [
-  {
-    name: 'Shopify',
-    syncPath: '/api/sync/shopify',
-    rowId: 'shopify_sync',
-    envVars: ['SHOPIFY_SHOP_DOMAIN', 'SHOPIFY_ADMIN_TOKEN'],
-    description: 'Pulls orders + customers into Supabase. Powers the revenue / orders / AOV widgets.',
-    setupUrl: 'https://help.shopify.com/en/manual/apps/app-types/custom-apps',
-  },
-  {
-    name: 'Klaviyo',
-    syncPath: '/api/klaviyo/sync',
-    syncMethod: 'POST',
-    rowId: 'klaviyo_sync',
-    envVars: [],
-    description: 'Pulls flows, campaigns, customers from Klaviyo. Token is hardcoded.',
-    setupUrl: 'https://www.klaviyo.com/account#api-keys-tab',
-  },
-  {
-    name: 'Meta',
-    syncPath: '/api/sync/meta',
-    rowId: 'meta_30d',
-    envVars: ['META_ACCESS_TOKEN', 'META_AD_ACCOUNT_ID'],
-    altEnvVars: { META_ACCESS_TOKEN: 'FACEBOOK_ACCESS_TOKEN' },
-    description: 'Pulls last 30 days of ad insights (spend, ROAS, purchases).',
-    setupUrl: 'https://developers.facebook.com/tools/explorer',
-  },
-  {
-    name: 'PayPal',
-    syncPath: '/api/sync/paypal',
-    rowId: 'paypal_sync',
-    envVars: ['PAYPAL_CLIENT_ID', 'PAYPAL_SECRET'],
-    description: 'Pulls last 30 days of PayPal transactions.',
-    setupUrl: 'https://developer.paypal.com/dashboard/applications/live',
-  },
-  {
-    name: 'Revolut',
-    syncPath: '/api/sync/revolut',
-    rowId: 'revolut_sync',
-    envVars: ['REVOLUT_CLIENT_ID'],
-    requiresOAuth: '/api/revolut/auth',
-    description: 'Pulls last 30 days of Revolut transactions. Requires one-time OAuth.',
-    setupUrl: 'https://business.revolut.com/settings/api',
-  },
-  {
-    name: 'Windsor',
-    syncPath: null,
-    rowId: null,
-    envVars: [],
-    description: 'Live fetch on demand — no sync needed. API key is hardcoded.',
-  },
+  { name: 'Shopify', ping: pingShopify, description: 'Powers revenue, orders, customers, AOV widgets.', setupUrl: 'https://help.shopify.com/en/manual/apps/app-types/custom-apps' },
+  { name: 'Klaviyo', ping: pingKlaviyo, description: 'Flows, campaigns, profiles - read live from Klaviyo API.', setupUrl: 'https://www.klaviyo.com/account#api-keys-tab' },
+  { name: 'Meta', ping: pingMeta, description: 'Ad spend, impressions, ROAS - read live from Meta Graph.', setupUrl: 'https://developers.facebook.com/tools/explorer' },
+  { name: 'PayPal', ping: pingPayPal, description: 'PayPal transactions read live via OAuth.', setupUrl: 'https://developer.paypal.com/dashboard/applications/live' },
+  { name: 'Windsor', ping: async () => ({ status: 'ok', detail: 'live' }), description: 'Marketing data via Windsor.ai - hardcoded API key.' },
 ]
 
 export default async function handler(req, res) {
-  let rows = []
-  try {
-    const { data } = await supabase.from('integrations').select('*')
-    rows = data || []
-  } catch (e) {
-    return res.status(500).json({ error: e.message })
-  }
-
-  const result = CONNECTORS.map(c => {
-    const envStatus = c.envVars.map(v => {
-      const alt = c.altEnvVars?.[v]
-      const present = !!process.env[v] || (alt ? !!process.env[alt] : false)
-      return { name: v, present, alt }
-    })
-    const allEnvPresent = envStatus.every(e => e.present)
-    const row = c.rowId ? rows.find(r => r.id === c.rowId) : null
-    const lastSync = row?.last_sync || row?.updated_at || null
-    let oauthRow = null
-    if (c.requiresOAuth) {
-      const baseId = c.name.toLowerCase()
-      oauthRow = rows.find(r => r.id === baseId) || null
-    }
-
-    let status = 'ok'
-    let statusReason = 'live'
-    if (c.envVars.length && !allEnvPresent) {
-      status = 'not_configured'
-      statusReason = 'env vars missing'
-    } else if (c.requiresOAuth && !oauthRow) {
-      status = 'needs_auth'
-      statusReason = 'OAuth not completed'
-    } else if (c.rowId && !lastSync) {
-      status = 'never_synced'
-      statusReason = 'never synced'
-    } else if (lastSync) {
-      const ageH = (Date.now() - new Date(lastSync).getTime()) / 3600000
-      status = ageH < 24 ? 'ok' : ageH < 72 ? 'stale' : 'very_stale'
-      statusReason = ageH < 1 ? `${Math.round(ageH * 60)}m ago` : `${Math.round(ageH)}h ago`
-    }
-
+  const results = await Promise.all(CONNECTORS.map(async c => {
+    const r = await c.ping()
     return {
       name: c.name,
       description: c.description,
-      syncPath: c.syncPath,
-      syncMethod: c.syncMethod || 'GET',
-      envVars: envStatus,
-      lastSync,
-      status,
-      statusReason,
-      lastResult: row?.meta || null,
-      requiresOAuth: c.requiresOAuth,
-      oauthDone: !!oauthRow,
       setupUrl: c.setupUrl,
+      status: r.status,
+      statusReason: r.detail || r.message || '',
+      envVars: r.envVars || [],
+      message: r.message || null,
     }
-  })
-
-  res.status(200).json({ connectors: result, generatedAt: new Date().toISOString() })
+  }))
+  res.status(200).json({ connectors: results, generatedAt: new Date().toISOString() })
 }
