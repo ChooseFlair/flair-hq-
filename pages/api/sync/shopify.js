@@ -105,10 +105,12 @@ export default async function handler(req, res) {
     while (url && pages < 4) {
       const { data, nextUrl } = await fetchShopify(url, token)
       if (data.customers?.length) {
-        const rows = data.customers.map(mapCustomer)
-        const { error } = await supabase.from('customers').upsert(rows, { onConflict: 'shopify_id', ignoreDuplicates: false })
-        if (error) errors.push(`customers: ${error.message}`)
-        else customerCount += rows.length
+        const rows = data.customers.map(mapCustomer).filter(r => r.email)
+        if (rows.length) {
+          const { error } = await supabase.from('customers').upsert(rows, { onConflict: 'shopify_id', ignoreDuplicates: false })
+          if (error) errors.push(`customers: ${error.message}`)
+          else customerCount += rows.length
+        }
       }
       url = nextUrl
       pages++
