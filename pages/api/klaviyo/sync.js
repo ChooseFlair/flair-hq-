@@ -112,7 +112,13 @@ async function syncCustomersToKlaviyo() {
 
 // Populate customers table from orders
 async function populateCustomers() {
-  const { error } = await supabase.rpc('populate_customers_from_orders').catch(() => ({ error: true }))
+  let error = null
+  try {
+    const r = await supabase.rpc('populate_customers_from_orders')
+    error = r.error
+  } catch (e) {
+    error = e
+  }
 
   // Fallback: do it via direct SQL-like approach
   if (error) {
