@@ -23,9 +23,10 @@ async function kPost(path, body) {
 // Sync flows from Klaviyo into Supabase
 async function syncFlows() {
   const flows = await kGet('/flows/?fields[flow]=name,status,trigger_type,created,updated')
-  if (!flows.data) return { synced: 0 }
+  if (!flows.data) return { synced: 0, errors: [flows.errors?.[0]?.detail || 'no data'] }
 
   let synced = 0
+  const errors = []
   for (const flow of flows.data) {
     const { error } = await supabase.from('klaviyo_flows').upsert({
       flow_id: flow.id,
@@ -35,17 +36,19 @@ async function syncFlows() {
       last_synced_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     }, { onConflict: 'flow_id' })
-    if (!error) synced++
+    if (error) errors.push(error.message)
+    else synced++
   }
-  return { synced, total: flows.data.length }
+  return { synced, total: flows.data.length, errors: errors.slice(0, 3) }
 }
 
 // Sync campaigns from Klaviyo into Supabase
 async function syncCampaigns() {
   const campaigns = await kGet('/campaigns/?filter=equals(messages.channel,%22email%22)&fields[campaign]=name,status,send_time,created_at&sort=-created_at')
-  if (!campaigns.data) return { synced: 0 }
+  if (!campaigns.data) return { synced: 0, errors: [campaigns.errors?.[0]?.detail || 'no data'] }
 
   let synced = 0
+  const errors = []
   for (const c of campaigns.data) {
     const { error } = await supabase.from('klaviyo_campaigns').upsert({
       campaign_id: c.id,
@@ -55,9 +58,10 @@ async function syncCampaigns() {
       last_synced_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     }, { onConflict: 'campaign_id' })
-    if (!error) synced++
+    if (error) errors.push(error.message)
+    else synced++
   }
-  return { synced, total: campaigns.data.length }
+  return { synced, total: campaigns.data.length, errors: errors.slice(0, 3) }
 }
 
 // Sync customers from Supabase orders to Klaviyo profiles
