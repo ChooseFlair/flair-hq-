@@ -217,14 +217,20 @@ export default async function handler(req, res) {
   const contributionProfit = totalRevenue - salesExpenses - marketingExpenses
   const ebitda = contributionProfit - opex
 
+  const dayCount = Object.keys(days).length || 1
+  const opexPerDay = opex / dayCount
+
   const series = Object.values(days).map(d => {
     const md = meta.byDay[d.date] || 0
     const gd = google.byDay[d.date] || 0
+    const dailyOpex = revolut.byDay?.[d.date] != null && opexOverride === null ? revolut.byDay[d.date] : opexPerDay
     d.netSales = d.totalRevenue - d.returns
     d.metaSpend = md
     d.googleSpend = gd
     d.marketingExpenses = md + gd
     d.contributionProfit = d.totalRevenue - (d.totalRevenue * (RATES.cogs + RATES.paymentProvider + RATES.shippingFulfilment)) - d.marketingExpenses
+    d.opex = dailyOpex
+    d.ebitda = d.contributionProfit - dailyOpex
     return d
   })
 
