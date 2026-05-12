@@ -1,6 +1,7 @@
 import Head from 'next/head'
 import Link from 'next/link'
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { File as FileIcon, Image as ImageIcon, Film, Music, FileText as FileTextIcon, FileSpreadsheet, FileArchive, Paperclip } from 'lucide-react'
 
 const fmtBytes = (n) => {
   if (n == null) return ''
@@ -9,16 +10,18 @@ const fmtBytes = (n) => {
   return `${(n / (1024 * 1024)).toFixed(1)} MB`
 }
 
-function fileIcon(mime) {
-  if (!mime) return '📄'
-  if (mime.startsWith('image/')) return '🖼'
-  if (mime.startsWith('video/')) return '🎬'
-  if (mime.startsWith('audio/')) return '🎵'
-  if (mime === 'application/pdf') return '📕'
-  if (mime.includes('sheet') || mime.includes('excel') || mime.includes('csv')) return '📊'
-  if (mime.includes('word') || mime.includes('document')) return '📝'
-  if (mime.includes('zip') || mime.includes('compress')) return '🗜'
-  return '📄'
+function FileTypeIcon({ mime, className }) {
+  const Component =
+    !mime ? FileIcon
+    : mime.startsWith('image/') ? ImageIcon
+    : mime.startsWith('video/') ? Film
+    : mime.startsWith('audio/') ? Music
+    : mime === 'application/pdf' ? FileTextIcon
+    : (mime.includes('sheet') || mime.includes('excel') || mime.includes('csv')) ? FileSpreadsheet
+    : (mime.includes('word') || mime.includes('document')) ? FileTextIcon
+    : (mime.includes('zip') || mime.includes('compress')) ? FileArchive
+    : FileIcon
+  return <Component className={className} strokeWidth={1.5} />
 }
 
 export default function FilesPage() {
@@ -152,7 +155,7 @@ export default function FilesPage() {
               className="hidden"
               onChange={e => handleFiles([...(e.target.files || [])])}
             />
-            <div className="text-5xl mb-3">📎</div>
+            <Paperclip className="w-10 h-10 text-slate-400 mx-auto mb-3" strokeWidth={1.5} />
             <div className="text-white text-sm">{uploading ? 'Uploading…' : 'Drop files here or click to choose'}</div>
             <div className="text-slate-400 text-xs mt-1">Up to 8 MB each</div>
           </div>
@@ -170,7 +173,7 @@ export default function FilesPage() {
                 return (
                   <div key={f.id} className="border-b border-white/[0.04] last:border-b-0 px-5 py-4 hover:bg-white/[0.02]">
                     <div className="flex items-start gap-4">
-                      <div className="text-3xl flex-shrink-0">{fileIcon(f.mime_type)}</div>
+                      <FileTypeIcon mime={f.mime_type} className="w-8 h-8 text-sky-300 flex-shrink-0" />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-3 flex-wrap">
                           <div className="min-w-0">

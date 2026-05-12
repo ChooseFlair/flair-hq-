@@ -1,12 +1,13 @@
 import Link from 'next/link'
+import { BarChart3, Package, Mail, FileText, Truck, Plug } from 'lucide-react'
 
 const PAGES = [
-  { href: '/pnl', icon: '📊', label: 'P&L', desc: 'Profit, ROAS, EBITDA' },
-  { href: '/inventory', icon: '📦', label: 'Inventory', desc: 'Stock + reorder' },
-  { href: '/email', icon: '✉️', label: 'Email', desc: 'Klaviyo flows + campaigns' },
-  { href: '/files', icon: '📎', label: 'Files', desc: 'Documents + notes' },
-  { href: '/shipping', icon: '🚚', label: 'Shipping', desc: 'ShipStation upload' },
-  { href: '/integrations', icon: '🔌', label: 'Integrations', desc: 'Connector health' },
+  { href: '/pnl', Icon: BarChart3, label: 'P&L', desc: 'Profit, ROAS, EBITDA' },
+  { href: '/inventory', Icon: Package, label: 'Inventory', desc: 'Stock + reorder' },
+  { href: '/email', Icon: Mail, label: 'Email', desc: 'Klaviyo flows + campaigns' },
+  { href: '/files', Icon: FileText, label: 'Files', desc: 'Documents + notes' },
+  { href: '/shipping', Icon: Truck, label: 'Shipping', desc: 'ShipStation upload' },
+  { href: '/integrations', Icon: Plug, label: 'Integrations', desc: 'Connector health' },
 ]
 
 export default function PagesMenu({ open, onClose }) {
@@ -33,7 +34,7 @@ export default function PagesMenu({ open, onClose }) {
                 style={{ animationDelay: `${i * 30}ms` }}
                 className="flex items-start gap-3 px-4 py-3 rounded-xl bg-white/[0.03] border border-white/[0.06] hover:bg-white/[0.08] hover:border-white/[0.14] hover:-translate-y-0.5 transition-all duration-200 group fade-up"
               >
-                <span className="text-2xl">{p.icon}</span>
+                <p.Icon className="w-5 h-5 text-sky-300 flex-shrink-0 mt-0.5" strokeWidth={1.75} />
                 <div className="min-w-0">
                   <div className="text-white font-medium text-sm">{p.label}</div>
                   <div className="text-slate-400 text-xs mt-0.5">{p.desc}</div>
