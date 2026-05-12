@@ -242,6 +242,22 @@ async function fetchWindsorSpend(source, from, to) {
   } catch { return { byDay: {}, total: 0 } }
 }
 
+const COLLECTION_FALLBACK_COSTS = {
+  inhaler: 8.00,
+  flavour: 0.65,
+  flavor: 0.65,
+  refill: 0.65,
+}
+
+function collectionFallback(title) {
+  if (!title) return null
+  const lower = title.toLowerCase()
+  for (const [keyword, cost] of Object.entries(COLLECTION_FALLBACK_COSTS)) {
+    if (lower.includes(keyword)) return { keyword, cost }
+  }
+  return null
+}
+
 const r2 = (n, d = 2) => Math.round(n * 10 ** d) / 10 ** d
 const pct = (n, d) => d > 0 ? r2((n / d) * 100) : 0
 
@@ -279,8 +295,8 @@ async function computePeriod(shop, token, from, to, opexOverride, withSeries) {
   let totalRevenue = 0, returns = 0, cancellations = 0, shippingCharges = 0, discounts = 0
   let orderCount = 0, ncOrders = 0, rcOrders = 0
   let ncRevenue = 0, rcRevenue = 0
-  let cogsReal = 0, cogsFallback = 0
-  let lineItemsTotal = 0, lineItemsWithCost = 0
+  let cogsReal = 0, cogsCollection = 0, cogsFallback = 0
+  let lineItemsTotal = 0, lineItemsWithCost = 0, lineItemsCollection = 0
 
   for (const o of orders) {
     const d = (o.created_at || '').substring(0, 10)
@@ -304,7 +320,13 @@ async function computePeriod(shop, token, from, to, opexOverride, withSeries) {
         cogsReal += qty * unitCost
         lineItemsWithCost++
       } else {
-        cogsFallback += qty * parseFloat(li.price || 0) * RATES.cogs
+        const cf = collectionFallback(li.title || li.name)
+        if (cf) {
+          cogsCollection += qty * cf.cost
+          lineItemsCollection++
+        } else {
+          cogsFallback += qty * parseFloat(li.price || 0) * RATES.cogs
+        }
       }
     }
 
@@ -312,10 +334,11 @@ async function computePeriod(shop, token, from, to, opexOverride, withSeries) {
     else { rcOrders += 1; rcRevenue += total; days[d].rcOrders += 1; days[d].rcRevenue += total }
   }
 
-  const cogs = cogsReal + cogsFallback
+  const cogs = cogsReal + cogsCollection + cogsFallback
   const cogsSource = lineItemsTotal === 0 ? 'none'
     : lineItemsWithCost === lineItemsTotal ? 'shopify'
-    : lineItemsWithCost === 0 ? 'rate'
+    : (lineItemsWithCost + lineItemsCollection) === lineItemsTotal ? 'shopify+collection'
+    : lineItemsWithCost === 0 && lineItemsCollection === 0 ? 'rate'
     : 'hybrid'
 
   const netSales = totalRevenue - returns
@@ -331,7 +354,7 @@ async function computePeriod(shop, token, from, to, opexOverride, withSeries) {
   const totals = {
     from: from.toISOString(), to: to.toISOString(),
     revenue: { netSales: r2(netSales), returns: r2(returns), cancellations: r2(cancellations), shippingCharges: r2(shippingCharges), discounts: r2(discounts), totalRevenue: r2(totalRevenue) },
-    costs: { paymentProviders: r2(paymentProviders), cogs: r2(cogs), cogsReal: r2(cogsReal), cogsFallback: r2(cogsFallback), cogsSource, lineItemsTotal, lineItemsWithCost, shippingFulfilment: r2(shippingFulfilment), salesExpenses: r2(salesExpenses), metaSpend: r2(metaSpend), googleSpend: r2(googleSpend), marketingExpenses: r2(marketingExpenses), marketingPctRevenue: pct(marketingExpenses, totalRevenue), marketingPctNetSales: pct(marketingExpenses, netSales), opex: r2(opex), opexPctRevenue: pct(opex, totalRevenue) },
+    costs: { paymentProviders: r2(paymentProviders), cogs: r2(cogs), cogsReal: r2(cogsReal), cogsCollection: r2(cogsCollection), cogsFallback: r2(cogsFallback), cogsSource, lineItemsTotal, lineItemsWithCost, lineItemsCollection, shippingFulfilment: r2(shippingFulfilment), salesExpenses: r2(salesExpenses), metaSpend: r2(metaSpend), googleSpend: r2(googleSpend), marketingExpenses: r2(marketingExpenses), marketingPctRevenue: pct(marketingExpenses, totalRevenue), marketingPctNetSales: pct(marketingExpenses, netSales), opex: r2(opex), opexPctRevenue: pct(opex, totalRevenue) },
     profit: { contributionProfit: r2(contributionProfit), contributionProfitPct: pct(contributionProfit, totalRevenue), ebitda: r2(ebitda), ebitdaPct: pct(ebitda, totalRevenue) },
     kpis: { totalSales: r2(totalRevenue), totalOrders: orderCount, aov: orderCount > 0 ? r2(totalRevenue / orderCount) : 0, ecpa: orderCount > 0 ? r2(marketingExpenses / orderCount) : 0, eroas: marketingExpenses > 0 ? r2(totalRevenue / marketingExpenses, 2) : 0 },
     newCustomers: { sales: r2(ncRevenue), orders: ncOrders, aov: ncOrders > 0 ? r2(ncRevenue / ncOrders) : 0, cpa: ncOrders > 0 ? r2(marketingExpenses / ncOrders) : 0, roas: marketingExpenses > 0 ? r2(ncRevenue / marketingExpenses, 2) : 0 },
