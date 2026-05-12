@@ -49,6 +49,44 @@ async function fetchShopifyOrders(shop, token, from, to) {
   return orders
 }
 
+const DEFAULT_OPEX_PATTERNS = [
+  'shopify', 'klaviyo', 'meta', 'facebook', 'instagram',
+  'google', 'youtube', 'tiktok', 'pinterest',
+  'canva', 'figma', 'adobe', 'midjourney', 'runway',
+  'vercel', 'github', 'cloudflare', 'aws', 'amazon web',
+  'anthropic', 'claude', 'openai', 'chatgpt', 'manus',
+  'xero', 'quickbooks', 'wise',
+  'shipstation', 'parcel', 'royal mail', 'evri',
+  'pipeboard', 'supermetrics', 'windsor', 'mixpanel', 'amplitude', 'hotjar',
+  'mailchimp', 'mailgun', 'intercom', 'zendesk', 'notion',
+  'slack', 'zoom', 'gmail', 'workspace', 'microsoft 365',
+  'apple.com/bill', 'app store',
+  'stripe', 'paypal',
+  'reviews.io', 'trustpilot',
+  'companies house', 'hmrc', 'gov.uk',
+  'vpn', 'domain', 'godaddy', 'namecheap',
+  'linear', 'jira', 'github copilot',
+  'shipbob', 'unpakful',
+  'transfer fee', 'card delivery', 'plan fee', 'revolut',
+]
+
+function buildOpexRegex() {
+  const fromEnv = (process.env.OPEX_INCLUDE_PATTERNS || '').split(',').map(s => s.trim()).filter(Boolean)
+  const patterns = fromEnv.length ? fromEnv : DEFAULT_OPEX_PATTERNS
+  const escaped = patterns.map(p => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+  return new RegExp(`(${escaped.join('|')})`, 'i')
+}
+
+function txnDescription(t, leg) {
+  return [
+    leg?.description,
+    leg?.counterparty?.name,
+    t?.merchant?.name,
+    t?.reference,
+    t?.description,
+  ].filter(Boolean).join(' ').toLowerCase()
+}
+
 async function fetchRevolutOpex(from, to) {
   try {
     const { data: integration } = await supabase
@@ -82,23 +120,39 @@ async function fetchRevolutOpex(from, to) {
     })
     const list = Array.isArray(txns) ? txns : (txns?.transactions || [])
 
+    const opexRegex = buildOpexRegex()
+
     let opex = 0
     let byDay = {}
     let count = 0
+    let excludedOpex = 0
+    let excludedCount = 0
+    const sampleExcluded = []
+    const sampleIncluded = []
+
     for (const t of list) {
       if (t.state !== 'completed') continue
       for (const leg of (t.legs || [])) {
         const amount = parseFloat(leg.amount || 0)
-        if (amount < 0) {
-          const day = (t.completed_at || t.created_at || '').substring(0, 10)
-          const abs = Math.abs(amount)
+        if (amount >= 0) continue
+        const desc = txnDescription(t, leg)
+        const abs = Math.abs(amount)
+        const day = (t.completed_at || t.created_at || '').substring(0, 10)
+
+        if (opexRegex.test(desc)) {
           opex += abs
           if (day) byDay[day] = (byDay[day] || 0) + abs
           count++
+          if (sampleIncluded.length < 5) sampleIncluded.push({ desc: desc.substring(0, 60), amount: abs })
+        } else {
+          excludedOpex += abs
+          excludedCount++
+          if (sampleExcluded.length < 5) sampleExcluded.push({ desc: desc.substring(0, 60), amount: abs })
         }
       }
     }
-    return { connected: true, opex, count, byDay }
+
+    return { connected: true, opex, count, byDay, excludedOpex, excludedCount, sampleIncluded, sampleExcluded }
   } catch (e) {
     return { connected: false, opex: 0, count: 0, error: e.message }
   }
@@ -289,7 +343,16 @@ export default async function handler(req, res) {
     },
     rates: RATES,
     opexSource: opexOverride !== null ? 'override' : (revolut.connected ? 'revolut' : 'none'),
-    revolut: { connected: revolut.connected, opex: r2(revolut.opex || 0), transactions: revolut.count, error: revolut.error || null },
+    revolut: {
+      connected: revolut.connected,
+      opex: r2(revolut.opex || 0),
+      transactions: revolut.count,
+      excludedOpex: r2(revolut.excludedOpex || 0),
+      excludedCount: revolut.excludedCount || 0,
+      sampleIncluded: revolut.sampleIncluded || [],
+      sampleExcluded: revolut.sampleExcluded || [],
+      error: revolut.error || null,
+    },
     generatedAt: new Date().toISOString(),
   })
 }

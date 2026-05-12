@@ -315,7 +315,17 @@ export default function PnLPage() {
                   />
                   <Row label="as %" value={fmtPct(t.costs.opexPctRevenue)} indent />
                   {data?.revolut?.connected && (
-                    <Row label="Revolut transactions" value={fmtInt(data.revolut.transactions)} hint="completed debits" indent />
+                    <>
+                      <Row label="Revolut transactions counted" value={fmtInt(data.revolut.transactions)} hint="matched OPEX" indent />
+                      {data.revolut.excludedCount > 0 && (
+                        <Row
+                          label="Excluded (inventory / COGS)"
+                          value={fmtMoney(data.revolut.excludedOpex)}
+                          hint={`${data.revolut.excludedCount} txns`}
+                          indent
+                        />
+                      )}
+                    </>
                   )}
                   <Row label="EBITDA" value={fmtMoney(t.profit.ebitda)} accent={t.profit.ebitda >= 0 ? 'positive' : 'negative'} />
                   <Row label="as %" value={fmtPct(t.profit.ebitdaPct)} indent />
