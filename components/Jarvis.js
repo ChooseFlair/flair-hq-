@@ -272,6 +272,15 @@ export default function Jarvis() {
   const hasMessages = messages.length > 0
   const active = loading || listening || speaking
 
+  const greeting = (() => {
+    const h = new Date().getHours()
+    if (h < 5) return 'Working late, Karl'
+    if (h < 12) return 'Good morning, Karl'
+    if (h < 17) return 'Good afternoon, Karl'
+    if (h < 22) return 'Good evening, Karl'
+    return 'Burning the midnight oil, Karl'
+  })()
+
   return (
     <div className="h-screen flex flex-col bg-black overflow-hidden relative">
       <style jsx global>{`
@@ -394,8 +403,8 @@ export default function Jarvis() {
         {!hasMessages ? (
           <div className="flex flex-col items-center justify-center h-full text-center px-6">
             <div className="relative mb-8">
-              <h2 className="text-2xl font-mono text-cyan-300/90 tracking-[0.2em] uppercase mb-2">Systems Online</h2>
-              <p className="text-cyan-500/40 text-sm font-mono max-w-md">All data connectors active. Ready to analyse your business, Karl.</p>
+              <h2 className="text-3xl md:text-4xl font-mono text-cyan-100 tracking-[0.15em] uppercase mb-2 drop-shadow-[0_0_20px_rgba(34,211,238,0.4)]">{greeting}</h2>
+              <p className="text-cyan-300/70 text-sm font-mono max-w-md">All systems online. How can I help today?</p>
             </div>
             <div className="grid grid-cols-2 gap-2 max-w-lg w-full">
               {SUGGESTIONS.map((s, i) => (
