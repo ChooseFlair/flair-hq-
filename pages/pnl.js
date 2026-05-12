@@ -186,7 +186,7 @@ export default function PnLPage() {
 
   return (
     <>
-      <Head><title>Flair HQ — P&amp;L</title></Head>
+      <Head><title>Jarvis — P&amp;L</title></Head>
       <style jsx global>{`
         @keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
         .fade-up { animation: fadeUp 0.6s ease-out both; }

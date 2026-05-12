@@ -29,7 +29,7 @@ export default function ShippingUploadPage() {
 
   return (
     <>
-      <Head><title>Flair HQ — Shipping upload</title></Head>
+      <Head><title>Jarvis — Shipping upload</title></Head>
       <div className="min-h-screen bg-black text-white">
         <div className="border-b border-white/[0.06] px-6 py-5 flex items-center justify-between flex-wrap gap-3">
           <div>
