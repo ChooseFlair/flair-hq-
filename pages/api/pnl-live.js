@@ -50,24 +50,21 @@ async function fetchShopifyOrders(shop, token, from, to) {
 }
 
 const DEFAULT_OPEX_PATTERNS = [
-  'shopify', 'klaviyo', 'meta', 'facebook', 'instagram',
-  'google', 'youtube', 'tiktok', 'pinterest',
-  'canva', 'figma', 'adobe', 'midjourney', 'runway',
-  'vercel', 'github', 'cloudflare', 'aws', 'amazon web',
-  'anthropic', 'claude', 'openai', 'chatgpt', 'manus',
-  'xero', 'quickbooks', 'wise',
-  'shipstation', 'parcel', 'royal mail', 'evri',
-  'pipeboard', 'supermetrics', 'windsor', 'mixpanel', 'amplitude', 'hotjar',
-  'mailchimp', 'mailgun', 'intercom', 'zendesk', 'notion',
-  'slack', 'zoom', 'gmail', 'workspace', 'microsoft 365',
-  'apple.com/bill', 'app store',
-  'stripe', 'paypal',
-  'reviews.io', 'trustpilot',
-  'companies house', 'hmrc', 'gov.uk',
-  'vpn', 'domain', 'godaddy', 'namecheap',
-  'linear', 'jira', 'github copilot',
-  'shipbob', 'unpakful',
-  'transfer fee', 'card delivery', 'plan fee', 'revolut',
+  // Karl's confirmed monthly OPEX vendors
+  'openai',
+  'canva',
+  'amazon',
+  'auctane', 'shipstation',
+  'revolut',
+  'klaviyo',
+  'creativeos',
+  'shopify',
+  'claude',
+  'pipeboard',
+  'meshy',
+  // Common UK business fees that should also count as OPEX
+  'hmrc', 'companies house', 'gov.uk',
+  'royal mail',
 ]
 
 function buildOpexRegex() {
