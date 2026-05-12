@@ -49,6 +49,51 @@ async function fetchShopifyOrders(shop, token, from, to) {
   return orders
 }
 
+function chunk(arr, size) {
+  const out = []
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size))
+  return out
+}
+
+async function fetchVariantCosts(shop, token, variantIds) {
+  const costs = new Map()
+  if (!variantIds.length) return costs
+
+  const variantToInvItem = new Map()
+  for (const ids of chunk(variantIds, 100)) {
+    const url = `https://${shop}/admin/api/${API_VERSION}/variants.json?ids=${ids.join(',')}&fields=id,inventory_item_id`
+    try {
+      const r = await fetch(url, { headers: { 'X-Shopify-Access-Token': token, 'Accept': 'application/json' } })
+      if (!r.ok) continue
+      const data = await r.json()
+      for (const v of (data.variants || [])) {
+        if (v.inventory_item_id) variantToInvItem.set(v.id, v.inventory_item_id)
+      }
+    } catch {}
+  }
+
+  const invItemIds = [...new Set(variantToInvItem.values())]
+  const invItemCosts = new Map()
+  for (const ids of chunk(invItemIds, 100)) {
+    const url = `https://${shop}/admin/api/${API_VERSION}/inventory_items.json?ids=${ids.join(',')}`
+    try {
+      const r = await fetch(url, { headers: { 'X-Shopify-Access-Token': token, 'Accept': 'application/json' } })
+      if (!r.ok) continue
+      const data = await r.json()
+      for (const it of (data.inventory_items || [])) {
+        const c = parseFloat(it.cost || 0)
+        if (c > 0) invItemCosts.set(it.id, c)
+      }
+    } catch {}
+  }
+
+  for (const [vId, itemId] of variantToInvItem.entries()) {
+    const c = invItemCosts.get(itemId)
+    if (c != null) costs.set(vId, c)
+  }
+  return costs
+}
+
 const DEFAULT_OPEX_PATTERNS = [
   // Karl's confirmed monthly OPEX vendors
   'openai',
@@ -209,6 +254,15 @@ async function computePeriod(shop, token, from, to, opexOverride, withSeries) {
   ])
   if (orders.__error) throw new Error(orders.__error)
 
+  // Build variant cost map from orders' line items
+  const variantIds = new Set()
+  for (const o of orders) {
+    for (const li of (o.line_items || [])) {
+      if (li.variant_id) variantIds.add(li.variant_id)
+    }
+  }
+  const variantCosts = await fetchVariantCosts(shop, token, [...variantIds])
+
   const opex = opexOverride !== null ? opexOverride : (revolut.connected ? revolut.opex : 0)
 
   const days = {}
@@ -225,6 +279,8 @@ async function computePeriod(shop, token, from, to, opexOverride, withSeries) {
   let totalRevenue = 0, returns = 0, cancellations = 0, shippingCharges = 0, discounts = 0
   let orderCount = 0, ncOrders = 0, rcOrders = 0
   let ncRevenue = 0, rcRevenue = 0
+  let cogsReal = 0, cogsFallback = 0
+  let lineItemsTotal = 0, lineItemsWithCost = 0
 
   for (const o of orders) {
     const d = (o.created_at || '').substring(0, 10)
@@ -239,13 +295,31 @@ async function computePeriod(shop, token, from, to, opexOverride, withSeries) {
     if (isRefunded) { returns += total; days[d].returns += total }
     totalRevenue += total; shippingCharges += ship; discounts += disc; orderCount += 1
     days[d].totalRevenue += total; days[d].shippingCharges += ship; days[d].orders += 1
+
+    for (const li of (o.line_items || [])) {
+      const qty = parseInt(li.quantity || 1)
+      lineItemsTotal++
+      const unitCost = variantCosts.get(li.variant_id)
+      if (unitCost != null) {
+        cogsReal += qty * unitCost
+        lineItemsWithCost++
+      } else {
+        cogsFallback += qty * parseFloat(li.price || 0) * RATES.cogs
+      }
+    }
+
     if (isNew) { ncOrders += 1; ncRevenue += total; days[d].ncOrders += 1; days[d].ncRevenue += total }
     else { rcOrders += 1; rcRevenue += total; days[d].rcOrders += 1; days[d].rcRevenue += total }
   }
 
+  const cogs = cogsReal + cogsFallback
+  const cogsSource = lineItemsTotal === 0 ? 'none'
+    : lineItemsWithCost === lineItemsTotal ? 'shopify'
+    : lineItemsWithCost === 0 ? 'rate'
+    : 'hybrid'
+
   const netSales = totalRevenue - returns
   const paymentProviders = totalRevenue * RATES.paymentProvider
-  const cogs = totalRevenue * RATES.cogs
   const shippingFulfilment = totalRevenue * RATES.shippingFulfilment
   const salesExpenses = paymentProviders + cogs + shippingFulfilment
   const metaSpend = meta.total
@@ -257,7 +331,7 @@ async function computePeriod(shop, token, from, to, opexOverride, withSeries) {
   const totals = {
     from: from.toISOString(), to: to.toISOString(),
     revenue: { netSales: r2(netSales), returns: r2(returns), cancellations: r2(cancellations), shippingCharges: r2(shippingCharges), discounts: r2(discounts), totalRevenue: r2(totalRevenue) },
-    costs: { paymentProviders: r2(paymentProviders), cogs: r2(cogs), shippingFulfilment: r2(shippingFulfilment), salesExpenses: r2(salesExpenses), metaSpend: r2(metaSpend), googleSpend: r2(googleSpend), marketingExpenses: r2(marketingExpenses), marketingPctRevenue: pct(marketingExpenses, totalRevenue), marketingPctNetSales: pct(marketingExpenses, netSales), opex: r2(opex), opexPctRevenue: pct(opex, totalRevenue) },
+    costs: { paymentProviders: r2(paymentProviders), cogs: r2(cogs), cogsReal: r2(cogsReal), cogsFallback: r2(cogsFallback), cogsSource, lineItemsTotal, lineItemsWithCost, shippingFulfilment: r2(shippingFulfilment), salesExpenses: r2(salesExpenses), metaSpend: r2(metaSpend), googleSpend: r2(googleSpend), marketingExpenses: r2(marketingExpenses), marketingPctRevenue: pct(marketingExpenses, totalRevenue), marketingPctNetSales: pct(marketingExpenses, netSales), opex: r2(opex), opexPctRevenue: pct(opex, totalRevenue) },
     profit: { contributionProfit: r2(contributionProfit), contributionProfitPct: pct(contributionProfit, totalRevenue), ebitda: r2(ebitda), ebitdaPct: pct(ebitda, totalRevenue) },
     kpis: { totalSales: r2(totalRevenue), totalOrders: orderCount, aov: orderCount > 0 ? r2(totalRevenue / orderCount) : 0, ecpa: orderCount > 0 ? r2(marketingExpenses / orderCount) : 0, eroas: marketingExpenses > 0 ? r2(totalRevenue / marketingExpenses, 2) : 0 },
     newCustomers: { sales: r2(ncRevenue), orders: ncOrders, aov: ncOrders > 0 ? r2(ncRevenue / ncOrders) : 0, cpa: ncOrders > 0 ? r2(marketingExpenses / ncOrders) : 0, roas: marketingExpenses > 0 ? r2(ncRevenue / marketingExpenses, 2) : 0 },

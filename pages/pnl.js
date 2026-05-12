@@ -346,7 +346,24 @@ export default function PnLPage() {
 
                 <Section title="Costs" index={1}>
                   <Row label="Payment providers" value={fmtMoney(t.costs.paymentProviders)} hint="2.5%" />
-                  <Row label="COGS" value={fmtMoney(t.costs.cogs)} hint="20.5%" />
+                  <Row
+                    label={
+                      <span className="inline-flex items-center gap-2 flex-wrap">
+                        COGS
+                        {t.costs.cogsSource === 'shopify' && (
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-400/15 text-emerald-300">via Shopify</span>
+                        )}
+                        {t.costs.cogsSource === 'hybrid' && (
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-amber-400/15 text-amber-300" title={`${t.costs.lineItemsWithCost}/${t.costs.lineItemsTotal} line items have real cost; rest use 20.5%`}>Hybrid · {t.costs.lineItemsWithCost}/{t.costs.lineItemsTotal}</span>
+                        )}
+                        {t.costs.cogsSource === 'rate' && (
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-rose-400/15 text-rose-300" title="No Shopify cost per item set on any variant; using flat 20.5%">Flat 20.5%</span>
+                        )}
+                      </span>
+                    }
+                    value={fmtMoney(t.costs.cogs)}
+                    hint={t.costs.cogsSource === 'shopify' ? 'unit cost × qty' : t.costs.cogsSource === 'hybrid' ? 'real + 20.5% fallback' : '20.5%'}
+                  />
                   <Row label="Shipping & fulfilment" value={fmtMoney(t.costs.shippingFulfilment)} hint="6.7%" />
                   <Row label="Sales expenses" value={fmtMoney(t.costs.salesExpenses)} accent="bold" />
                   {data?.revolut?.connected && data.revolut.inventoryCount > 0 && (
