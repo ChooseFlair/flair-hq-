@@ -30,8 +30,8 @@ const PROMPTS = [
 export default function Prompts({ open, onClose, onSelect }) {
   if (!open) return null
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-24 px-4 bg-black/70 backdrop-blur-sm" onClick={onClose}>
-      <div className="w-full max-w-4xl bg-black border border-cyan-400/30 rounded-lg shadow-2xl shadow-cyan-400/10" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-start justify-center pt-24 px-4 bg-black/70 backdrop-blur-sm backdrop-in" onClick={onClose}>
+      <div className="w-full max-w-4xl bg-black border border-cyan-400/30 rounded-lg shadow-2xl shadow-cyan-400/10 modal-in" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-cyan-500/15">
           <div>
             <h2 className="text-cyan-100 font-mono text-sm tracking-[0.3em] uppercase">Quick Prompts</h2>
@@ -52,11 +52,12 @@ export default function Prompts({ open, onClose, onSelect }) {
             <div key={group.category}>
               <div className="text-[10px] font-mono text-cyan-400/70 tracking-[0.3em] uppercase mb-2">{group.category}</div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {group.items.map(item => (
+                {group.items.map((item, i) => (
                   <button
                     key={item}
                     onClick={() => { onSelect(item); onClose() }}
-                    className="text-left px-3 py-2.5 border border-cyan-500/15 bg-cyan-500/[0.03] rounded hover:border-cyan-400/50 hover:bg-cyan-400/10 transition-all group"
+                    style={{ animationDelay: `${i * 30}ms` }}
+                    className="text-left px-3 py-2.5 border border-cyan-500/15 bg-cyan-500/[0.03] rounded hover:border-cyan-400/50 hover:bg-cyan-400/10 hover:translate-x-1 transition-all duration-200 group fade-up"
                   >
                     <span className="text-cyan-300/40 group-hover:text-cyan-300 mr-1.5">&gt;</span>
                     <span className="text-cyan-100 text-xs font-mono group-hover:text-cyan-50">{item}</span>

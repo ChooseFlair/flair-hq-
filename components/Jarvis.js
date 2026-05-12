@@ -316,6 +316,38 @@ export default function Jarvis() {
           100% { transform: scale(1.8); opacity: 0; }
         }
         .mic-pulse-ring { animation: micPulseRing 1.4s ease-out infinite; }
+        @keyframes fadeUp {
+          from { opacity: 0; transform: translateY(12px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .fade-up { animation: fadeUp 0.6s ease-out both; }
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        .fade-in { animation: fadeIn 0.4s ease-out both; }
+        @keyframes modalIn {
+          from { opacity: 0; transform: translateY(20px) scale(0.97); }
+          to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        .modal-in { animation: modalIn 0.25s ease-out both; }
+        @keyframes backdropIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        .backdrop-in { animation: backdropIn 0.2s ease-out both; }
+        @keyframes greetGlow {
+          0%, 100% { text-shadow: 0 0 20px rgba(34,211,238,0.4); }
+          50% { text-shadow: 0 0 32px rgba(34,211,238,0.7); }
+        }
+        .greet-glow { animation: greetGlow 4s ease-in-out infinite; }
+        .pill-hover { transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease, border-color 0.2s ease; }
+        .pill-hover:hover { transform: translateY(-2px) scale(1.04); }
+        @keyframes shimmer {
+          0% { background-position: -200% 0; }
+          100% { background-position: 200% 0; }
+        }
+        .shimmer { background: linear-gradient(90deg, transparent, rgba(34,211,238,0.15), transparent); background-size: 200% 100%; animation: shimmer 3s linear infinite; }
         .jarvis-scrollbar::-webkit-scrollbar { width: 4px; }
         .jarvis-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .jarvis-scrollbar::-webkit-scrollbar-thumb { background: rgba(0,220,255,0.2); border-radius: 4px; }
@@ -396,13 +428,14 @@ export default function Jarvis() {
       <div ref={scrollRef} className="flex-1 overflow-y-auto relative z-20 jarvis-scrollbar">
         {!hasMessages ? (
           <div className="flex flex-col items-center justify-center h-full text-center px-6">
-            <div className="relative mb-8">
-              <h2 className="text-3xl md:text-4xl font-mono text-cyan-100 tracking-[0.15em] uppercase mb-2 drop-shadow-[0_0_20px_rgba(34,211,238,0.4)]">{greeting}</h2>
+            <div className="relative mb-8 fade-up" style={{ animationDelay: '0.1s' }}>
+              <h2 className="text-3xl md:text-4xl font-mono text-cyan-100 tracking-[0.15em] uppercase mb-2 greet-glow">{greeting}</h2>
               <p className="text-cyan-300/70 text-sm font-mono max-w-md">All systems online. How can I help today?</p>
             </div>
             <button
               onClick={() => setPromptsOpen(true)}
-              className="px-5 py-2.5 rounded-full border border-cyan-400/40 bg-cyan-500/[0.06] text-cyan-200 hover:text-cyan-100 hover:bg-cyan-400/15 hover:border-cyan-300/70 text-xs font-mono tracking-[0.2em] uppercase transition-all"
+              className="px-5 py-2.5 rounded-full border border-cyan-400/40 bg-cyan-500/[0.06] text-cyan-200 hover:text-cyan-100 hover:bg-cyan-400/15 hover:border-cyan-300/70 text-xs font-mono tracking-[0.2em] uppercase pill-hover fade-up"
+              style={{ animationDelay: '0.4s' }}
             >
               Browse Quick Prompts
             </button>
@@ -462,7 +495,7 @@ export default function Jarvis() {
           <button
             onClick={() => setPromptsOpen(true)}
             title="Quick prompts"
-            className="flex items-center gap-2 px-4 py-2.5 rounded-full border border-cyan-400/40 bg-cyan-500/[0.06] text-cyan-200 hover:text-cyan-100 hover:bg-cyan-400/15 hover:border-cyan-300/70 hover:shadow-lg hover:shadow-cyan-400/20 transition-all"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-full border border-cyan-400/40 bg-cyan-500/[0.06] text-cyan-200 hover:text-cyan-100 hover:bg-cyan-400/15 hover:border-cyan-300/70 hover:shadow-lg hover:shadow-cyan-400/20 pill-hover"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
@@ -473,7 +506,7 @@ export default function Jarvis() {
           <button
             onClick={() => setBookmarksOpen(true)}
             title="Quick links"
-            className="flex items-center gap-2 px-4 py-2.5 rounded-full border border-cyan-400/40 bg-cyan-500/[0.06] text-cyan-200 hover:text-cyan-100 hover:bg-cyan-400/15 hover:border-cyan-300/70 hover:shadow-lg hover:shadow-cyan-400/20 transition-all"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-full border border-cyan-400/40 bg-cyan-500/[0.06] text-cyan-200 hover:text-cyan-100 hover:bg-cyan-400/15 hover:border-cyan-300/70 hover:shadow-lg hover:shadow-cyan-400/20 pill-hover"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
