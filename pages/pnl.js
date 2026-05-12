@@ -270,6 +270,13 @@ export default function PnLPage() {
                   <Row label="COGS" value={fmtMoney(t.costs.cogs)} hint="20.5%" />
                   <Row label="Shipping & fulfilment" value={fmtMoney(t.costs.shippingFulfilment)} hint="6.7%" />
                   <Row label="Sales expenses" value={fmtMoney(t.costs.salesExpenses)} accent="bold" />
+                  {data?.revolut?.connected && data.revolut.inventoryCount > 0 && (
+                    <Row
+                      label="Inventory cash (Klarna / suppliers)"
+                      value={fmtMoney(data.revolut.inventoryCash)}
+                      hint={`${data.revolut.inventoryCount} txns`}
+                    />
+                  )}
                   <Row label="Meta spend" value={fmtMoney(t.costs.metaSpend)} indent />
                   <Row label="Google spend" value={fmtMoney(t.costs.googleSpend)} indent />
                   <Row label="Marketing expenses" value={fmtMoney(t.costs.marketingExpenses)} accent="bold" />
