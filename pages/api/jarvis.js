@@ -151,31 +151,126 @@ async function getProducts() {
   return data || []
 }
 
+function baseUrlFor(req) {
+  const host = req.headers['x-forwarded-host'] || req.headers.host
+  const proto = req.headers['x-forwarded-proto'] || (host?.includes('localhost') ? 'http' : 'https')
+  return `${proto}://${host}`
+}
+
+async function callInternal(req, path) {
+  try {
+    const r = await fetch(`${baseUrlFor(req)}${path}`)
+    return await r.json()
+  } catch (e) { return { error: e.message } }
+}
+
+// New live tools that hit the same endpoints the UI uses
+async function getPnlLive(req, input = {}) {
+  const range = input.range || '30d'
+  const q = new URLSearchParams({ range, compare: 'false' })
+  const j = await callInternal(req, `/api/pnl-live?${q}`)
+  if (j.error) return { error: j.error }
+  return {
+    range: j.label,
+    revenue: j.totals?.revenue,
+    costs: { paymentProviders: j.totals?.costs?.paymentProviders, cogs: j.totals?.costs?.cogs, shippingFulfilment: j.totals?.costs?.shippingFulfilment, marketingExpenses: j.totals?.costs?.marketingExpenses, opex: j.totals?.costs?.opex },
+    profit: j.totals?.profit,
+    kpis: j.totals?.kpis,
+    newCustomers: j.totals?.newCustomers,
+    returningCustomers: j.totals?.returningCustomers,
+    opexSource: j.opexSource,
+  }
+}
+
+async function getInventoryStatus(req) {
+  const j = await callInternal(req, '/api/dashboard/inventory')
+  if (j.error) return { error: j.error }
+  const critical = (j.variants || []).filter(v => v.status === 'out' || v.status === 'critical' || v.status === 'low')
+  return {
+    summary: j.summary,
+    needsAttention: critical.map(v => ({
+      product: v.productTitle + (v.variantTitle ? ` (${v.variantTitle})` : ''),
+      sku: v.sku,
+      stock: v.quantity,
+      daysLeft: v.daysRemaining,
+      status: v.status,
+    })).slice(0, 20),
+  }
+}
+
+async function getCashPosition(req) {
+  const j = await callInternal(req, '/api/dashboard/cash')
+  if (j.error) return { error: j.error }
+  return {
+    connected: j.connected,
+    totalGBP: j.totalGBP,
+    byCurrency: j.byCurrency,
+    runwayMonths: j.runwayMonths,
+    accounts: j.accounts,
+  }
+}
+
+async function getEmailPerformance(req, input = {}) {
+  const range = input.range || '30d'
+  const j = await callInternal(req, `/api/dashboard/email-performance?range=${range}`)
+  if (j.error) return { error: j.error }
+  return {
+    range: j.label,
+    totals: j.totals,
+    topFlows: (j.flows || []).slice(0, 5).map(f => ({ name: f.name, status: f.status, revenue: f.revenue, openRate: f.openRate, clickRate: f.clickRate })),
+    topCampaigns: (j.campaigns || []).slice(0, 5).map(c => ({ name: c.name, sendTime: c.sendTime, revenue: c.revenue, openRate: c.openRate, clickRate: c.clickRate })),
+  }
+}
+
+async function getTodaySummary(req) {
+  const j = await callInternal(req, '/api/dashboard/summary?range=today')
+  if (j.error) return { error: j.error }
+  return { revenue: j.revenue, orders: j.orderCount, customers: j.customerCount, aov: j.aov, adSpend: j.adSpend, roas: j.roas, issues: j.issues }
+}
+
+async function getConnectorHealth(req) {
+  const j = await callInternal(req, '/api/dashboard/connector-status')
+  return { connectors: (j.connectors || []).map(c => ({ name: c.name, status: c.status, reason: c.statusReason })) }
+}
+
 const TOOLS = [
-  { name: 'get_orders_summary', description: 'Get overall order stats: total orders, revenue, AOV, 7-day and 30-day breakdowns, refund count', fn: getOrdersSummary },
-  { name: 'get_recent_orders', description: 'Get the most recent orders with details (order number, email, price, status)', fn: () => getRecentOrders(10) },
-  { name: 'get_customer_insights', description: 'Get top customers by spending, total customer count', fn: getCustomerInsights },
-  { name: 'get_klaviyo_metrics', description: 'Get Klaviyo email marketing data: subscriber count, flows, lists', fn: getKlaviyoMetrics },
-  { name: 'get_klaviyo_flows', description: 'Get Klaviyo flow performance: open rates, click rates, conversions, revenue', fn: getKlaviyoFlows },
-  { name: 'get_meta_ads', description: 'Get Meta/Facebook ads data: campaigns, spend, ROAS, purchases', fn: getMetaAdsData },
-  { name: 'get_pnl_summary', description: 'Get P&L summary: total revenue, ad spend by month, ROAS', fn: getPnLSummary },
-  { name: 'get_windsor_data', description: 'Get ad spend data from all connected sources via Windsor AI (Google Ads, Meta, etc) for last 30 days', fn: getWindsorData },
-  { name: 'get_products', description: 'Get product catalog: titles, prices, inventory levels, SKUs', fn: getProducts },
+  // Live data tools (use new endpoints)
+  { name: 'get_pnl', description: 'Get live P&L for a date range: revenue breakdown, costs, profit, EBITDA, contribution, KPIs, new vs returning customer split. Use this for any margin/profit/EBITDA question.', input_schema: { type: 'object', properties: { range: { type: 'string', enum: ['today', 'yesterday', '7d', '30d', '90d', 'mtd', 'ytd'], description: 'Date range, defaults to 30d' } }, required: [] }, fn: getPnlLive },
+  { name: 'get_inventory_status', description: 'Get current Shopify stock levels with stockout alerts. Returns variants that are out/critical/low along with days of stock remaining.', input_schema: { type: 'object', properties: {}, required: [] }, fn: getInventoryStatus },
+  { name: 'get_cash_position', description: 'Get current Revolut cash balance, balance by currency, and months of runway at current burn.', input_schema: { type: 'object', properties: {}, required: [] }, fn: getCashPosition },
+  { name: 'get_email_performance', description: 'Get Klaviyo flow + campaign performance: attributed revenue, opens, clicks, conversions. Returns top performers.', input_schema: { type: 'object', properties: { range: { type: 'string', enum: ['7d', '30d', '90d', 'mtd', 'ytd'], description: 'Date range, defaults to 30d' } }, required: [] }, fn: getEmailPerformance },
+  { name: 'get_today_summary', description: 'Get today headline numbers: revenue, orders, customers, AOV, ad spend, ROAS.', input_schema: { type: 'object', properties: {}, required: [] }, fn: getTodaySummary },
+  { name: 'get_connector_health', description: 'Get health status of every connected integration (Shopify, Klaviyo, Meta, PayPal, Windsor).', input_schema: { type: 'object', properties: {}, required: [] }, fn: getConnectorHealth },
+  // Legacy Supabase-backed tools (still useful for historical lookups)
+  { name: 'get_orders_summary', description: 'Get overall order stats from local Shopify mirror', input_schema: { type: 'object', properties: {}, required: [] }, fn: getOrdersSummary },
+  { name: 'get_recent_orders', description: 'Get the 10 most recent orders with details (order number, email, price, status)', input_schema: { type: 'object', properties: {}, required: [] }, fn: () => getRecentOrders(10) },
+  { name: 'get_customer_insights', description: 'Get top customers by spending, total customer count', input_schema: { type: 'object', properties: {}, required: [] }, fn: getCustomerInsights },
+  { name: 'get_products', description: 'Get product catalog: titles, prices, inventory levels, SKUs', input_schema: { type: 'object', properties: {}, required: [] }, fn: getProducts },
 ]
 
 const TOOL_DEFS = TOOLS.map(t => ({
   name: t.name,
   description: t.description,
-  input_schema: { type: 'object', properties: {}, required: [] },
+  input_schema: t.input_schema,
 }))
 
 const SYSTEM_PROMPT = `You are Jarvis, the AI business assistant for Flair — a UK-based aromatherapy inhaler brand (chooseflair.com). You help the founder Karl run his business by providing data-driven insights and recommendations.
 
-You have access to real-time business tools. Use them to answer questions with actual data. Be concise, direct, and actionable. Use £ for currency. When showing numbers, be specific.
+You have access to live business data via tools. Use them aggressively — when in doubt, call a tool rather than guess. Be concise, direct, and actionable. Use £ for currency. When showing numbers, be specific.
+
+Tool routing (pick the most specific tool for the question):
+- "EBITDA / margin / contribution / profit / ROAS / P&L / sales today/week/month" → get_pnl with the appropriate range
+- "stock / inventory / running low / what to reorder" → get_inventory_status
+- "cash / balance / runway / how much money left" → get_cash_position
+- "emails / klaviyo / flow performance / campaign revenue" → get_email_performance
+- "today / how's today going" → get_today_summary
+- "integrations / connectors / what's broken" → get_connector_health
+
+Always tell Karl which range or assumption you used (e.g. "30 days, ex-VAT not yet calculated"). When numbers look surprising, note it.
 
 Personality: Confident, sharp, slightly witty — like a trusted business partner. Don't be robotic. Address the user casually. Keep responses focused and under 300 words unless detailed analysis is requested.
 
-Connected systems: Shopify orders (via Supabase), Klaviyo email marketing, Meta/Facebook Ads, Google Ads (via Windsor AI), PayPal, Revolut banking.
+Connected systems: Shopify (orders, products, inventory, line-item costs), Klaviyo (flows + campaigns), Meta/Facebook Ads + Google Ads (via Windsor), Revolut (cash + OPEX), ShipStation (per-order shipping cost), PayPal.
 
 You can also chat about anything — business strategy, ideas, general questions. You're Karl's go-to AI.`
 
@@ -228,7 +323,7 @@ export default async function handler(req, res) {
         const tool = TOOLS.find(t => t.name === call.name)
         let toolResult
         try {
-          toolResult = tool ? await tool.fn() : { error: 'Unknown tool' }
+          toolResult = tool ? await tool.fn(req, call.input || {}) : { error: 'Unknown tool' }
         } catch (e) {
           toolResult = { error: e.message }
         }
