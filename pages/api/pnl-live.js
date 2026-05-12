@@ -67,11 +67,23 @@ const DEFAULT_OPEX_PATTERNS = [
   'royal mail',
 ]
 
-function buildOpexRegex() {
-  const fromEnv = (process.env.OPEX_INCLUDE_PATTERNS || '').split(',').map(s => s.trim()).filter(Boolean)
-  const patterns = fromEnv.length ? fromEnv : DEFAULT_OPEX_PATTERNS
+const INVENTORY_PATTERNS = [
+  'klarna', 'alibaba', 'aliexpress', '1688', 'dhgate',
+]
+
+function buildRegex(patterns) {
   const escaped = patterns.map(p => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
   return new RegExp(`(${escaped.join('|')})`, 'i')
+}
+
+function buildOpexRegex() {
+  const fromEnv = (process.env.OPEX_INCLUDE_PATTERNS || '').split(',').map(s => s.trim()).filter(Boolean)
+  return buildRegex(fromEnv.length ? fromEnv : DEFAULT_OPEX_PATTERNS)
+}
+
+function buildInventoryRegex() {
+  const fromEnv = (process.env.INVENTORY_PATTERNS || '').split(',').map(s => s.trim()).filter(Boolean)
+  return buildRegex(fromEnv.length ? fromEnv : INVENTORY_PATTERNS)
 }
 
 function txnDescription(t, leg) {
@@ -118,14 +130,18 @@ async function fetchRevolutOpex(from, to) {
     const list = Array.isArray(txns) ? txns : (txns?.transactions || [])
 
     const opexRegex = buildOpexRegex()
+    const inventoryRegex = buildInventoryRegex()
 
     let opex = 0
     let byDay = {}
     let count = 0
+    let inventoryCash = 0
+    let inventoryCount = 0
     let excludedOpex = 0
     let excludedCount = 0
     const sampleExcluded = []
     const sampleIncluded = []
+    const sampleInventory = []
 
     for (const t of list) {
       if (t.state !== 'completed') continue
@@ -141,6 +157,10 @@ async function fetchRevolutOpex(from, to) {
           if (day) byDay[day] = (byDay[day] || 0) + abs
           count++
           if (sampleIncluded.length < 5) sampleIncluded.push({ desc: desc.substring(0, 60), amount: abs })
+        } else if (inventoryRegex.test(desc)) {
+          inventoryCash += abs
+          inventoryCount++
+          if (sampleInventory.length < 5) sampleInventory.push({ desc: desc.substring(0, 60), amount: abs })
         } else {
           excludedOpex += abs
           excludedCount++
@@ -149,7 +169,7 @@ async function fetchRevolutOpex(from, to) {
       }
     }
 
-    return { connected: true, opex, count, byDay, excludedOpex, excludedCount, sampleIncluded, sampleExcluded }
+    return { connected: true, opex, count, byDay, inventoryCash, inventoryCount, sampleInventory, excludedOpex, excludedCount, sampleIncluded, sampleExcluded }
   } catch (e) {
     return { connected: false, opex: 0, count: 0, error: e.message }
   }
@@ -344,6 +364,9 @@ export default async function handler(req, res) {
       connected: revolut.connected,
       opex: r2(revolut.opex || 0),
       transactions: revolut.count,
+      inventoryCash: r2(revolut.inventoryCash || 0),
+      inventoryCount: revolut.inventoryCount || 0,
+      sampleInventory: revolut.sampleInventory || [],
       excludedOpex: r2(revolut.excludedOpex || 0),
       excludedCount: revolut.excludedCount || 0,
       sampleIncluded: revolut.sampleIncluded || [],
