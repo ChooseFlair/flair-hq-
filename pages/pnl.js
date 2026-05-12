@@ -80,7 +80,11 @@ export default function PnLPage() {
   const [opexMode, setOpexMode] = useState('auto')
   const [customFrom, setCustomFrom] = useState('')
   const [customTo, setCustomTo] = useState('')
-  const [chartMetric, setChartMetric] = useState('totalRevenue')
+  const [chartMetrics, setChartMetrics] = useState(['totalRevenue'])
+  const [dateModalOpen, setDateModalOpen] = useState(false)
+  const [draftFrom, setDraftFrom] = useState('')
+  const [draftTo, setDraftTo] = useState('')
+  const [draftRange, setDraftRange] = useState('30d')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -110,11 +114,38 @@ export default function PnLPage() {
     { id: 'totalRevenue', label: 'Revenue', color: '#22d3ee' },
     { id: 'marketingExpenses', label: 'Ad Spend', color: '#a855f7' },
     { id: 'contributionProfit', label: 'Contribution Profit', color: '#34d399' },
+    { id: 'ebitda', label: 'EBITDA', color: '#10b981' },
+    { id: 'opex', label: 'OPEX', color: '#ef4444' },
     { id: 'orders', label: 'Orders', color: '#fbbf24' },
     { id: 'ncRevenue', label: 'New Customer Sales', color: '#f472b6' },
     { id: 'rcRevenue', label: 'Returning Customer Sales', color: '#60a5fa' },
   ]
-  const currentMetric = CHART_METRICS.find(m => m.id === chartMetric) || CHART_METRICS[0]
+  const selectedMetrics = CHART_METRICS.filter(m => chartMetrics.includes(m.id))
+
+  function toggleMetric(id) {
+    setChartMetrics(prev => prev.includes(id)
+      ? (prev.length > 1 ? prev.filter(x => x !== id) : prev)
+      : [...prev, id])
+  }
+
+  function openDateModal() {
+    setDraftRange(range)
+    setDraftFrom(customFrom || (data?.from ? data.from.split('T')[0] : ''))
+    setDraftTo(customTo || (data?.to ? data.to.split('T')[0] : ''))
+    setDateModalOpen(true)
+  }
+
+  function applyDateModal() {
+    setRange(draftRange)
+    if (draftRange === 'custom') {
+      setCustomFrom(draftFrom)
+      setCustomTo(draftTo)
+    } else {
+      setCustomFrom('')
+      setCustomTo('')
+    }
+    setDateModalOpen(false)
+  }
 
   return (
     <>
@@ -182,55 +213,38 @@ export default function PnLPage() {
               {/* Chart */}
               <div className="border border-cyan-500/15 rounded-lg bg-cyan-500/[0.02] p-5 fade-up">
                 <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-                  <h3 className="text-cyan-300 font-mono text-xs tracking-[0.3em] uppercase">Trend</h3>
+                  <div className="flex items-center gap-3">
+                    <h3 className="text-cyan-300 font-mono text-xs tracking-[0.3em] uppercase">Trend</h3>
+                    <button
+                      onClick={openDateModal}
+                      className="flex items-center gap-2 text-[10px] font-mono px-3 py-1 rounded border border-cyan-400/40 bg-cyan-500/[0.06] text-cyan-100 hover:bg-cyan-400/15 hover:border-cyan-300/70 tracking-wider"
+                    >
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      {data?.label || 'Select range'}
+                    </button>
+                  </div>
                   <div className="flex items-center gap-1 flex-wrap">
-                    {CHART_METRICS.map(m => (
-                      <button
-                        key={m.id}
-                        onClick={() => setChartMetric(m.id)}
-                        className={`text-[10px] font-mono px-2 py-0.5 rounded border tracking-wider transition-all ${
-                          chartMetric === m.id
-                            ? 'border-cyan-400/60 bg-cyan-400/10 text-cyan-100'
-                            : 'border-cyan-500/15 text-cyan-300/80 hover:text-cyan-100 hover:border-cyan-400/40'
-                        }`}
-                      >
-                        {m.label}
-                      </button>
-                    ))}
+                    {CHART_METRICS.map(m => {
+                      const active = chartMetrics.includes(m.id)
+                      return (
+                        <button
+                          key={m.id}
+                          onClick={() => toggleMetric(m.id)}
+                          style={active ? { borderColor: m.color, color: m.color, background: `${m.color}15` } : undefined}
+                          className={`text-[10px] font-mono px-2 py-0.5 rounded border tracking-wider transition-all ${
+                            active ? '' : 'border-cyan-500/15 text-cyan-300/80 hover:text-cyan-100 hover:border-cyan-400/40'
+                          }`}
+                        >
+                          {m.label}
+                        </button>
+                      )
+                    })}
                   </div>
                 </div>
-                <div className="flex items-center gap-2 mb-4 flex-wrap text-[10px] font-mono">
-                  <span className="text-cyan-400/70 tracking-wider">DATE RANGE</span>
-                  <input
-                    type="date"
-                    value={customFrom || (data?.from ? data.from.split('T')[0] : '')}
-                    onChange={e => { setCustomFrom(e.target.value); setRange('custom') }}
-                    className="bg-black border border-cyan-500/30 rounded px-2 py-1 text-cyan-200 focus:border-cyan-400/60 focus:outline-none"
-                  />
-                  <span className="text-cyan-400/60">→</span>
-                  <input
-                    type="date"
-                    value={customTo || (data?.to ? data.to.split('T')[0] : '')}
-                    onChange={e => { setCustomTo(e.target.value); setRange('custom') }}
-                    className="bg-black border border-cyan-500/30 rounded px-2 py-1 text-cyan-200 focus:border-cyan-400/60 focus:outline-none"
-                  />
-                  {(customFrom || customTo) && (
-                    <button
-                      onClick={() => { setCustomFrom(''); setCustomTo(''); setRange('30d') }}
-                      className="text-cyan-300/80 hover:text-cyan-100 underline tracking-wider"
-                    >
-                      reset
-                    </button>
-                  )}
-                </div>
-                <ResponsiveContainer width="100%" height={260}>
-                  <AreaChart data={series}>
-                    <defs>
-                      <linearGradient id="grad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor={currentMetric.color} stopOpacity={0.4} />
-                        <stop offset="100%" stopColor={currentMetric.color} stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
+                <ResponsiveContainer width="100%" height={280}>
+                  <LineChart data={series}>
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(34,211,238,0.08)" />
                     <XAxis dataKey="date" stroke="rgba(165,243,252,0.5)" fontSize={10} fontFamily="monospace" />
                     <YAxis stroke="rgba(165,243,252,0.5)" fontSize={10} fontFamily="monospace" />
@@ -238,8 +252,20 @@ export default function PnLPage() {
                       contentStyle={{ background: '#000', border: '1px solid rgba(34,211,238,0.3)', fontFamily: 'monospace', fontSize: 11 }}
                       labelStyle={{ color: '#a5f3fc' }}
                     />
-                    <Area type="monotone" dataKey={chartMetric} stroke={currentMetric.color} strokeWidth={2} fill="url(#grad)" />
-                  </AreaChart>
+                    <Legend wrapperStyle={{ fontFamily: 'monospace', fontSize: 10 }} />
+                    {selectedMetrics.map(m => (
+                      <Line
+                        key={m.id}
+                        type="monotone"
+                        dataKey={m.id}
+                        name={m.label}
+                        stroke={m.color}
+                        strokeWidth={2}
+                        dot={false}
+                        activeDot={{ r: 4 }}
+                      />
+                    ))}
+                  </LineChart>
                 </ResponsiveContainer>
               </div>
 
@@ -328,6 +354,78 @@ export default function PnLPage() {
             </>
           )}
         </div>
+
+        {dateModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-black/70 backdrop-blur-sm fade-up" onClick={() => setDateModalOpen(false)}>
+            <div className="w-full max-w-md bg-black border border-cyan-400/30 rounded-lg shadow-2xl shadow-cyan-400/20 p-6" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-cyan-100 font-mono text-sm tracking-[0.3em] uppercase">Select Date Range</h2>
+                <button onClick={() => setDateModalOpen(false)} className="text-cyan-300/70 hover:text-cyan-100 p-1">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
+
+              <div className="text-[10px] font-mono text-cyan-400/70 tracking-[0.3em] mb-2">PRESETS</div>
+              <div className="flex flex-wrap gap-2 mb-5">
+                {RANGES.map(r => (
+                  <button
+                    key={r.id}
+                    onClick={() => setDraftRange(r.id)}
+                    className={`text-[10px] font-mono px-3 py-1.5 rounded border tracking-wider transition-all ${
+                      draftRange === r.id
+                        ? 'border-cyan-400/60 bg-cyan-400/15 text-cyan-100'
+                        : 'border-cyan-500/15 text-cyan-300/80 hover:text-cyan-100 hover:border-cyan-400/40'
+                    }`}
+                  >
+                    {r.label}
+                  </button>
+                ))}
+                <button
+                  onClick={() => setDraftRange('custom')}
+                  className={`text-[10px] font-mono px-3 py-1.5 rounded border tracking-wider transition-all ${
+                    draftRange === 'custom'
+                      ? 'border-cyan-400/60 bg-cyan-400/15 text-cyan-100'
+                      : 'border-cyan-500/15 text-cyan-300/80 hover:text-cyan-100 hover:border-cyan-400/40'
+                  }`}
+                >
+                  CUSTOM
+                </button>
+              </div>
+
+              <div className="text-[10px] font-mono text-cyan-400/70 tracking-[0.3em] mb-2">CUSTOM RANGE</div>
+              <div className="flex items-center gap-2 mb-5">
+                <input
+                  type="date"
+                  value={draftFrom}
+                  onChange={e => { setDraftFrom(e.target.value); setDraftRange('custom') }}
+                  className="flex-1 bg-black border border-cyan-500/30 rounded px-2 py-2 text-cyan-200 text-xs font-mono focus:border-cyan-400/60 focus:outline-none"
+                />
+                <span className="text-cyan-400/60 font-mono">→</span>
+                <input
+                  type="date"
+                  value={draftTo}
+                  onChange={e => { setDraftTo(e.target.value); setDraftRange('custom') }}
+                  className="flex-1 bg-black border border-cyan-500/30 rounded px-2 py-2 text-cyan-200 text-xs font-mono focus:border-cyan-400/60 focus:outline-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-4 border-t border-cyan-500/15">
+                <button
+                  onClick={() => setDateModalOpen(false)}
+                  className="text-[10px] font-mono px-4 py-2 rounded border border-cyan-500/15 text-cyan-300/80 hover:text-cyan-100 hover:border-cyan-400/40 tracking-wider"
+                >
+                  CANCEL
+                </button>
+                <button
+                  onClick={applyDateModal}
+                  className="text-[10px] font-mono px-4 py-2 rounded border border-cyan-400/60 bg-cyan-400/15 text-cyan-100 hover:bg-cyan-400/25 hover:border-cyan-300 tracking-wider"
+                >
+                  APPLY
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </>
   )
