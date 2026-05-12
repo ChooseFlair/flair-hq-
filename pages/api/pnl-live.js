@@ -231,6 +231,23 @@ async function fetchRevolutOpex(from, to) {
 
     const list = Array.isArray(txns) ? txns : (txns?.transactions || [])
 
+    // Load any manual overrides for these txn ids
+    const allLegIds = []
+    for (const t of list) {
+      for (const leg of (t.legs || [])) {
+        if (leg.leg_id) allLegIds.push(leg.leg_id)
+        else allLegIds.push(`${t.id}_${leg.account_id || '0'}`)
+      }
+    }
+    let overrideMap = new Map()
+    if (allLegIds.length) {
+      const { data: ov } = await supabase
+        .from('transaction_categories')
+        .select('transaction_id, category')
+        .in('transaction_id', allLegIds)
+      for (const o of (ov || [])) overrideMap.set(o.transaction_id, o.category)
+    }
+
     const opexRegex = buildOpexRegex()
     const inventoryRegex = buildInventoryRegex()
 
@@ -253,13 +270,21 @@ async function fetchRevolutOpex(from, to) {
         const desc = txnDescription(t, leg)
         const abs = Math.abs(amount)
         const day = (t.completed_at || t.created_at || '').substring(0, 10)
+        const legId = leg.leg_id || `${t.id}_${leg.account_id || '0'}`
+        const manualCategory = overrideMap.get(legId)
 
-        if (opexRegex.test(desc)) {
+        let category
+        if (manualCategory) category = manualCategory
+        else if (opexRegex.test(desc)) category = 'opex'
+        else if (inventoryRegex.test(desc)) category = 'inventory'
+        else category = 'ignore'
+
+        if (category === 'opex') {
           opex += abs
           if (day) byDay[day] = (byDay[day] || 0) + abs
           count++
           if (sampleIncluded.length < 5) sampleIncluded.push({ desc: desc.substring(0, 60), amount: abs })
-        } else if (inventoryRegex.test(desc)) {
+        } else if (category === 'inventory') {
           inventoryCash += abs
           inventoryCount++
           if (sampleInventory.length < 5) sampleInventory.push({ desc: desc.substring(0, 60), amount: abs })
