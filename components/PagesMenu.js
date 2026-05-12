@@ -1,11 +1,12 @@
 import Link from 'next/link'
-import { BarChart3, Package, Mail, FileText, Truck, Plug } from 'lucide-react'
+import { BarChart3, Package, Mail, FileText, Truck, Plug, KeyRound } from 'lucide-react'
 
 const PAGES = [
   { href: '/pnl', Icon: BarChart3, label: 'P&L', desc: 'Profit, ROAS, EBITDA' },
   { href: '/inventory', Icon: Package, label: 'Inventory', desc: 'Stock + reorder' },
   { href: '/email', Icon: Mail, label: 'Email', desc: 'Klaviyo flows + campaigns' },
   { href: '/files', Icon: FileText, label: 'Files', desc: 'Documents + notes' },
+  { href: '/accounts', Icon: KeyRound, label: 'Accounts', desc: 'Platform logins' },
   { href: '/shipping', Icon: Truck, label: 'Shipping', desc: 'ShipStation upload' },
   { href: '/integrations', Icon: Plug, label: 'Integrations', desc: 'Connector health' },
 ]
