@@ -233,6 +233,16 @@ async function getConnectorHealth(req) {
   return { connectors: (j.connectors || []).map(c => ({ name: c.name, status: c.status, reason: c.statusReason })) }
 }
 
+async function getAccountCredentials(req, input = {}) {
+  let query = supabase.from('accounts').select('platform, url, email, password, notes')
+  if (input.platform) {
+    query = query.ilike('platform', `%${input.platform}%`)
+  }
+  const { data, error } = await query.order('sort_order', { ascending: true }).limit(20)
+  if (error) return { error: error.message }
+  return { accounts: data || [] }
+}
+
 const TOOLS = [
   // Live data tools (use new endpoints)
   { name: 'get_pnl', description: 'Get live P&L for a date range: revenue breakdown, costs, profit, EBITDA, contribution, KPIs, new vs returning customer split. Use this for any margin/profit/EBITDA question.', input_schema: { type: 'object', properties: { range: { type: 'string', enum: ['today', 'yesterday', '7d', '30d', '90d', 'mtd', 'ytd'], description: 'Date range, defaults to 30d' } }, required: [] }, fn: getPnlLive },
@@ -241,6 +251,7 @@ const TOOLS = [
   { name: 'get_email_performance', description: 'Get Klaviyo flow + campaign performance: attributed revenue, opens, clicks, conversions. Returns top performers.', input_schema: { type: 'object', properties: { range: { type: 'string', enum: ['7d', '30d', '90d', 'mtd', 'ytd'], description: 'Date range, defaults to 30d' } }, required: [] }, fn: getEmailPerformance },
   { name: 'get_today_summary', description: 'Get today headline numbers: revenue, orders, customers, AOV, ad spend, ROAS.', input_schema: { type: 'object', properties: {}, required: [] }, fn: getTodaySummary },
   { name: 'get_connector_health', description: 'Get health status of every connected integration (Shopify, Klaviyo, Meta, PayPal, Windsor).', input_schema: { type: 'object', properties: {}, required: [] }, fn: getConnectorHealth },
+  { name: 'get_account_credentials', description: 'Look up platform login credentials (email, password, URL, notes). Use the platform parameter to filter by name like "shopify" or "klaviyo". Omit to list all.', input_schema: { type: 'object', properties: { platform: { type: 'string', description: 'Platform name to filter by, case-insensitive partial match' } }, required: [] }, fn: getAccountCredentials },
   // Legacy Supabase-backed tools (still useful for historical lookups)
   { name: 'get_orders_summary', description: 'Get overall order stats from local Shopify mirror', input_schema: { type: 'object', properties: {}, required: [] }, fn: getOrdersSummary },
   { name: 'get_recent_orders', description: 'Get the 10 most recent orders with details (order number, email, price, status)', input_schema: { type: 'object', properties: {}, required: [] }, fn: () => getRecentOrders(10) },
@@ -265,6 +276,7 @@ Tool routing (pick the most specific tool for the question):
 - "emails / klaviyo / flow performance / campaign revenue" → get_email_performance
 - "today / how's today going" → get_today_summary
 - "integrations / connectors / what's broken" → get_connector_health
+- "what's my X password / login for X / how do I sign into X" → get_account_credentials with the platform name
 
 Always tell Karl which range or assumption you used (e.g. "30 days, ex-VAT not yet calculated"). When numbers look surprising, note it.
 
