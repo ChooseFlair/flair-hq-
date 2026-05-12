@@ -12,6 +12,41 @@ const RATES = {
   shippingFulfilment: 0.067,
 }
 
+// UK gateway processing fees (best-effort defaults)
+const GATEWAY_RATES = {
+  shopify_payments: { pct: 0.015, fixed: 0.20 },
+  shop_pay: { pct: 0.015, fixed: 0.20 },
+  shop_pay_installments: { pct: 0.015, fixed: 0.20 },
+  shopify_installments: { pct: 0.015, fixed: 0.20 },
+  stripe: { pct: 0.015, fixed: 0.20 },
+  paypal: { pct: 0.029, fixed: 0.30 },
+  paypal_express_checkout: { pct: 0.029, fixed: 0.30 },
+  amazon_pay: { pct: 0.03, fixed: 0.20 },
+  klarna: { pct: 0.0499, fixed: 0.20 },
+}
+
+function gatewayFee(order) {
+  const total = parseFloat(order.total_price || 0)
+  if (total <= 0) return 0
+  const gateways = order.payment_gateway_names || []
+  const key = (gateways[0] || '').toLowerCase().replace(/\s+/g, '_')
+  const rate = GATEWAY_RATES[key]
+  if (!rate) return total * RATES.paymentProvider // fall back to flat
+  return total * rate.pct + rate.fixed
+}
+
+function refundsForOrder(order) {
+  let amount = 0
+  for (const r of (order.refunds || [])) {
+    for (const t of (r.transactions || [])) {
+      if (t.kind === 'refund' && t.status === 'success') {
+        amount += parseFloat(t.amount || 0)
+      }
+    }
+  }
+  return amount
+}
+
 function rangeBounds(range, customFrom, customTo) {
   const now = new Date()
   const startOfDay = (d) => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x }
@@ -317,6 +352,9 @@ async function computePeriod(shop, token, from, to, opexOverride, withSeries) {
   let lineItemsTotal = 0, lineItemsWithCost = 0, lineItemsCollection = 0
   let shippingReal = 0, shippingRateFallback = 0
   let ordersWithShipping = 0, ordersWithoutShipping = 0
+  let paymentFeesReal = 0
+  let ordersWithGatewayRate = 0, ordersWithoutGatewayRate = 0
+  const gatewayBreakdown = {}
 
   for (const o of orders) {
     const d = (o.created_at || '').substring(0, 10)
@@ -324,13 +362,27 @@ async function computePeriod(shop, token, from, to, opexOverride, withSeries) {
     const total = parseFloat(o.total_price || 0)
     const ship = parseFloat(o.total_shipping_price_set?.shop_money?.amount || 0)
     const disc = parseFloat(o.total_discounts || 0)
-    const isRefunded = o.financial_status === 'refunded'
+    const refundAmount = refundsForOrder(o)
     const isCancelled = !!o.cancelled_at
     const isNew = (o.customer?.orders_count || 1) === 1
     if (isCancelled) { cancellations += total; days[d].cancellations += total; continue }
-    if (isRefunded) { returns += total; days[d].returns += total }
+    if (refundAmount > 0) { returns += refundAmount; days[d].returns += refundAmount }
     totalRevenue += total; shippingCharges += ship; discounts += disc; orderCount += 1
     days[d].totalRevenue += total; days[d].shippingCharges += ship; days[d].orders += 1
+
+    // Real payment fees from gateway
+    const gateways = o.payment_gateway_names || []
+    const primaryGateway = gateways[0] || 'unknown'
+    const gatewayKey = primaryGateway.toLowerCase().replace(/\s+/g, '_')
+    const hasGatewayRate = !!GATEWAY_RATES[gatewayKey]
+    const fee = gatewayFee(o)
+    paymentFeesReal += fee
+    if (hasGatewayRate) ordersWithGatewayRate++
+    else ordersWithoutGatewayRate++
+    if (!gatewayBreakdown[primaryGateway]) gatewayBreakdown[primaryGateway] = { count: 0, fees: 0, revenue: 0 }
+    gatewayBreakdown[primaryGateway].count++
+    gatewayBreakdown[primaryGateway].fees += fee
+    gatewayBreakdown[primaryGateway].revenue += total
 
     for (const li of (o.line_items || [])) {
       const qty = parseInt(li.quantity || 1)
@@ -373,7 +425,11 @@ async function computePeriod(shop, token, from, to, opexOverride, withSeries) {
     : 'hybrid'
 
   const netSales = totalRevenue - returns
-  const paymentProviders = totalRevenue * RATES.paymentProvider
+  const paymentProviders = paymentFeesReal
+  const paymentSource = orderCount === 0 ? 'none'
+    : ordersWithoutGatewayRate === 0 ? 'gateway'
+    : ordersWithGatewayRate === 0 ? 'rate'
+    : 'hybrid'
   const shippingFulfilment = shippingReal + shippingRateFallback
   const shippingSource = ordersWithShipping + ordersWithoutShipping === 0 ? 'none'
     : ordersWithoutShipping === 0 ? 'uploaded'
@@ -389,7 +445,7 @@ async function computePeriod(shop, token, from, to, opexOverride, withSeries) {
   const totals = {
     from: from.toISOString(), to: to.toISOString(),
     revenue: { netSales: r2(netSales), returns: r2(returns), cancellations: r2(cancellations), shippingCharges: r2(shippingCharges), discounts: r2(discounts), totalRevenue: r2(totalRevenue) },
-    costs: { paymentProviders: r2(paymentProviders), cogs: r2(cogs), cogsReal: r2(cogsReal), cogsCollection: r2(cogsCollection), cogsFallback: r2(cogsFallback), cogsSource, lineItemsTotal, lineItemsWithCost, lineItemsCollection, shippingFulfilment: r2(shippingFulfilment), shippingReal: r2(shippingReal), shippingRateFallback: r2(shippingRateFallback), shippingSource, ordersWithShipping, ordersWithoutShipping, salesExpenses: r2(salesExpenses), metaSpend: r2(metaSpend), googleSpend: r2(googleSpend), marketingExpenses: r2(marketingExpenses), marketingPctRevenue: pct(marketingExpenses, totalRevenue), marketingPctNetSales: pct(marketingExpenses, netSales), opex: r2(opex), opexPctRevenue: pct(opex, totalRevenue) },
+    costs: { paymentProviders: r2(paymentProviders), paymentSource, gatewayBreakdown: Object.fromEntries(Object.entries(gatewayBreakdown).map(([k, v]) => [k, { count: v.count, fees: r2(v.fees), revenue: r2(v.revenue) }])), ordersWithGatewayRate, ordersWithoutGatewayRate, cogs: r2(cogs), cogsReal: r2(cogsReal), cogsCollection: r2(cogsCollection), cogsFallback: r2(cogsFallback), cogsSource, lineItemsTotal, lineItemsWithCost, lineItemsCollection, shippingFulfilment: r2(shippingFulfilment), shippingReal: r2(shippingReal), shippingRateFallback: r2(shippingRateFallback), shippingSource, ordersWithShipping, ordersWithoutShipping, salesExpenses: r2(salesExpenses), metaSpend: r2(metaSpend), googleSpend: r2(googleSpend), marketingExpenses: r2(marketingExpenses), marketingPctRevenue: pct(marketingExpenses, totalRevenue), marketingPctNetSales: pct(marketingExpenses, netSales), opex: r2(opex), opexPctRevenue: pct(opex, totalRevenue) },
     profit: { contributionProfit: r2(contributionProfit), contributionProfitPct: pct(contributionProfit, totalRevenue), ebitda: r2(ebitda), ebitdaPct: pct(ebitda, totalRevenue) },
     kpis: { totalSales: r2(totalRevenue), totalOrders: orderCount, aov: orderCount > 0 ? r2(totalRevenue / orderCount) : 0, ecpa: orderCount > 0 ? r2(marketingExpenses / orderCount) : 0, eroas: marketingExpenses > 0 ? r2(totalRevenue / marketingExpenses, 2) : 0 },
     newCustomers: { sales: r2(ncRevenue), orders: ncOrders, aov: ncOrders > 0 ? r2(ncRevenue / ncOrders) : 0, cpa: ncOrders > 0 ? r2(marketingExpenses / ncOrders) : 0, roas: marketingExpenses > 0 ? r2(ncRevenue / marketingExpenses, 2) : 0 },

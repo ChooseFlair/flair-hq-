@@ -345,7 +345,24 @@ export default function PnLPage() {
                 </Section>
 
                 <Section title="Costs" index={1}>
-                  <Row label="Payment providers" value={fmtMoney(t.costs.paymentProviders)} hint="2.5%" />
+                  <Row
+                    label={
+                      <span className="inline-flex items-center gap-2 flex-wrap">
+                        Payment providers
+                        {t.costs.paymentSource === 'gateway' && (
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-400/15 text-emerald-300" title={Object.entries(t.costs.gatewayBreakdown || {}).map(([g, v]) => `${g}: £${v.fees}`).join(' · ')}>Per gateway</span>
+                        )}
+                        {t.costs.paymentSource === 'hybrid' && (
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-amber-400/15 text-amber-300" title={`${t.costs.ordersWithGatewayRate}/${t.costs.ordersWithGatewayRate + t.costs.ordersWithoutGatewayRate} orders matched a known gateway`}>Hybrid · {t.costs.ordersWithGatewayRate}/{t.costs.ordersWithGatewayRate + t.costs.ordersWithoutGatewayRate}</span>
+                        )}
+                        {t.costs.paymentSource === 'rate' && (
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-rose-400/15 text-rose-300">Flat 2.5%</span>
+                        )}
+                      </span>
+                    }
+                    value={fmtMoney(t.costs.paymentProviders)}
+                    hint={t.costs.paymentSource === 'gateway' ? 'real per gateway' : t.costs.paymentSource === 'hybrid' ? 'real + 2.5% fallback' : '2.5%'}
+                  />
                   <Row
                     label={
                       <span className="inline-flex items-center gap-2 flex-wrap">
