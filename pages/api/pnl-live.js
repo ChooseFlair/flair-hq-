@@ -1,3 +1,6 @@
+import { supabase } from '../../lib/supabase'
+import { getTransactions as getRevolutTxns, refreshAccessToken } from '../../lib/revolut'
+
 export const config = { maxDuration: 60 }
 
 const API_VERSION = '2024-10'
@@ -46,6 +49,61 @@ async function fetchShopifyOrders(shop, token, from, to) {
   return orders
 }
 
+async function fetchRevolutOpex(from, to) {
+  try {
+    const { data: integration } = await supabase
+      .from('integrations')
+      .select('*')
+      .eq('id', 'revolut')
+      .maybeSingle()
+
+    if (!integration?.access_token) return { connected: false, opex: 0, count: 0 }
+
+    let accessToken = integration.access_token
+    if (integration.expires_at && new Date(integration.expires_at) < new Date()) {
+      try {
+        const tokens = await refreshAccessToken(integration.refresh_token)
+        accessToken = tokens.access_token
+        await supabase.from('integrations').update({
+          access_token: tokens.access_token,
+          refresh_token: tokens.refresh_token || integration.refresh_token,
+          expires_at: new Date(Date.now() + tokens.expires_in * 1000).toISOString(),
+          updated_at: new Date().toISOString(),
+        }).eq('id', 'revolut')
+      } catch {
+        return { connected: false, opex: 0, count: 0, error: 'Token refresh failed' }
+      }
+    }
+
+    const txns = await getRevolutTxns(accessToken, {
+      from: from.toISOString(),
+      to: to.toISOString(),
+      count: 1000,
+    })
+    const list = Array.isArray(txns) ? txns : (txns?.transactions || [])
+
+    let opex = 0
+    let byDay = {}
+    let count = 0
+    for (const t of list) {
+      if (t.state !== 'completed') continue
+      for (const leg of (t.legs || [])) {
+        const amount = parseFloat(leg.amount || 0)
+        if (amount < 0) {
+          const day = (t.completed_at || t.created_at || '').substring(0, 10)
+          const abs = Math.abs(amount)
+          opex += abs
+          if (day) byDay[day] = (byDay[day] || 0) + abs
+          count++
+        }
+      }
+    }
+    return { connected: true, opex, count, byDay }
+  } catch (e) {
+    return { connected: false, opex: 0, count: 0, error: e.message }
+  }
+}
+
 async function fetchWindsorSpend(source, from, to) {
   const dateFrom = from.toISOString().split('T')[0]
   const dateTo = to.toISOString().split('T')[0]
@@ -75,19 +133,22 @@ export default async function handler(req, res) {
   const { from, to, label } = rangeBounds(range, req.query.from, req.query.to)
   const shop = process.env.SHOPIFY_SHOP_DOMAIN
   const token = process.env.SHOPIFY_ADMIN_TOKEN
-  const opex = parseFloat(req.query.opex || '0')
+  const opexOverride = req.query.opex !== undefined ? parseFloat(req.query.opex) : null
 
   if (!shop || !token) {
     return res.status(400).json({ error: 'Shopify env vars missing' })
   }
 
-  const [orders, meta, google] = await Promise.all([
+  const [orders, meta, google, revolut] = await Promise.all([
     fetchShopifyOrders(shop, token, from, to).catch(e => { return { __error: e.message } }),
     fetchWindsorSpend('facebook', from, to),
     fetchWindsorSpend('google_ads', from, to),
+    fetchRevolutOpex(from, to),
   ])
 
   if (orders.__error) return res.status(502).json({ error: orders.__error })
+
+  const opex = opexOverride !== null ? opexOverride : (revolut.connected ? revolut.opex : 0)
 
   const days = {}
   for (let d = new Date(from); d <= to; d.setDate(d.getDate() + 1)) {
@@ -221,6 +282,8 @@ export default async function handler(req, res) {
       },
     },
     rates: RATES,
+    opexSource: opexOverride !== null ? 'override' : (revolut.connected ? 'revolut' : 'none'),
+    revolut: { connected: revolut.connected, opex: r2(revolut.opex || 0), transactions: revolut.count, error: revolut.error || null },
     generatedAt: new Date().toISOString(),
   })
 }

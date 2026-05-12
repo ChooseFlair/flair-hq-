@@ -76,7 +76,8 @@ export default function PnLPage() {
   const [range, setRange] = useState('30d')
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [opex, setOpex] = useState('0')
+  const [opex, setOpex] = useState('')
+  const [opexMode, setOpexMode] = useState('auto')
   const [customFrom, setCustomFrom] = useState('')
   const [customTo, setCustomTo] = useState('')
   const [chartMetric, setChartMetric] = useState('totalRevenue')
@@ -84,7 +85,8 @@ export default function PnLPage() {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const q = new URLSearchParams({ range, opex })
+      const q = new URLSearchParams({ range })
+      if (opexMode === 'override' && opex !== '') q.set('opex', opex)
       if (range === 'custom' && customFrom && customTo) {
         q.set('from', customFrom)
         q.set('to', customTo)
@@ -99,7 +101,7 @@ export default function PnLPage() {
     }
   }, [range, opex, customFrom, customTo])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => { load() }, [load, opexMode])
 
   const t = data?.totals
   const series = data?.series || []
@@ -268,20 +270,41 @@ export default function PnLPage() {
                   <Row label="as %" value={fmtPct(t.profit.contributionProfitPct)} indent />
                   <Row
                     label={
-                      <span>
-                        OPEX{' '}
-                        <input
-                          type="number"
-                          value={opex}
-                          onChange={e => setOpex(e.target.value)}
-                          className="ml-2 w-24 bg-black border border-cyan-500/20 rounded px-1 py-0.5 text-[10px] text-cyan-200"
-                          placeholder="manual"
-                        />
+                      <span className="inline-flex items-center gap-2 flex-wrap">
+                        OPEX
+                        {data?.opexSource === 'revolut' && (
+                          <span className="text-[9px] font-mono px-1.5 py-0.5 rounded border border-emerald-400/40 bg-emerald-400/10 text-emerald-300 tracking-wider">via REVOLUT</span>
+                        )}
+                        {data?.opexSource === 'override' && (
+                          <span className="text-[9px] font-mono px-1.5 py-0.5 rounded border border-amber-400/40 bg-amber-400/10 text-amber-300 tracking-wider">MANUAL</span>
+                        )}
+                        {data?.opexSource === 'none' && (
+                          <a href="/api/revolut/auth" className="text-[9px] font-mono px-1.5 py-0.5 rounded border border-cyan-400/40 bg-cyan-400/10 text-cyan-300 tracking-wider hover:text-cyan-100">CONNECT REVOLUT</a>
+                        )}
+                        {opexMode === 'override' ? (
+                          <input
+                            type="number"
+                            value={opex}
+                            onChange={e => setOpex(e.target.value)}
+                            onBlur={() => load()}
+                            className="ml-1 w-24 bg-black border border-cyan-500/20 rounded px-1 py-0.5 text-[10px] text-cyan-200"
+                            placeholder="manual"
+                          />
+                        ) : null}
+                        <button
+                          onClick={() => setOpexMode(opexMode === 'auto' ? 'override' : 'auto')}
+                          className="text-[9px] font-mono text-cyan-400/70 hover:text-cyan-100 underline tracking-wider"
+                        >
+                          {opexMode === 'auto' ? 'override' : 'auto'}
+                        </button>
                       </span>
                     }
                     value={fmtMoney(t.costs.opex)}
                   />
                   <Row label="as %" value={fmtPct(t.costs.opexPctRevenue)} indent />
+                  {data?.revolut?.connected && (
+                    <Row label="Revolut transactions" value={fmtInt(data.revolut.transactions)} hint="completed debits" indent />
+                  )}
                   <Row label="EBITDA" value={fmtMoney(t.profit.ebitda)} accent={t.profit.ebitda >= 0 ? 'positive' : 'negative'} />
                   <Row label="as %" value={fmtPct(t.profit.ebitdaPct)} indent />
                 </Section>
