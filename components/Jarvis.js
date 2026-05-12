@@ -380,15 +380,15 @@ export default function Jarvis() {
             </div>
           </div>
           <div>
-            <h1 className="text-cyan-200 font-mono text-sm tracking-[0.3em] uppercase">Jarvis</h1>
-            <p className="text-cyan-300/80 text-[10px] font-mono tracking-widest">FLAIR HQ SYSTEM v2.0</p>
+            <h1 className="text-white text-base font-semibold tracking-tight">Jarvis</h1>
+            <p className="text-slate-400 text-xs">Flair HQ</p>
           </div>
         </div>
-        <div className="flex items-center gap-4 text-[10px] font-mono text-cyan-300 tracking-wider">
+        <div className="flex items-center gap-3 text-xs text-slate-300">
           <div className="flex items-center gap-1.5">
-            <div className={`w-1.5 h-1.5 rounded-full ${active ? 'bg-cyan-300 animate-pulse' : 'bg-emerald-300'}`} />
-            <span className={active ? 'text-cyan-200' : 'text-emerald-300'}>
-              {listening ? 'LISTENING' : speaking ? 'SPEAKING' : loading ? 'PROCESSING' : 'ONLINE'}
+            <div className={`w-1.5 h-1.5 rounded-full ${active ? 'bg-sky-400 animate-pulse' : 'bg-emerald-400'}`} />
+            <span className={active ? 'text-sky-300' : 'text-emerald-400'}>
+              {listening ? 'Listening' : speaking ? 'Speaking' : loading ? 'Processing' : 'Online'}
             </span>
           </div>
           <button
@@ -438,15 +438,15 @@ export default function Jarvis() {
         {!hasMessages ? (
           <div className="flex flex-col items-center justify-center h-full text-center px-6">
             <div className="relative mb-8 fade-up" style={{ animationDelay: '0.1s' }}>
-              <h2 className="text-3xl md:text-4xl font-mono text-cyan-100 tracking-[0.15em] uppercase mb-2 greet-glow">{greeting}</h2>
-              <p className="text-cyan-300/70 text-sm font-mono max-w-md">All systems online. How can I help today?</p>
+              <h2 className="text-4xl md:text-5xl font-semibold text-white tracking-tight mb-2 greet-glow">{greeting}</h2>
+              <p className="text-slate-300 text-base max-w-md">All systems online. How can I help today?</p>
             </div>
             <button
               onClick={() => setPromptsOpen(true)}
-              className="px-5 py-2.5 rounded-full border border-cyan-400/40 bg-cyan-500/[0.06] text-cyan-200 hover:text-cyan-100 hover:bg-cyan-400/15 hover:border-cyan-300/70 text-xs font-mono tracking-[0.2em] uppercase pill-hover fade-up"
+              className="px-6 py-3 rounded-full bg-white/[0.06] border border-white/10 text-white hover:bg-white/[0.10] hover:border-white/20 text-sm font-medium pill-hover fade-up"
               style={{ animationDelay: '0.4s' }}
             >
-              Browse Quick Prompts
+              Browse prompts
             </button>
           </div>
         ) : (
@@ -458,11 +458,11 @@ export default function Jarvis() {
                   : 'bg-white/[0.02] border border-cyan-500/10 rounded-lg rounded-bl-none px-4 py-3'
                 }`}>
                   {msg.role === 'user' ? (
-                    <p className="text-cyan-200 text-sm font-mono">{msg.content}</p>
+                    <p className="text-white text-sm leading-relaxed">{msg.content}</p>
                   ) : (
                     <>
                       {msg.error ? (
-                        <p className="text-red-400/80 text-sm font-mono">{msg.content}</p>
+                        <p className="text-rose-400 text-sm">{msg.content}</p>
                       ) : (
                         <Markdown text={msg.content} />
                       )}
@@ -490,7 +490,7 @@ export default function Jarvis() {
                       <div className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-bounce" style={{ animationDelay: '150ms' }} />
                       <div className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-bounce" style={{ animationDelay: '300ms' }} />
                     </div>
-                    <span className="text-cyan-500/40 text-xs font-mono tracking-wider">ANALYSING DATA...</span>
+                    <span className="text-slate-400 text-sm">Thinking…</span>
                   </div>
                 </div>
               </div>
@@ -504,23 +504,23 @@ export default function Jarvis() {
           <button
             onClick={() => setPromptsOpen(true)}
             title="Quick prompts"
-            className="flex items-center gap-2 px-4 py-2.5 rounded-full border border-cyan-400/40 bg-cyan-500/[0.06] text-cyan-200 hover:text-cyan-100 hover:bg-cyan-400/15 hover:border-cyan-300/70 hover:shadow-lg hover:shadow-cyan-400/20 pill-hover"
+            className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/[0.06] border border-white/10 text-white hover:bg-white/[0.10] hover:border-white/20 pill-hover"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
             </svg>
-            <span className="text-[11px] font-mono tracking-[0.2em] uppercase">Quick Prompts</span>
+            <span className="text-sm font-medium">Prompts</span>
           </button>
 
           <button
             onClick={() => setBookmarksOpen(true)}
             title="Quick links"
-            className="flex items-center gap-2 px-4 py-2.5 rounded-full border border-cyan-400/40 bg-cyan-500/[0.06] text-cyan-200 hover:text-cyan-100 hover:bg-cyan-400/15 hover:border-cyan-300/70 hover:shadow-lg hover:shadow-cyan-400/20 pill-hover"
+            className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/[0.06] border border-white/10 text-white hover:bg-white/[0.10] hover:border-white/20 pill-hover"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
             </svg>
-            <span className="text-[11px] font-mono tracking-[0.2em] uppercase">Quick Links</span>
+            <span className="text-sm font-medium">Links</span>
           </button>
 
           <div className="relative flex items-center justify-center">
@@ -560,7 +560,7 @@ export default function Jarvis() {
               onKeyDown={handleKeyDown}
               placeholder={listening ? '> Listening...' : '> Ask Jarvis...'}
               rows={1}
-              className="w-full bg-transparent text-cyan-200 placeholder-cyan-500/20 px-4 py-3 text-sm font-mono resize-none focus:outline-none"
+              className="w-full bg-transparent text-white placeholder-slate-500 px-4 py-3 text-sm resize-none focus:outline-none"
               style={{ maxHeight: '120px' }}
               onInput={e => { e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px' }}
             />
