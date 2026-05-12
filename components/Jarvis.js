@@ -373,15 +373,6 @@ export default function Jarvis() {
               )}
             </svg>
           </button>
-          <button
-            onClick={() => setBookmarksOpen(true)}
-            title="Quick links"
-            className="p-1.5 rounded border border-cyan-300/40 text-cyan-200 hover:text-cyan-100 hover:border-cyan-300/70 transition-all"
-          >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
-            </svg>
-          </button>
           <Link
             href="/integrations"
             title="Integrations &amp; setup"
@@ -470,7 +461,19 @@ export default function Jarvis() {
       </div>
 
       <div className="relative z-20 px-4 pt-2 pb-5 border-t border-cyan-500/10 flex flex-col items-center gap-3">
-        <div className="relative flex items-center justify-center">
+        <div className="flex items-center justify-center gap-6">
+          <button
+            onClick={() => setBookmarksOpen(true)}
+            title="Quick links"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-full border border-cyan-400/40 bg-cyan-500/[0.06] text-cyan-200 hover:text-cyan-100 hover:bg-cyan-400/15 hover:border-cyan-300/70 hover:shadow-lg hover:shadow-cyan-400/20 transition-all"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+            </svg>
+            <span className="text-[11px] font-mono tracking-[0.2em] uppercase">Quick Links</span>
+          </button>
+
+          <div className="relative flex items-center justify-center">
           {listening && (
             <>
               <span className="absolute inset-0 rounded-full border-2 border-cyan-400 mic-pulse-ring" />
@@ -495,6 +498,7 @@ export default function Jarvis() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-14 0m7 7v3m-4 0h8M12 3a3 3 0 00-3 3v5a3 3 0 006 0V6a3 3 0 00-3-3z" />
             </svg>
           </button>
+          </div>
         </div>
 
         <div className="flex items-end gap-2 w-full max-w-4xl mx-auto">
