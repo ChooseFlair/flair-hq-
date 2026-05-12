@@ -1,7 +1,7 @@
 import Head from 'next/head'
 import Link from 'next/link'
 import { useState, useEffect, useCallback } from 'react'
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, Area, ComposedChart } from 'recharts'
 
 const RANGES = [
   { id: 'today', label: 'Today' },
@@ -79,7 +79,7 @@ export default function PnLPage() {
   const [opexMode, setOpexMode] = useState('auto')
   const [customFrom, setCustomFrom] = useState('')
   const [customTo, setCustomTo] = useState('')
-  const [chartMetrics, setChartMetrics] = useState(['totalRevenue'])
+  const [chartMetrics, setChartMetrics] = useState(['ebitda'])
   const [dateModalOpen, setDateModalOpen] = useState(false)
   const [draftFrom, setDraftFrom] = useState('')
   const [draftTo, setDraftTo] = useState('')
@@ -120,6 +120,14 @@ export default function PnLPage() {
     { id: 'rcRevenue', label: 'RC Sales', color: '#60a5fa' },
   ]
   const selectedMetrics = CHART_METRICS.filter(m => chartMetrics.includes(m.id))
+  const showEbitdaArea = chartMetrics.includes('ebitda')
+
+  // Compute gradient split offset so green fills above 0 and red below.
+  const ebitdaValues = series.map(d => d.ebitda || 0)
+  const ebitdaMax = ebitdaValues.length ? Math.max(...ebitdaValues, 0) : 0
+  const ebitdaMin = ebitdaValues.length ? Math.min(...ebitdaValues, 0) : 0
+  const ebitdaRange = ebitdaMax - ebitdaMin || 1
+  const splitOffset = Math.max(0, Math.min(1, ebitdaMax / ebitdaRange))
 
   function toggleMetric(id) {
     setChartMetrics(prev => prev.includes(id)
@@ -230,8 +238,16 @@ export default function PnLPage() {
                     })}
                   </div>
                 </div>
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={series}>
+                <ResponsiveContainer width="100%" height={320}>
+                  <ComposedChart data={series}>
+                    <defs>
+                      <linearGradient id="ebitdaSplit" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#10b981" stopOpacity={0.5} />
+                        <stop offset={`${splitOffset * 100}%`} stopColor="#10b981" stopOpacity={0.05} />
+                        <stop offset={`${splitOffset * 100}%`} stopColor="#ef4444" stopOpacity={0.05} />
+                        <stop offset="100%" stopColor="#ef4444" stopOpacity={0.5} />
+                      </linearGradient>
+                    </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
                     <XAxis dataKey="date" stroke="rgba(255,255,255,0.4)" fontSize={11} />
                     <YAxis stroke="rgba(255,255,255,0.4)" fontSize={11} />
@@ -240,19 +256,37 @@ export default function PnLPage() {
                       labelStyle={{ color: '#fff', fontWeight: 600 }}
                     />
                     <Legend wrapperStyle={{ fontSize: 12 }} />
+                    <ReferenceLine
+                      y={0}
+                      stroke="rgba(255,255,255,0.45)"
+                      strokeDasharray="4 4"
+                      strokeWidth={1}
+                      label={{ value: 'Break-even', position: 'insideTopRight', fill: 'rgba(255,255,255,0.55)', fontSize: 10 }}
+                    />
+                    {showEbitdaArea && (
+                      <Area
+                        type="monotone"
+                        dataKey="ebitda"
+                        name="EBITDA fill"
+                        stroke="none"
+                        fill="url(#ebitdaSplit)"
+                        legendType="none"
+                        isAnimationActive={false}
+                      />
+                    )}
                     {selectedMetrics.map(m => (
                       <Line
                         key={m.id}
                         type="monotone"
                         dataKey={m.id}
                         name={m.label}
-                        stroke={m.color}
-                        strokeWidth={2}
+                        stroke={m.id === 'ebitda' ? '#10b981' : m.color}
+                        strokeWidth={m.id === 'ebitda' ? 2.5 : 2}
                         dot={false}
                         activeDot={{ r: 4 }}
                       />
                     ))}
-                  </LineChart>
+                  </ComposedChart>
                 </ResponsiveContainer>
               </div>
 
