@@ -13,6 +13,8 @@ const RANGES = [
   { id: 'ytd', label: 'YTD' },
 ]
 
+const get = (obj, path) => path.split('.').reduce((o, k) => (o == null ? o : o[k]), obj)
+
 const fmtMoney = (n, dp = 0) => {
   if (n == null) return '—'
   const abs = Math.abs(n)
@@ -23,7 +25,29 @@ const fmtInt = (n) => (n == null ? '—' : n.toLocaleString())
 const fmtPct = (n) => (n == null ? '—' : `${n.toFixed(1)}%`)
 const fmtX = (n) => (n == null ? '—' : `${n.toFixed(2)}x`)
 
-function KPI({ label, value, sub, accent = 'default', index = 0 }) {
+function fmtDelta(curr, prev, isInverse = false) {
+  if (curr == null || prev == null || prev === 0) return null
+  const pct = ((curr - prev) / Math.abs(prev)) * 100
+  const positive = isInverse ? pct < 0 : pct > 0
+  const arrow = pct > 0 ? '▲' : pct < 0 ? '▼' : '–'
+  return { pct, positive, arrow, abs: Math.abs(pct) }
+}
+
+function Delta({ d, label }) {
+  if (!d) return null
+  const cls = d.pct === 0 ? 'text-slate-500'
+    : d.positive ? 'text-emerald-300'
+    : 'text-rose-300'
+  return (
+    <span className={`text-xs ${cls} inline-flex items-center gap-1`}>
+      <span>{d.arrow}</span>
+      <span className="tabular-nums">{d.abs.toFixed(0)}%</span>
+      <span className="text-slate-500">{label}</span>
+    </span>
+  )
+}
+
+function KPI({ label, value, sub, accent = 'default', index = 0, deltaPrev, deltaYear, inverseDelta = false }) {
   const valueColor =
     accent === 'positive' ? 'text-emerald-300'
     : accent === 'negative' ? 'text-rose-300'
@@ -32,11 +56,17 @@ function KPI({ label, value, sub, accent = 'default', index = 0 }) {
   return (
     <div
       style={{ animationDelay: `${index * 40}ms` }}
-      className="flex-1 min-w-[150px] rounded-2xl bg-white/[0.03] border border-white/[0.06] px-5 py-4 hover:bg-white/[0.06] hover:border-white/[0.12] hover:-translate-y-0.5 transition-all duration-200 fade-up"
+      className="flex-1 min-w-[170px] rounded-2xl bg-white/[0.03] border border-white/[0.06] px-5 py-4 hover:bg-white/[0.06] hover:border-white/[0.12] hover:-translate-y-0.5 transition-all duration-200 fade-up"
     >
       <div className="text-xs text-slate-400 font-medium">{label}</div>
       <div className={`text-2xl mt-1.5 tabular-nums font-mono ${valueColor}`}>{value}</div>
       {sub && <div className="text-xs text-slate-500 mt-1">{sub}</div>}
+      {(deltaPrev || deltaYear) && (
+        <div className="flex flex-col gap-0.5 mt-2 pt-2 border-t border-white/[0.04]">
+          {deltaPrev && <Delta d={fmtDelta(deltaPrev.curr, deltaPrev.prev, inverseDelta)} label="vs prev" />}
+          {deltaYear && <Delta d={fmtDelta(deltaYear.curr, deltaYear.prev, inverseDelta)} label="vs LY" />}
+        </div>
+      )}
     </div>
   )
 }
@@ -196,15 +226,30 @@ export default function PnLPage() {
           {data?.error && <div className="text-rose-300 text-sm">Error: {data.error}</div>}
           {t && (
             <>
-              <div className="flex gap-3 flex-wrap">
-                <KPI label="Total Sales" value={fmtMoney(t.kpis.totalSales)} index={0} />
-                <KPI label="Orders" value={fmtInt(t.kpis.totalOrders)} index={1} />
-                <KPI label="AOV" value={fmtMoney(t.kpis.aov, 2)} index={2} />
-                <KPI label="eCPA" value={fmtMoney(t.kpis.ecpa, 2)} accent="warning" index={3} />
-                <KPI label="eROAS" value={fmtX(t.kpis.eroas)} accent={t.kpis.eroas >= 2 ? 'positive' : 'negative'} index={4} />
-                <KPI label="Contribution" value={fmtMoney(t.profit.contributionProfit)} sub={fmtPct(t.profit.contributionProfitPct)} accent={t.profit.contributionProfit >= 0 ? 'positive' : 'negative'} index={5} />
-                <KPI label="EBITDA" value={fmtMoney(t.profit.ebitda)} sub={fmtPct(t.profit.ebitdaPct)} accent={t.profit.ebitda >= 0 ? 'positive' : 'negative'} index={6} />
-              </div>
+              {(() => {
+                const prevT = data?.comparisons?.prevPeriod?.totals
+                const yearT = data?.comparisons?.lastYear?.totals
+                const dP = (path) => prevT ? { curr: get(t, path), prev: get(prevT, path) } : null
+                const dY = (path) => yearT ? { curr: get(t, path), prev: get(yearT, path) } : null
+                return (
+                  <div className="flex gap-3 flex-wrap">
+                    <KPI label="Total Sales" value={fmtMoney(t.kpis.totalSales)} index={0}
+                      deltaPrev={dP('kpis.totalSales')} deltaYear={dY('kpis.totalSales')} />
+                    <KPI label="Orders" value={fmtInt(t.kpis.totalOrders)} index={1}
+                      deltaPrev={dP('kpis.totalOrders')} deltaYear={dY('kpis.totalOrders')} />
+                    <KPI label="AOV" value={fmtMoney(t.kpis.aov, 2)} index={2}
+                      deltaPrev={dP('kpis.aov')} deltaYear={dY('kpis.aov')} />
+                    <KPI label="eCPA" value={fmtMoney(t.kpis.ecpa, 2)} accent="warning" index={3}
+                      deltaPrev={dP('kpis.ecpa')} deltaYear={dY('kpis.ecpa')} inverseDelta />
+                    <KPI label="eROAS" value={fmtX(t.kpis.eroas)} accent={t.kpis.eroas >= 2 ? 'positive' : 'negative'} index={4}
+                      deltaPrev={dP('kpis.eroas')} deltaYear={dY('kpis.eroas')} />
+                    <KPI label="Contribution" value={fmtMoney(t.profit.contributionProfit)} sub={fmtPct(t.profit.contributionProfitPct)} accent={t.profit.contributionProfit >= 0 ? 'positive' : 'negative'} index={5}
+                      deltaPrev={dP('profit.contributionProfit')} deltaYear={dY('profit.contributionProfit')} />
+                    <KPI label="EBITDA" value={fmtMoney(t.profit.ebitda)} sub={fmtPct(t.profit.ebitdaPct)} accent={t.profit.ebitda >= 0 ? 'positive' : 'negative'} index={6}
+                      deltaPrev={dP('profit.ebitda')} deltaYear={dY('profit.ebitda')} />
+                  </div>
+                )
+              })()}
 
               <div className="rounded-2xl bg-white/[0.03] border border-white/[0.06] p-6 fade-up">
                 <div className="flex items-center justify-between mb-4 flex-wrap gap-3">

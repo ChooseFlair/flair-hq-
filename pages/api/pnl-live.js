@@ -198,26 +198,16 @@ async function fetchWindsorSpend(source, from, to) {
 }
 
 const r2 = (n, d = 2) => Math.round(n * 10 ** d) / 10 ** d
+const pct = (n, d) => d > 0 ? r2((n / d) * 100) : 0
 
-export default async function handler(req, res) {
-  const range = (req.query.range || '30d').toString()
-  const { from, to, label } = rangeBounds(range, req.query.from, req.query.to)
-  const shop = process.env.SHOPIFY_SHOP_DOMAIN
-  const token = process.env.SHOPIFY_ADMIN_TOKEN
-  const opexOverride = req.query.opex !== undefined ? parseFloat(req.query.opex) : null
-
-  if (!shop || !token) {
-    return res.status(400).json({ error: 'Shopify env vars missing' })
-  }
-
+async function computePeriod(shop, token, from, to, opexOverride, withSeries) {
   const [orders, meta, google, revolut] = await Promise.all([
     fetchShopifyOrders(shop, token, from, to).catch(e => { return { __error: e.message } }),
     fetchWindsorSpend('facebook', from, to),
     fetchWindsorSpend('google_ads', from, to),
     fetchRevolutOpex(from, to),
   ])
-
-  if (orders.__error) return res.status(502).json({ error: orders.__error })
+  if (orders.__error) throw new Error(orders.__error)
 
   const opex = opexOverride !== null ? opexOverride : (revolut.connected ? revolut.opex : 0)
 
@@ -245,36 +235,12 @@ export default async function handler(req, res) {
     const isRefunded = o.financial_status === 'refunded'
     const isCancelled = !!o.cancelled_at
     const isNew = (o.customer?.orders_count || 1) === 1
-
-    if (isCancelled) {
-      cancellations += total
-      days[d].cancellations += total
-      continue
-    }
-    if (isRefunded) {
-      returns += total
-      days[d].returns += total
-    }
-
-    totalRevenue += total
-    shippingCharges += ship
-    discounts += disc
-    orderCount += 1
-    days[d].totalRevenue += total
-    days[d].shippingCharges += ship
-    days[d].orders += 1
-
-    if (isNew) {
-      ncOrders += 1
-      ncRevenue += total
-      days[d].ncOrders += 1
-      days[d].ncRevenue += total
-    } else {
-      rcOrders += 1
-      rcRevenue += total
-      days[d].rcOrders += 1
-      days[d].rcRevenue += total
-    }
+    if (isCancelled) { cancellations += total; days[d].cancellations += total; continue }
+    if (isRefunded) { returns += total; days[d].returns += total }
+    totalRevenue += total; shippingCharges += ship; discounts += disc; orderCount += 1
+    days[d].totalRevenue += total; days[d].shippingCharges += ship; days[d].orders += 1
+    if (isNew) { ncOrders += 1; ncRevenue += total; days[d].ncOrders += 1; days[d].ncRevenue += total }
+    else { rcOrders += 1; rcRevenue += total; days[d].rcOrders += 1; days[d].rcRevenue += total }
   }
 
   const netSales = totalRevenue - returns
@@ -288,75 +254,97 @@ export default async function handler(req, res) {
   const contributionProfit = totalRevenue - salesExpenses - marketingExpenses
   const ebitda = contributionProfit - opex
 
-  const dayCount = Object.keys(days).length || 1
-  const opexPerDay = opex / dayCount
+  const totals = {
+    from: from.toISOString(), to: to.toISOString(),
+    revenue: { netSales: r2(netSales), returns: r2(returns), cancellations: r2(cancellations), shippingCharges: r2(shippingCharges), discounts: r2(discounts), totalRevenue: r2(totalRevenue) },
+    costs: { paymentProviders: r2(paymentProviders), cogs: r2(cogs), shippingFulfilment: r2(shippingFulfilment), salesExpenses: r2(salesExpenses), metaSpend: r2(metaSpend), googleSpend: r2(googleSpend), marketingExpenses: r2(marketingExpenses), marketingPctRevenue: pct(marketingExpenses, totalRevenue), marketingPctNetSales: pct(marketingExpenses, netSales), opex: r2(opex), opexPctRevenue: pct(opex, totalRevenue) },
+    profit: { contributionProfit: r2(contributionProfit), contributionProfitPct: pct(contributionProfit, totalRevenue), ebitda: r2(ebitda), ebitdaPct: pct(ebitda, totalRevenue) },
+    kpis: { totalSales: r2(totalRevenue), totalOrders: orderCount, aov: orderCount > 0 ? r2(totalRevenue / orderCount) : 0, ecpa: orderCount > 0 ? r2(marketingExpenses / orderCount) : 0, eroas: marketingExpenses > 0 ? r2(totalRevenue / marketingExpenses, 2) : 0 },
+    newCustomers: { sales: r2(ncRevenue), orders: ncOrders, aov: ncOrders > 0 ? r2(ncRevenue / ncOrders) : 0, cpa: ncOrders > 0 ? r2(marketingExpenses / ncOrders) : 0, roas: marketingExpenses > 0 ? r2(ncRevenue / marketingExpenses, 2) : 0 },
+    returningCustomers: { sales: r2(rcRevenue), orders: rcOrders, aov: rcOrders > 0 ? r2(rcRevenue / rcOrders) : 0 },
+  }
 
-  const series = Object.values(days).map(d => {
-    const md = meta.byDay[d.date] || 0
-    const gd = google.byDay[d.date] || 0
-    const dailyOpex = revolut.byDay?.[d.date] != null && opexOverride === null ? revolut.byDay[d.date] : opexPerDay
-    d.netSales = d.totalRevenue - d.returns
-    d.metaSpend = md
-    d.googleSpend = gd
-    d.marketingExpenses = md + gd
-    d.contributionProfit = d.totalRevenue - (d.totalRevenue * (RATES.cogs + RATES.paymentProvider + RATES.shippingFulfilment)) - d.marketingExpenses
-    d.opex = dailyOpex
-    d.ebitda = d.contributionProfit - dailyOpex
-    return d
-  })
+  let series = null
+  if (withSeries) {
+    const dayCount = Object.keys(days).length || 1
+    const opexPerDay = opex / dayCount
+    series = Object.values(days).map(d => {
+      const md = meta.byDay[d.date] || 0
+      const gd = google.byDay[d.date] || 0
+      const dailyOpex = revolut.byDay?.[d.date] != null && opexOverride === null ? revolut.byDay[d.date] : opexPerDay
+      d.netSales = d.totalRevenue - d.returns
+      d.metaSpend = md
+      d.googleSpend = gd
+      d.marketingExpenses = md + gd
+      d.contributionProfit = d.totalRevenue - (d.totalRevenue * (RATES.cogs + RATES.paymentProvider + RATES.shippingFulfilment)) - d.marketingExpenses
+      d.opex = dailyOpex
+      d.ebitda = d.contributionProfit - dailyOpex
+      return d
+    })
+  }
 
-  const pct = (n, d) => d > 0 ? r2((n / d) * 100) : 0
+  return { totals, series, revolut }
+}
+
+function shiftedBounds(from, to, kind) {
+  const f = new Date(from)
+  const t = new Date(to)
+  if (kind === 'prevPeriod') {
+    const diff = t.getTime() - f.getTime()
+    const prevTo = new Date(f.getTime() - 1)
+    const prevFrom = new Date(prevTo.getTime() - diff)
+    return { from: prevFrom, to: prevTo }
+  }
+  if (kind === 'lastYear') {
+    const prevFrom = new Date(f); prevFrom.setFullYear(prevFrom.getFullYear() - 1)
+    const prevTo = new Date(t); prevTo.setFullYear(prevTo.getFullYear() - 1)
+    return { from: prevFrom, to: prevTo }
+  }
+  return { from: f, to: t }
+}
+
+export default async function handler(req, res) {
+  const range = (req.query.range || '30d').toString()
+  const { from, to, label } = rangeBounds(range, req.query.from, req.query.to)
+  const shop = process.env.SHOPIFY_SHOP_DOMAIN
+  const token = process.env.SHOPIFY_ADMIN_TOKEN
+  const opexOverride = req.query.opex !== undefined ? parseFloat(req.query.opex) : null
+  const compare = req.query.compare !== 'false'
+
+  if (!shop || !token) {
+    return res.status(400).json({ error: 'Shopify env vars missing' })
+  }
+
+  const prevP = shiftedBounds(from, to, 'prevPeriod')
+  const lastY = shiftedBounds(from, to, 'lastYear')
+
+  let current, prevPeriod = null, lastYear = null
+  try {
+    if (compare) {
+      const [c, p, y] = await Promise.all([
+        computePeriod(shop, token, from, to, opexOverride, true),
+        computePeriod(shop, token, prevP.from, prevP.to, opexOverride, false).catch(() => null),
+        computePeriod(shop, token, lastY.from, lastY.to, opexOverride, false).catch(() => null),
+      ])
+      current = c
+      prevPeriod = p
+      lastYear = y
+    } else {
+      current = await computePeriod(shop, token, from, to, opexOverride, true)
+    }
+  } catch (e) {
+    return res.status(502).json({ error: e.message })
+  }
+
+  const revolut = current.revolut
 
   res.status(200).json({
     range, label, from: from.toISOString(), to: to.toISOString(),
-    series,
-    totals: {
-      revenue: {
-        netSales: r2(netSales),
-        returns: r2(returns),
-        cancellations: r2(cancellations),
-        shippingCharges: r2(shippingCharges),
-        discounts: r2(discounts),
-        totalRevenue: r2(totalRevenue),
-      },
-      costs: {
-        paymentProviders: r2(paymentProviders),
-        cogs: r2(cogs),
-        shippingFulfilment: r2(shippingFulfilment),
-        salesExpenses: r2(salesExpenses),
-        metaSpend: r2(metaSpend),
-        googleSpend: r2(googleSpend),
-        marketingExpenses: r2(marketingExpenses),
-        marketingPctRevenue: pct(marketingExpenses, totalRevenue),
-        marketingPctNetSales: pct(marketingExpenses, netSales),
-        opex: r2(opex),
-        opexPctRevenue: pct(opex, totalRevenue),
-      },
-      profit: {
-        contributionProfit: r2(contributionProfit),
-        contributionProfitPct: pct(contributionProfit, totalRevenue),
-        ebitda: r2(ebitda),
-        ebitdaPct: pct(ebitda, totalRevenue),
-      },
-      kpis: {
-        totalSales: r2(totalRevenue),
-        totalOrders: orderCount,
-        aov: orderCount > 0 ? r2(totalRevenue / orderCount) : 0,
-        ecpa: orderCount > 0 ? r2(marketingExpenses / orderCount) : 0,
-        eroas: marketingExpenses > 0 ? r2(totalRevenue / marketingExpenses, 2) : 0,
-      },
-      newCustomers: {
-        sales: r2(ncRevenue),
-        orders: ncOrders,
-        aov: ncOrders > 0 ? r2(ncRevenue / ncOrders) : 0,
-        cpa: ncOrders > 0 ? r2(marketingExpenses / ncOrders) : 0,
-        roas: marketingExpenses > 0 ? r2(ncRevenue / marketingExpenses, 2) : 0,
-      },
-      returningCustomers: {
-        sales: r2(rcRevenue),
-        orders: rcOrders,
-        aov: rcOrders > 0 ? r2(rcRevenue / rcOrders) : 0,
-      },
+    series: current.series,
+    totals: current.totals,
+    comparisons: {
+      prevPeriod: prevPeriod ? { from: prevP.from.toISOString(), to: prevP.to.toISOString(), totals: prevPeriod.totals } : null,
+      lastYear: lastYear ? { from: lastY.from.toISOString(), to: lastY.to.toISOString(), totals: lastYear.totals } : null,
     },
     rates: RATES,
     opexSource: opexOverride !== null ? 'override' : (revolut.connected ? 'revolut' : 'none'),
