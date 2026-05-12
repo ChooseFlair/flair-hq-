@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import DashboardWidgets from './DashboardWidgets'
 import Bookmarks from './Bookmarks'
+import Prompts from './Prompts'
 
 const SUGGESTIONS = [
   'How are sales doing this week?',
@@ -154,6 +155,7 @@ export default function Jarvis() {
   const [interim, setInterim] = useState('')
   const [speechSupported, setSpeechSupported] = useState(false)
   const [bookmarksOpen, setBookmarksOpen] = useState(false)
+  const [promptsOpen, setPromptsOpen] = useState(false)
   const scrollRef = useRef(null)
   const inputRef = useRef(null)
   const recogRef = useRef(null)
@@ -389,6 +391,7 @@ export default function Jarvis() {
       <DashboardWidgets />
 
       <Bookmarks open={bookmarksOpen} onClose={() => setBookmarksOpen(false)} />
+      <Prompts open={promptsOpen} onClose={() => setPromptsOpen(false)} onSelect={send} />
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto relative z-20 jarvis-scrollbar">
         {!hasMessages ? (
@@ -397,18 +400,12 @@ export default function Jarvis() {
               <h2 className="text-3xl md:text-4xl font-mono text-cyan-100 tracking-[0.15em] uppercase mb-2 drop-shadow-[0_0_20px_rgba(34,211,238,0.4)]">{greeting}</h2>
               <p className="text-cyan-300/70 text-sm font-mono max-w-md">All systems online. How can I help today?</p>
             </div>
-            <div className="grid grid-cols-2 gap-2 max-w-lg w-full">
-              {SUGGESTIONS.map((s, i) => (
-                <button
-                  key={i}
-                  onClick={() => send(s)}
-                  className="group text-left px-4 py-3 rounded border border-cyan-500/10 hover:border-cyan-400/40 bg-cyan-500/[0.02] hover:bg-cyan-500/[0.06] text-cyan-400/60 hover:text-cyan-300 text-xs font-mono transition-all duration-300"
-                >
-                  <span className="text-cyan-500/20 group-hover:text-cyan-400/40 mr-1 transition-colors">&gt;</span>
-                  {s}
-                </button>
-              ))}
-            </div>
+            <button
+              onClick={() => setPromptsOpen(true)}
+              className="px-5 py-2.5 rounded-full border border-cyan-400/40 bg-cyan-500/[0.06] text-cyan-200 hover:text-cyan-100 hover:bg-cyan-400/15 hover:border-cyan-300/70 text-xs font-mono tracking-[0.2em] uppercase transition-all"
+            >
+              Browse Quick Prompts
+            </button>
           </div>
         ) : (
           <div className="px-6 py-4 space-y-4 max-w-4xl mx-auto">
@@ -462,6 +459,17 @@ export default function Jarvis() {
 
       <div className="relative z-20 px-4 pt-2 pb-5 border-t border-cyan-500/10 flex flex-col items-center gap-3">
         <div className="flex items-center justify-center gap-6">
+          <button
+            onClick={() => setPromptsOpen(true)}
+            title="Quick prompts"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-full border border-cyan-400/40 bg-cyan-500/[0.06] text-cyan-200 hover:text-cyan-100 hover:bg-cyan-400/15 hover:border-cyan-300/70 hover:shadow-lg hover:shadow-cyan-400/20 transition-all"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+            </svg>
+            <span className="text-[11px] font-mono tracking-[0.2em] uppercase">Quick Prompts</span>
+          </button>
+
           <button
             onClick={() => setBookmarksOpen(true)}
             title="Quick links"
