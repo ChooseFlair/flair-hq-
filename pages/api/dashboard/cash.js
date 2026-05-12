@@ -5,6 +5,17 @@ export const config = { maxDuration: 30 }
 
 const WINDSOR_KEY = 'cc92158d0eb0f1faa257c0414780b6c10961'
 
+async function refreshAndStore(integration) {
+  const tokens = await refreshAccessToken(integration.refresh_token)
+  await supabase.from('integrations').update({
+    access_token: tokens.access_token,
+    refresh_token: tokens.refresh_token || integration.refresh_token,
+    expires_at: new Date(Date.now() + tokens.expires_in * 1000).toISOString(),
+    updated_at: new Date().toISOString(),
+  }).eq('id', 'revolut')
+  return tokens.access_token
+}
+
 async function fetchRevolutAccounts() {
   try {
     const { data: integration } = await supabase
@@ -12,20 +23,30 @@ async function fetchRevolutAccounts() {
     if (!integration?.access_token) return { connected: false }
 
     let accessToken = integration.access_token
-    if (integration.expires_at && new Date(integration.expires_at) < new Date()) {
-      try {
-        const tokens = await refreshAccessToken(integration.refresh_token)
-        accessToken = tokens.access_token
-        await supabase.from('integrations').update({
-          access_token: tokens.access_token,
-          refresh_token: tokens.refresh_token || integration.refresh_token,
-          expires_at: new Date(Date.now() + tokens.expires_in * 1000).toISOString(),
-          updated_at: new Date().toISOString(),
-        }).eq('id', 'revolut')
-      } catch { return { connected: false, error: 'Token refresh failed' } }
+    // Proactively refresh if expired or within 5 minutes of expiry
+    const expiresAt = integration.expires_at ? new Date(integration.expires_at).getTime() : 0
+    if (expiresAt - Date.now() < 5 * 60 * 1000) {
+      try { accessToken = await refreshAndStore(integration) }
+      catch { return { connected: false, error: 'Token refresh failed' } }
     }
 
-    const accounts = await getAccounts(accessToken)
+    // Try accounts; on 401, force a refresh and retry once
+    let accounts
+    try {
+      accounts = await getAccounts(accessToken)
+    } catch (e) {
+      if (/401/.test(e.message) && integration.refresh_token) {
+        try {
+          accessToken = await refreshAndStore(integration)
+          accounts = await getAccounts(accessToken)
+        } catch (retryErr) {
+          return { connected: false, error: `Refresh + retry failed: ${retryErr.message}` }
+        }
+      } else {
+        return { connected: false, error: e.message }
+      }
+    }
+
     const list = Array.isArray(accounts) ? accounts : (accounts?.accounts || [])
     return {
       connected: true,
