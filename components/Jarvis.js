@@ -3,6 +3,7 @@ import DashboardWidgets from './DashboardWidgets'
 import Bookmarks from './Bookmarks'
 import Prompts from './Prompts'
 import PagesMenu from './PagesMenu'
+import InsightBubble from './InsightBubble'
 
 const SUGGESTIONS = [
   'How are sales doing this week?',
@@ -431,6 +432,7 @@ export default function Jarvis() {
             >
               Browse prompts
             </button>
+            <InsightBubble />
           </div>
         ) : (
           <div className="px-6 py-4 space-y-4 max-w-4xl mx-auto">

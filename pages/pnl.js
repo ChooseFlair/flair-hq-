@@ -110,6 +110,7 @@ export default function PnLPage() {
   const [customFrom, setCustomFrom] = useState('')
   const [customTo, setCustomTo] = useState('')
   const [chartMetrics, setChartMetrics] = useState(['ebitda'])
+  const [groupBy, setGroupBy] = useState('day')
   const [dateModalOpen, setDateModalOpen] = useState(false)
   const [draftFrom, setDraftFrom] = useState('')
   const [draftTo, setDraftTo] = useState('')
@@ -152,8 +153,32 @@ export default function PnLPage() {
   const selectedMetrics = CHART_METRICS.filter(m => chartMetrics.includes(m.id))
   const showEbitdaArea = chartMetrics.includes('ebitda')
 
+  // Aggregate daily series into week or month buckets when requested
+  const groupedSeries = (() => {
+    if (groupBy === 'day' || !series.length) return series
+    function bucketKey(dateStr) {
+      const d = new Date(dateStr)
+      if (groupBy === 'month') return dateStr.substring(0, 7)
+      // week: monday-anchored ISO-ish week label
+      const day = d.getUTCDay() || 7
+      d.setUTCDate(d.getUTCDate() - day + 1)
+      return d.toISOString().substring(0, 10)
+    }
+    const buckets = new Map()
+    const sumKeys = ['totalRevenue', 'netSales', 'returns', 'cancellations', 'shippingCharges', 'orders', 'ncOrders', 'rcOrders', 'ncRevenue', 'rcRevenue', 'metaSpend', 'googleSpend', 'marketingExpenses', 'contributionProfit', 'opex', 'ebitda']
+    for (const d of series) {
+      const k = bucketKey(d.date)
+      if (!buckets.has(k)) buckets.set(k, { date: k })
+      const b = buckets.get(k)
+      for (const key of sumKeys) {
+        b[key] = (b[key] || 0) + (d[key] || 0)
+      }
+    }
+    return [...buckets.values()].sort((a, b) => a.date.localeCompare(b.date))
+  })()
+
   // Compute gradient split offset so green fills above 0 and red below.
-  const ebitdaValues = series.map(d => d.ebitda || 0)
+  const ebitdaValues = groupedSeries.map(d => d.ebitda || 0)
   const ebitdaMax = ebitdaValues.length ? Math.max(...ebitdaValues, 0) : 0
   const ebitdaMin = ebitdaValues.length ? Math.min(...ebitdaValues, 0) : 0
   const ebitdaRange = ebitdaMax - ebitdaMin || 1
@@ -264,6 +289,17 @@ export default function PnLPage() {
                       </svg>
                       {data?.label || 'Select range'}
                     </button>
+                    <div className="flex items-center gap-1">
+                      {['day', 'week', 'month'].map(g => (
+                        <button
+                          key={g}
+                          onClick={() => setGroupBy(g)}
+                          className={`text-xs px-2.5 py-1 rounded-full ${groupBy === g ? 'bg-white/[0.10] text-white' : 'text-slate-400 hover:text-white hover:bg-white/[0.04]'}`}
+                        >
+                          {g[0].toUpperCase() + g.slice(1)}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                   <div className="flex items-center gap-1.5 flex-wrap">
                     {CHART_METRICS.map(m => {
@@ -284,7 +320,7 @@ export default function PnLPage() {
                   </div>
                 </div>
                 <ResponsiveContainer width="100%" height={320}>
-                  <ComposedChart data={series}>
+                  <ComposedChart data={groupedSeries}>
                     <defs>
                       <linearGradient id="ebitdaSplit" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="0%" stopColor="#10b981" stopOpacity={0.5} />
