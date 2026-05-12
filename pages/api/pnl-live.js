@@ -176,6 +176,17 @@ function txnDescription(t, leg) {
   ].filter(Boolean).join(' ').toLowerCase()
 }
 
+async function refreshAndStoreRevolut(integration) {
+  const tokens = await refreshAccessToken(integration.refresh_token)
+  await supabase.from('integrations').update({
+    access_token: tokens.access_token,
+    refresh_token: tokens.refresh_token || integration.refresh_token,
+    expires_at: new Date(Date.now() + tokens.expires_in * 1000).toISOString(),
+    updated_at: new Date().toISOString(),
+  }).eq('id', 'revolut')
+  return tokens.access_token
+}
+
 async function fetchRevolutOpex(from, to) {
   try {
     const { data: integration } = await supabase
@@ -187,26 +198,37 @@ async function fetchRevolutOpex(from, to) {
     if (!integration?.access_token) return { connected: false, opex: 0, count: 0 }
 
     let accessToken = integration.access_token
-    if (integration.expires_at && new Date(integration.expires_at) < new Date()) {
-      try {
-        const tokens = await refreshAccessToken(integration.refresh_token)
-        accessToken = tokens.access_token
-        await supabase.from('integrations').update({
-          access_token: tokens.access_token,
-          refresh_token: tokens.refresh_token || integration.refresh_token,
-          expires_at: new Date(Date.now() + tokens.expires_in * 1000).toISOString(),
-          updated_at: new Date().toISOString(),
-        }).eq('id', 'revolut')
-      } catch {
-        return { connected: false, opex: 0, count: 0, error: 'Token refresh failed' }
+    // Proactively refresh if expiring within 5 minutes
+    const expiresAt = integration.expires_at ? new Date(integration.expires_at).getTime() : 0
+    if (expiresAt - Date.now() < 5 * 60 * 1000 && integration.refresh_token) {
+      try { accessToken = await refreshAndStoreRevolut(integration) }
+      catch { return { connected: false, opex: 0, count: 0, error: 'Token refresh failed' } }
+    }
+
+    let txns
+    try {
+      txns = await getRevolutTxns(accessToken, {
+        from: from.toISOString(),
+        to: to.toISOString(),
+        count: 1000,
+      })
+    } catch (e) {
+      if (/401/.test(e.message) && integration.refresh_token) {
+        try {
+          accessToken = await refreshAndStoreRevolut(integration)
+          txns = await getRevolutTxns(accessToken, {
+            from: from.toISOString(),
+            to: to.toISOString(),
+            count: 1000,
+          })
+        } catch (retryErr) {
+          return { connected: false, opex: 0, count: 0, error: `Refresh + retry failed: ${retryErr.message}` }
+        }
+      } else {
+        return { connected: false, opex: 0, count: 0, error: e.message }
       }
     }
 
-    const txns = await getRevolutTxns(accessToken, {
-      from: from.toISOString(),
-      to: to.toISOString(),
-      count: 1000,
-    })
     const list = Array.isArray(txns) ? txns : (txns?.transactions || [])
 
     const opexRegex = buildOpexRegex()
