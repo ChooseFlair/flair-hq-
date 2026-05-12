@@ -261,6 +261,19 @@ function collectionFallback(title) {
 const r2 = (n, d = 2) => Math.round(n * 10 ** d) / 10 ** d
 const pct = (n, d) => d > 0 ? r2((n / d) * 100) : 0
 
+async function fetchUploadedShipping(orderNumbers) {
+  if (!orderNumbers.length) return new Map()
+  try {
+    const { data } = await supabase
+      .from('shipping_costs')
+      .select('order_number,cost')
+      .in('order_number', orderNumbers.map(String))
+    const map = new Map()
+    for (const row of (data || [])) map.set(String(row.order_number), parseFloat(row.cost || 0))
+    return map
+  } catch { return new Map() }
+}
+
 async function computePeriod(shop, token, from, to, opexOverride, withSeries) {
   const [orders, meta, google, revolut] = await Promise.all([
     fetchShopifyOrders(shop, token, from, to).catch(e => { return { __error: e.message } }),
@@ -272,12 +285,17 @@ async function computePeriod(shop, token, from, to, opexOverride, withSeries) {
 
   // Build variant cost map from orders' line items
   const variantIds = new Set()
+  const orderNumbers = []
   for (const o of orders) {
+    if (o.order_number != null) orderNumbers.push(String(o.order_number))
     for (const li of (o.line_items || [])) {
       if (li.variant_id) variantIds.add(li.variant_id)
     }
   }
-  const variantCosts = await fetchVariantCosts(shop, token, [...variantIds])
+  const [variantCosts, shippingMap] = await Promise.all([
+    fetchVariantCosts(shop, token, [...variantIds]),
+    fetchUploadedShipping(orderNumbers),
+  ])
 
   const opex = opexOverride !== null ? opexOverride : (revolut.connected ? revolut.opex : 0)
 
@@ -297,6 +315,8 @@ async function computePeriod(shop, token, from, to, opexOverride, withSeries) {
   let ncRevenue = 0, rcRevenue = 0
   let cogsReal = 0, cogsCollection = 0, cogsFallback = 0
   let lineItemsTotal = 0, lineItemsWithCost = 0, lineItemsCollection = 0
+  let shippingReal = 0, shippingRateFallback = 0
+  let ordersWithShipping = 0, ordersWithoutShipping = 0
 
   for (const o of orders) {
     const d = (o.created_at || '').substring(0, 10)
@@ -330,6 +350,17 @@ async function computePeriod(shop, token, from, to, opexOverride, withSeries) {
       }
     }
 
+    // Shipping cost per order
+    const orderNum = o.order_number != null ? String(o.order_number) : null
+    const uploadedShip = orderNum != null ? shippingMap.get(orderNum) : undefined
+    if (uploadedShip != null) {
+      shippingReal += uploadedShip
+      ordersWithShipping++
+    } else {
+      shippingRateFallback += total * RATES.shippingFulfilment
+      ordersWithoutShipping++
+    }
+
     if (isNew) { ncOrders += 1; ncRevenue += total; days[d].ncOrders += 1; days[d].ncRevenue += total }
     else { rcOrders += 1; rcRevenue += total; days[d].rcOrders += 1; days[d].rcRevenue += total }
   }
@@ -343,7 +374,11 @@ async function computePeriod(shop, token, from, to, opexOverride, withSeries) {
 
   const netSales = totalRevenue - returns
   const paymentProviders = totalRevenue * RATES.paymentProvider
-  const shippingFulfilment = totalRevenue * RATES.shippingFulfilment
+  const shippingFulfilment = shippingReal + shippingRateFallback
+  const shippingSource = ordersWithShipping + ordersWithoutShipping === 0 ? 'none'
+    : ordersWithoutShipping === 0 ? 'uploaded'
+    : ordersWithShipping === 0 ? 'rate'
+    : 'hybrid'
   const salesExpenses = paymentProviders + cogs + shippingFulfilment
   const metaSpend = meta.total
   const googleSpend = google.total
@@ -354,7 +389,7 @@ async function computePeriod(shop, token, from, to, opexOverride, withSeries) {
   const totals = {
     from: from.toISOString(), to: to.toISOString(),
     revenue: { netSales: r2(netSales), returns: r2(returns), cancellations: r2(cancellations), shippingCharges: r2(shippingCharges), discounts: r2(discounts), totalRevenue: r2(totalRevenue) },
-    costs: { paymentProviders: r2(paymentProviders), cogs: r2(cogs), cogsReal: r2(cogsReal), cogsCollection: r2(cogsCollection), cogsFallback: r2(cogsFallback), cogsSource, lineItemsTotal, lineItemsWithCost, lineItemsCollection, shippingFulfilment: r2(shippingFulfilment), salesExpenses: r2(salesExpenses), metaSpend: r2(metaSpend), googleSpend: r2(googleSpend), marketingExpenses: r2(marketingExpenses), marketingPctRevenue: pct(marketingExpenses, totalRevenue), marketingPctNetSales: pct(marketingExpenses, netSales), opex: r2(opex), opexPctRevenue: pct(opex, totalRevenue) },
+    costs: { paymentProviders: r2(paymentProviders), cogs: r2(cogs), cogsReal: r2(cogsReal), cogsCollection: r2(cogsCollection), cogsFallback: r2(cogsFallback), cogsSource, lineItemsTotal, lineItemsWithCost, lineItemsCollection, shippingFulfilment: r2(shippingFulfilment), shippingReal: r2(shippingReal), shippingRateFallback: r2(shippingRateFallback), shippingSource, ordersWithShipping, ordersWithoutShipping, salesExpenses: r2(salesExpenses), metaSpend: r2(metaSpend), googleSpend: r2(googleSpend), marketingExpenses: r2(marketingExpenses), marketingPctRevenue: pct(marketingExpenses, totalRevenue), marketingPctNetSales: pct(marketingExpenses, netSales), opex: r2(opex), opexPctRevenue: pct(opex, totalRevenue) },
     profit: { contributionProfit: r2(contributionProfit), contributionProfitPct: pct(contributionProfit, totalRevenue), ebitda: r2(ebitda), ebitdaPct: pct(ebitda, totalRevenue) },
     kpis: { totalSales: r2(totalRevenue), totalOrders: orderCount, aov: orderCount > 0 ? r2(totalRevenue / orderCount) : 0, ecpa: orderCount > 0 ? r2(marketingExpenses / orderCount) : 0, eroas: marketingExpenses > 0 ? r2(totalRevenue / marketingExpenses, 2) : 0 },
     newCustomers: { sales: r2(ncRevenue), orders: ncOrders, aov: ncOrders > 0 ? r2(ncRevenue / ncOrders) : 0, cpa: ncOrders > 0 ? r2(marketingExpenses / ncOrders) : 0, roas: marketingExpenses > 0 ? r2(ncRevenue / marketingExpenses, 2) : 0 },

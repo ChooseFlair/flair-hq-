@@ -367,7 +367,24 @@ export default function PnLPage() {
                     value={fmtMoney(t.costs.cogs)}
                     hint={t.costs.cogsSource === 'shopify' ? 'unit cost × qty' : t.costs.cogsSource === 'shopify+collection' ? '£8 inhaler · £0.65 flavour' : t.costs.cogsSource === 'hybrid' ? 'real + fallbacks' : '20.5%'}
                   />
-                  <Row label="Shipping & fulfilment" value={fmtMoney(t.costs.shippingFulfilment)} hint="6.7%" />
+                  <Row
+                    label={
+                      <span className="inline-flex items-center gap-2 flex-wrap">
+                        Shipping &amp; fulfilment
+                        {t.costs.shippingSource === 'uploaded' && (
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-400/15 text-emerald-300">ShipStation upload</span>
+                        )}
+                        {t.costs.shippingSource === 'hybrid' && (
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-amber-400/15 text-amber-300" title={`${t.costs.ordersWithShipping}/${t.costs.ordersWithShipping + t.costs.ordersWithoutShipping} orders have uploaded cost; rest use 6.7%`}>Hybrid · {t.costs.ordersWithShipping}/{t.costs.ordersWithShipping + t.costs.ordersWithoutShipping}</span>
+                        )}
+                        {t.costs.shippingSource === 'rate' && (
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-rose-400/15 text-rose-300">Flat 6.7%</span>
+                        )}
+                      </span>
+                    }
+                    value={fmtMoney(t.costs.shippingFulfilment)}
+                    hint={t.costs.shippingSource === 'uploaded' ? 'real cost / order' : t.costs.shippingSource === 'hybrid' ? 'real + 6.7% fallback' : '6.7%'}
+                  />
                   <Row label="Sales expenses" value={fmtMoney(t.costs.salesExpenses)} accent="bold" />
                   {data?.revolut?.connected && data.revolut.inventoryCount > 0 && (
                     <Row
