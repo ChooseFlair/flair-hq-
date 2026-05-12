@@ -20,11 +20,14 @@ function StatusDot({ status }) {
   return <span className={`inline-block w-1.5 h-1.5 rounded-full ${color}`} />
 }
 
-function Stat({ label, value, hint }) {
+function Stat({ label, value, hint, index = 0 }) {
   return (
-    <div className="flex-1 min-w-[110px] border border-cyan-500/15 rounded-lg bg-cyan-500/[0.02] px-3 py-2 hover:border-cyan-400/30 hover:bg-cyan-500/[0.05] transition-all">
+    <div
+      style={{ animationDelay: `${index * 60}ms` }}
+      className="flex-1 min-w-[110px] border border-cyan-500/15 rounded-lg bg-cyan-500/[0.02] px-3 py-2 hover:border-cyan-400/40 hover:bg-cyan-500/[0.06] hover:-translate-y-0.5 hover:shadow-md hover:shadow-cyan-400/10 transition-all duration-200 fade-up"
+    >
       <div className="text-[9px] font-mono tracking-[0.2em] text-cyan-300">{label}</div>
-      <div className="text-cyan-100 font-mono text-base mt-0.5">{value}</div>
+      <div className="text-cyan-100 font-mono text-base mt-0.5 transition-colors">{value}</div>
       {hint && <div className="text-[9px] font-mono text-cyan-400/70 mt-0.5">{hint}</div>}
     </div>
   )
@@ -180,12 +183,12 @@ export default function DashboardWidgets() {
 
         <div className={`overflow-hidden transition-all duration-300 ${expanded ? 'max-h-40 mt-2' : 'max-h-0'}`}>
           <div className="flex gap-2 flex-wrap">
-            <Stat label="REVENUE" value={loading ? '...' : fmtMoney(data?.revenue)} />
-            <Stat label="ORDERS" value={loading ? '...' : fmtInt(data?.orderCount)} />
-            <Stat label="CUSTOMERS" value={loading ? '...' : fmtInt(data?.customerCount)} />
-            <Stat label="AOV" value={loading ? '...' : fmtMoney(data?.aov)} />
-            <Stat label="AD SPEND" value={loading ? '...' : fmtMoney(data?.adSpend)} />
-            <Stat label="ROAS" value={loading ? '...' : (data?.roas ? `${data.roas.toFixed(2)}x` : '—')} />
+            <Stat label="REVENUE" value={loading ? '...' : fmtMoney(data?.revenue)} index={0} />
+            <Stat label="ORDERS" value={loading ? '...' : fmtInt(data?.orderCount)} index={1} />
+            <Stat label="CUSTOMERS" value={loading ? '...' : fmtInt(data?.customerCount)} index={2} />
+            <Stat label="AOV" value={loading ? '...' : fmtMoney(data?.aov)} index={3} />
+            <Stat label="AD SPEND" value={loading ? '...' : fmtMoney(data?.adSpend)} index={4} />
+            <Stat label="ROAS" value={loading ? '...' : (data?.roas ? `${data.roas.toFixed(2)}x` : '—')} index={5} />
           </div>
 
           {hasIssues && (
