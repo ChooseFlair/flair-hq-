@@ -381,7 +381,7 @@ export default function Jarvis() {
           </div>
           <div>
             <h1 className="text-white text-base font-semibold tracking-tight">Jarvis</h1>
-            <p className="text-slate-400 text-xs">Flair HQ</p>
+            <p className="text-slate-400 text-xs">AI assistant</p>
           </div>
         </div>
         <div className="flex items-center gap-3 text-xs text-slate-300">

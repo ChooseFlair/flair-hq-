@@ -229,7 +229,7 @@ export default function Layout({ children, activeTab, setActiveTab, activeSubTab
             <div className="gradient-flair rounded-2xl p-4 text-white shadow-lg shadow-flair-700/30">
               <div className="flex items-center gap-2 mb-2">
                 <Leaf className="w-5 h-5" />
-                <span className="font-semibold">Flair HQ</span>
+                <span className="font-semibold">Jarvis</span>
               </div>
               <p className="text-sm text-white/80">Your wellness business dashboard</p>
               <div className="mt-3 pt-3 border-t border-white/20 flex items-center justify-between">
