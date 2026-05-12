@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect } from 'react'
-import Link from 'next/link'
 import DashboardWidgets from './DashboardWidgets'
 import Bookmarks from './Bookmarks'
 import Prompts from './Prompts'
+import PagesMenu from './PagesMenu'
 
 const SUGGESTIONS = [
   'How are sales doing this week?',
@@ -156,6 +156,7 @@ export default function Jarvis() {
   const [speechSupported, setSpeechSupported] = useState(false)
   const [bookmarksOpen, setBookmarksOpen] = useState(false)
   const [promptsOpen, setPromptsOpen] = useState(false)
+  const [pagesOpen, setPagesOpen] = useState(false)
   const scrollRef = useRef(null)
   const inputRef = useRef(null)
   const recogRef = useRef(null)
@@ -407,52 +408,6 @@ export default function Jarvis() {
               )}
             </svg>
           </button>
-          <Link
-            href="/files"
-            title="Files"
-            className="p-1.5 rounded border border-cyan-300/40 text-cyan-200 hover:text-cyan-100 hover:border-cyan-300/70 transition-all"
-          >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-            </svg>
-          </Link>
-          <Link
-            href="/email"
-            title="Email performance"
-            className="p-1.5 rounded border border-cyan-300/40 text-cyan-200 hover:text-cyan-100 hover:border-cyan-300/70 transition-all"
-          >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-            </svg>
-          </Link>
-          <Link
-            href="/inventory"
-            title="Inventory"
-            className="p-1.5 rounded border border-cyan-300/40 text-cyan-200 hover:text-cyan-100 hover:border-cyan-300/70 transition-all"
-          >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-            </svg>
-          </Link>
-          <Link
-            href="/pnl"
-            title="P&amp;L dashboard"
-            className="p-1.5 rounded border border-cyan-300/40 text-cyan-200 hover:text-cyan-100 hover:border-cyan-300/70 transition-all"
-          >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-            </svg>
-          </Link>
-          <Link
-            href="/integrations"
-            title="Integrations &amp; setup"
-            className="p-1.5 rounded border border-cyan-300/40 text-cyan-200 hover:text-cyan-100 hover:border-cyan-300/70 transition-all"
-          >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
-          </Link>
         </div>
       </div>
 
@@ -460,6 +415,7 @@ export default function Jarvis() {
 
       <Bookmarks open={bookmarksOpen} onClose={() => setBookmarksOpen(false)} />
       <Prompts open={promptsOpen} onClose={() => setPromptsOpen(false)} onSelect={send} />
+      <PagesMenu open={pagesOpen} onClose={() => setPagesOpen(false)} />
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto relative z-20 jarvis-scrollbar">
         {!hasMessages ? (
@@ -548,6 +504,17 @@ export default function Jarvis() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
             </svg>
             <span className="text-sm font-medium">Links</span>
+          </button>
+
+          <button
+            onClick={() => setPagesOpen(true)}
+            title="Pages"
+            className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/[0.06] border border-white/10 text-white hover:bg-white/[0.10] hover:border-white/20 pill-hover"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+            <span className="text-sm font-medium">Pages</span>
           </button>
 
           <div className="relative flex items-center justify-center">
