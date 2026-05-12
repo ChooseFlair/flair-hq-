@@ -179,7 +179,7 @@ export default function PnLPage() {
 
               {/* Chart */}
               <div className="border border-cyan-500/15 rounded-lg bg-cyan-500/[0.02] p-5 fade-up">
-                <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+                <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
                   <h3 className="text-cyan-300 font-mono text-xs tracking-[0.3em] uppercase">Trend</h3>
                   <div className="flex items-center gap-1 flex-wrap">
                     {CHART_METRICS.map(m => (
@@ -196,6 +196,30 @@ export default function PnLPage() {
                       </button>
                     ))}
                   </div>
+                </div>
+                <div className="flex items-center gap-2 mb-4 flex-wrap text-[10px] font-mono">
+                  <span className="text-cyan-400/70 tracking-wider">DATE RANGE</span>
+                  <input
+                    type="date"
+                    value={customFrom || (data?.from ? data.from.split('T')[0] : '')}
+                    onChange={e => { setCustomFrom(e.target.value); setRange('custom') }}
+                    className="bg-black border border-cyan-500/30 rounded px-2 py-1 text-cyan-200 focus:border-cyan-400/60 focus:outline-none"
+                  />
+                  <span className="text-cyan-400/60">→</span>
+                  <input
+                    type="date"
+                    value={customTo || (data?.to ? data.to.split('T')[0] : '')}
+                    onChange={e => { setCustomTo(e.target.value); setRange('custom') }}
+                    className="bg-black border border-cyan-500/30 rounded px-2 py-1 text-cyan-200 focus:border-cyan-400/60 focus:outline-none"
+                  />
+                  {(customFrom || customTo) && (
+                    <button
+                      onClick={() => { setCustomFrom(''); setCustomTo(''); setRange('30d') }}
+                      className="text-cyan-300/80 hover:text-cyan-100 underline tracking-wider"
+                    >
+                      reset
+                    </button>
+                  )}
                 </div>
                 <ResponsiveContainer width="100%" height={260}>
                   <AreaChart data={series}>
