@@ -45,13 +45,15 @@ export default function DashboardWidgets() {
   const load = useCallback(async (r) => {
     setLoading(true)
     try {
-      const [sumRes, statusRes] = await Promise.all([
+      const [sumRes, statusRes, cashRes] = await Promise.all([
         fetch(`/api/dashboard/summary?range=${r}`),
         fetch('/api/dashboard/connector-status'),
+        fetch('/api/dashboard/cash'),
       ])
       const sumJson = await sumRes.json()
       const statusJson = await statusRes.json()
-      setData(sumJson)
+      const cashJson = await cashRes.json()
+      setData({ ...sumJson, cash: cashJson })
       setConnectors((statusJson.connectors || []).map(c => ({
         name: c.name,
         status: c.status === 'ok' ? 'ok' : c.status === 'not_configured' ? 'warn' : 'error',
@@ -184,6 +186,20 @@ export default function DashboardWidgets() {
             <Stat label="AOV" value={loading ? '…' : fmtMoney(data?.aov)} index={3} />
             <Stat label="Ad spend" value={loading ? '…' : fmtMoney(data?.adSpend)} index={4} />
             <Stat label="ROAS" value={loading ? '…' : (data?.roas ? `${data.roas.toFixed(2)}x` : '—')} index={5} />
+            {data?.cash?.connected && (
+              <Stat
+                label="Cash"
+                value={loading ? '…' : fmtMoney(data?.cash?.totalGBP)}
+                index={6}
+              />
+            )}
+            {data?.cash?.runwayMonths != null && (
+              <Stat
+                label="Runway"
+                value={loading ? '…' : `${data.cash.runwayMonths.toFixed(1)} mo`}
+                index={7}
+              />
+            )}
           </div>
 
           {hasIssues && (
