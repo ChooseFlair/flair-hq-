@@ -30,16 +30,16 @@ const PROMPTS = [
 export default function Prompts({ open, onClose, onSelect }) {
   if (!open) return null
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-24 px-4 bg-black/70 backdrop-blur-sm backdrop-in" onClick={onClose}>
-      <div className="w-full max-w-4xl bg-black border border-cyan-400/30 rounded-lg shadow-2xl shadow-cyan-400/10 modal-in" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-6 py-4 border-b border-cyan-500/15">
+    <div className="fixed inset-0 z-50 flex items-start justify-center pt-24 px-4 bg-black/80 backdrop-blur-md backdrop-in" onClick={onClose}>
+      <div className="w-full max-w-4xl bg-zinc-950 border border-white/10 rounded-2xl shadow-2xl modal-in" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-6 py-5 border-b border-white/[0.06]">
           <div>
-            <h2 className="text-cyan-100 font-mono text-sm tracking-[0.3em] uppercase">Quick Prompts</h2>
-            <p className="text-cyan-300/70 text-[10px] font-mono tracking-widest">TAP TO ASK</p>
+            <h2 className="text-white text-lg font-semibold tracking-tight">Prompts</h2>
+            <p className="text-slate-400 text-xs mt-0.5">Tap to ask</p>
           </div>
           <button
             onClick={onClose}
-            className="text-cyan-300/70 hover:text-cyan-100 transition-colors p-1"
+            className="text-slate-400 hover:text-white p-1"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -50,17 +50,16 @@ export default function Prompts({ open, onClose, onSelect }) {
         <div className="max-h-[70vh] overflow-y-auto px-6 py-5 space-y-5">
           {PROMPTS.map(group => (
             <div key={group.category}>
-              <div className="text-[10px] font-mono text-cyan-400/70 tracking-[0.3em] uppercase mb-2">{group.category}</div>
+              <div className="text-xs font-medium text-slate-400 mb-2">{group.category}</div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {group.items.map((item, i) => (
                   <button
                     key={item}
                     onClick={() => { onSelect(item); onClose() }}
                     style={{ animationDelay: `${i * 30}ms` }}
-                    className="text-left px-3 py-2.5 border border-cyan-500/15 bg-cyan-500/[0.03] rounded hover:border-cyan-400/50 hover:bg-cyan-400/10 hover:translate-x-1 transition-all duration-200 group fade-up"
+                    className="text-left px-4 py-3 rounded-lg bg-white/[0.03] border border-white/[0.06] hover:bg-white/[0.08] hover:border-white/[0.14] hover:translate-x-0.5 transition-all duration-200 fade-up"
                   >
-                    <span className="text-cyan-300/40 group-hover:text-cyan-300 mr-1.5">&gt;</span>
-                    <span className="text-cyan-100 text-xs font-mono group-hover:text-cyan-50">{item}</span>
+                    <span className="text-white text-sm">{item}</span>
                   </button>
                 ))}
               </div>
