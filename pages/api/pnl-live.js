@@ -379,6 +379,30 @@ async function computePeriod(shop, token, from, to, opexOverride, withSeries) {
     fetchUploadedShipping(orderNumbers),
   ])
 
+  // Build accurate New vs Returning classification per order.
+  // Strategy: group orders by customer (email or customer_id). Use
+  // customer.orders_count to know their lifetime total; compare to
+  // orders-in-period count to detect prior orders. If they had any
+  // orders BEFORE this period, all in-period orders are RC. Otherwise
+  // their FIRST in-period order (by date) is NC, the rest are RC.
+  const byCustomer = new Map()
+  for (const o of orders) {
+    const key = o.customer?.id || o.email || `anon_${o.id}`
+    if (!byCustomer.has(key)) byCustomer.set(key, { orders: [], lifetime: 0 })
+    const c = byCustomer.get(key)
+    c.orders.push(o)
+    c.lifetime = Math.max(c.lifetime, o.customer?.orders_count || 1)
+  }
+  const orderIsNew = new Map() // order id -> bool
+  for (const c of byCustomer.values()) {
+    const inPeriod = c.orders.length
+    const priorOrders = Math.max(0, c.lifetime - inPeriod)
+    const sorted = [...c.orders].sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+    sorted.forEach((o, idx) => {
+      orderIsNew.set(o.id, priorOrders === 0 && idx === 0)
+    })
+  }
+
   const opex = opexOverride !== null ? opexOverride : (revolut.connected ? revolut.opex : 0)
 
   const days = {}
@@ -411,7 +435,7 @@ async function computePeriod(shop, token, from, to, opexOverride, withSeries) {
     const disc = parseFloat(o.total_discounts || 0)
     const refundAmount = refundsForOrder(o)
     const isCancelled = !!o.cancelled_at
-    const isNew = (o.customer?.orders_count || 1) === 1
+    const isNew = orderIsNew.get(o.id) || false
     if (isCancelled) { cancellations += total; days[d].cancellations += total; continue }
     if (refundAmount > 0) { returns += refundAmount; days[d].returns += refundAmount }
     totalRevenue += total; shippingCharges += ship; discounts += disc; orderCount += 1
