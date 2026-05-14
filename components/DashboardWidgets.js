@@ -45,15 +45,17 @@ export default function DashboardWidgets() {
   const load = useCallback(async (r) => {
     setLoading(true)
     try {
-      const [sumRes, statusRes, cashRes] = await Promise.all([
+      const [sumRes, statusRes, cashRes, pnlRes] = await Promise.all([
         fetch(`/api/dashboard/summary?range=${r}`),
         fetch('/api/dashboard/connector-status'),
         fetch('/api/dashboard/cash'),
+        fetch(`/api/pnl-live?range=${r}&compare=false`),
       ])
       const sumJson = await sumRes.json()
       const statusJson = await statusRes.json()
       const cashJson = await cashRes.json()
-      setData({ ...sumJson, cash: cashJson })
+      const pnlJson = await pnlRes.json()
+      setData({ ...sumJson, cash: cashJson, pnl: pnlJson?.totals || null })
       setConnectors((statusJson.connectors || []).map(c => ({
         name: c.name,
         status: c.status === 'ok' ? 'ok' : c.status === 'not_configured' ? 'warn' : 'error',
@@ -178,7 +180,29 @@ export default function DashboardWidgets() {
           </div>
         </div>
 
-        <div className={`overflow-hidden transition-all duration-300 ${expanded ? 'max-h-44 mt-3' : 'max-h-0'}`}>
+        <div className={`overflow-hidden transition-all duration-300 ${expanded ? 'max-h-[28rem] mt-3' : 'max-h-0'}`}>
+          {data?.pnl?.profit && (() => {
+            const ebitda = data.pnl.profit.ebitda
+            const pct = data.pnl.profit.ebitdaPct
+            const pos = ebitda >= 0
+            return (
+              <div
+                style={{ animationDelay: '0ms' }}
+                className={`rounded-2xl px-5 py-4 mb-3 border ${pos ? 'border-emerald-400/30 bg-emerald-400/[0.06]' : 'border-rose-400/30 bg-rose-400/[0.06]'} fade-up`}
+              >
+                <div className="flex items-baseline justify-between gap-3 flex-wrap">
+                  <div className="text-xs text-slate-300 font-medium uppercase tracking-wider">EBITDA</div>
+                  <div className={`text-xs font-medium ${pos ? 'text-emerald-300' : 'text-rose-300'}`}>{pct?.toFixed(1)}% margin</div>
+                </div>
+                <div className={`text-3xl sm:text-4xl mt-1 tabular-nums font-mono font-semibold ${pos ? 'text-emerald-200' : 'text-rose-200'}`}>
+                  {loading ? '…' : fmtMoney(ebitda)}
+                </div>
+                <div className="text-xs text-slate-400 mt-1">
+                  Contribution {fmtMoney(data.pnl.profit.contributionProfit)} · OPEX {fmtMoney(data.pnl.costs.opex)}
+                </div>
+              </div>
+            )
+          })()}
           <div className="flex gap-3 flex-wrap">
             <Stat label="Revenue" value={loading ? '…' : fmtMoney(data?.revenue)} index={0} />
             <Stat label="Orders" value={loading ? '…' : fmtInt(data?.orderCount)} index={1} />
