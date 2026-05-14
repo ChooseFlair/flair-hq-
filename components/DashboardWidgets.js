@@ -32,9 +32,12 @@ function Stat({ label, value, index = 0 }) {
   )
 }
 
+const EBITDA_GOAL = 3000
+
 export default function DashboardWidgets() {
   const [range, setRange] = useState('today')
   const [data, setData] = useState(null)
+  const [mtdEbitda, setMtdEbitda] = useState(null)
   const [connectors, setConnectors] = useState([])
   const [loading, setLoading] = useState(false)
   const [syncing, setSyncing] = useState(false)
@@ -45,17 +48,22 @@ export default function DashboardWidgets() {
   const load = useCallback(async (r) => {
     setLoading(true)
     try {
-      const [sumRes, statusRes, cashRes, pnlRes] = await Promise.all([
+      const fetches = [
         fetch(`/api/dashboard/summary?range=${r}`),
         fetch('/api/dashboard/connector-status'),
         fetch('/api/dashboard/cash'),
         fetch(`/api/pnl-live?range=${r}&compare=false`),
-      ])
+      ]
+      if (r !== 'mtd') fetches.push(fetch('/api/pnl-live?range=mtd&compare=false'))
+      const responses = await Promise.all(fetches)
+      const [sumRes, statusRes, cashRes, pnlRes, mtdRes] = responses
       const sumJson = await sumRes.json()
       const statusJson = await statusRes.json()
       const cashJson = await cashRes.json()
       const pnlJson = await pnlRes.json()
+      const mtdJson = mtdRes ? await mtdRes.json() : pnlJson
       setData({ ...sumJson, cash: cashJson, pnl: pnlJson?.totals || null })
+      setMtdEbitda(mtdJson?.totals?.profit?.ebitda ?? null)
       setConnectors((statusJson.connectors || []).map(c => ({
         name: c.name,
         status: c.status === 'ok' ? 'ok' : c.status === 'not_configured' ? 'warn' : 'error',
@@ -185,6 +193,24 @@ export default function DashboardWidgets() {
             const ebitda = data.pnl.profit.ebitda
             const pct = data.pnl.profit.ebitdaPct
             const pos = ebitda >= 0
+            const now = new Date()
+            const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
+            const dayOfMonth = now.getDate()
+            const expectedPace = (dayOfMonth / daysInMonth) * EBITDA_GOAL
+            const mtd = mtdEbitda ?? 0
+            const progressPct = Math.max(0, Math.min(100, (mtd / EBITDA_GOAL) * 100))
+            const remaining = EBITDA_GOAL - mtd
+            const onTrack = mtd >= expectedPace
+            const goalHit = mtd >= EBITDA_GOAL
+            const barColor = mtd < 0 ? 'bg-rose-400' : goalHit ? 'bg-emerald-400' : onTrack ? 'bg-emerald-400' : 'bg-amber-400'
+            const statusText = goalHit
+              ? `Goal hit · ${fmtMoney(mtd - EBITDA_GOAL)} over`
+              : mtd < 0
+                ? `${fmtMoney(remaining)} to £3k goal`
+                : onTrack
+                  ? `On pace · ${fmtMoney(remaining)} to £3k`
+                  : `Behind pace · ${fmtMoney(remaining)} to £3k`
+            const statusColor = goalHit || onTrack ? 'text-emerald-300' : mtd < 0 ? 'text-rose-300' : 'text-amber-300'
             return (
               <div
                 style={{ animationDelay: '0ms' }}
@@ -199,6 +225,30 @@ export default function DashboardWidgets() {
                 </div>
                 <div className="text-xs text-slate-400 mt-1">
                   Contribution {fmtMoney(data.pnl.profit.contributionProfit)} · OPEX {fmtMoney(data.pnl.costs.opex)}
+                </div>
+
+                <div className="mt-3 pt-3 border-t border-white/[0.06]">
+                  <div className="flex items-baseline justify-between gap-2 flex-wrap mb-1.5">
+                    <div className="text-[11px] uppercase tracking-wider text-slate-400 font-medium">
+                      Monthly goal · {fmtMoney(mtd)} of £3k
+                    </div>
+                    <div className={`text-[11px] font-medium ${statusColor}`}>{statusText}</div>
+                  </div>
+                  <div className="relative h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
+                    <div
+                      className={`absolute inset-y-0 left-0 ${barColor} transition-all duration-500`}
+                      style={{ width: `${progressPct}%` }}
+                    />
+                    <div
+                      className="absolute inset-y-0 w-px bg-white/40"
+                      style={{ left: `${Math.min(100, (expectedPace / EBITDA_GOAL) * 100)}%` }}
+                      title={`Expected pace: ${fmtMoney(expectedPace)}`}
+                    />
+                  </div>
+                  <div className="flex justify-between text-[10px] text-slate-500 mt-1 tabular-nums">
+                    <span>Day {dayOfMonth} of {daysInMonth}</span>
+                    <span>{progressPct.toFixed(0)}%</span>
+                  </div>
                 </div>
               </div>
             )
