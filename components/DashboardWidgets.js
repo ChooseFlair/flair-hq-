@@ -24,7 +24,7 @@ function Stat({ label, value, index = 0 }) {
   return (
     <div
       style={{ animationDelay: `${index * 60}ms` }}
-      className="flex-1 min-w-[120px] rounded-xl bg-white/[0.03] border border-white/[0.06] px-4 py-3 hover:bg-white/[0.06] hover:border-white/[0.12] hover:-translate-y-0.5 transition-all duration-200 fade-up"
+      className="flex-1 basis-[44%] sm:basis-auto min-w-[44%] sm:min-w-[120px] rounded-xl bg-white/[0.03] border border-white/[0.06] px-3 sm:px-4 py-3 hover:bg-white/[0.06] hover:border-white/[0.12] hover:-translate-y-0.5 transition-all duration-200 fade-up"
     >
       <div className="text-xs text-slate-400 font-medium">{label}</div>
       <div className="text-white text-xl mt-1 tabular-nums font-mono">{value}</div>
@@ -102,7 +102,7 @@ export default function DashboardWidgets() {
   const hasIssues = issues.length > 0
 
   return (
-    <div className="relative z-30 px-5 pt-3 pb-2 border-b border-white/[0.06] bg-black/40 backdrop-blur-sm">
+    <div className="relative z-30 px-4 sm:px-5 pt-3 pb-2 border-b border-white/[0.06] bg-black/40 backdrop-blur-sm">
       <div className="max-w-6xl mx-auto">
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-1">
@@ -121,7 +121,7 @@ export default function DashboardWidgets() {
             ))}
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3 flex-wrap">
             <div className="flex items-center gap-3 text-xs">
               {connectors.map(c => {
                 const prog = syncProgress?.find(p => p.name.toLowerCase() === c.name.toLowerCase())

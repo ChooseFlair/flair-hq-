@@ -29,8 +29,8 @@ function KPI({ label, value, sub, accent, index = 0 }) {
 function Table({ rows, type }) {
   if (!rows.length) return <div className="text-slate-400 text-sm py-8 text-center">No {type} data in this range</div>
   return (
-    <div className="rounded-2xl bg-white/[0.02] border border-white/[0.06] overflow-hidden">
-      <table className="w-full text-sm">
+    <div className="rounded-2xl bg-white/[0.02] border border-white/[0.06] overflow-x-auto">
+      <table className="w-full text-sm min-w-[700px]">
         <thead className="bg-white/[0.04] border-b border-white/[0.06]">
           <tr className="text-left text-slate-400 text-xs">
             <th className="px-4 py-3 font-medium">Name</th>
@@ -96,7 +96,7 @@ export default function EmailPage() {
         .fade-up { animation: fadeUp 0.6s ease-out both; }
       `}</style>
       <div className="min-h-screen bg-black text-white">
-        <div className="border-b border-white/[0.06] px-6 py-5 flex items-center justify-between flex-wrap gap-3">
+        <div className="border-b border-white/[0.06] px-4 sm:px-6 py-4 sm:py-5 flex items-center justify-between flex-wrap gap-3">
           <div>
             <h1 className="text-xl font-semibold tracking-tight">Email</h1>
             <p className="text-slate-400 text-sm mt-0.5">Klaviyo flows + campaigns · {data?.label || '…'}</p>
@@ -112,7 +112,7 @@ export default function EmailPage() {
           </div>
         </div>
 
-        <div className="max-w-6xl mx-auto px-6 py-8 space-y-6">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
           {loading && !data && <div className="text-slate-400 text-sm">Loading email performance…</div>}
           {data?.error && <div className="text-rose-300 text-sm">Error: {data.error}</div>}
           {data?.errors?.length > 0 && (

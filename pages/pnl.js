@@ -217,7 +217,7 @@ export default function PnLPage() {
         .fade-up { animation: fadeUp 0.6s ease-out both; }
       `}</style>
       <div className="min-h-screen bg-black text-white">
-        <div className="border-b border-white/[0.06] px-6 py-5 flex items-center justify-between flex-wrap gap-3">
+        <div className="border-b border-white/[0.06] px-4 sm:px-6 py-4 sm:py-5 flex items-center justify-between flex-wrap gap-3">
           <div>
             <h1 className="text-white text-xl font-semibold tracking-tight">Profit &amp; Loss</h1>
             <p className="text-slate-400 text-sm mt-0.5">{data?.label || 'Loading…'}</p>
@@ -246,7 +246,7 @@ export default function PnLPage() {
           </div>
         </div>
 
-        <div className="max-w-7xl mx-auto px-6 py-8 space-y-6">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
           {loading && !data && <div className="text-slate-400 text-sm">Crunching numbers…</div>}
           {data?.error && <div className="text-rose-300 text-sm">Error: {data.error}</div>}
           {t && (

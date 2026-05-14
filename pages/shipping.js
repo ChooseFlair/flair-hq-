@@ -31,7 +31,7 @@ export default function ShippingUploadPage() {
     <>
       <Head><title>Jarvis — Shipping upload</title></Head>
       <div className="min-h-screen bg-black text-white">
-        <div className="border-b border-white/[0.06] px-6 py-5 flex items-center justify-between flex-wrap gap-3">
+        <div className="border-b border-white/[0.06] px-4 sm:px-6 py-4 sm:py-5 flex items-center justify-between flex-wrap gap-3">
           <div>
             <h1 className="text-xl font-semibold tracking-tight">Shipping upload</h1>
             <p className="text-slate-400 text-sm mt-0.5">Upload ShipStation CSV export to populate real shipping costs</p>
@@ -42,7 +42,7 @@ export default function ShippingUploadPage() {
           </div>
         </div>
 
-        <div className="max-w-2xl mx-auto px-6 py-10">
+        <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
           <div className="rounded-2xl bg-white/[0.03] border border-white/[0.06] p-8 text-center">
             <input
               ref={inputRef}
