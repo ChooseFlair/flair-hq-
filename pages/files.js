@@ -131,7 +131,7 @@ export default function FilesPage() {
     <>
       <Head><title>Jarvis — Files</title></Head>
       <div className="min-h-screen bg-black text-white">
-        <div className="border-b border-white/[0.06] px-6 py-5 flex items-center justify-between flex-wrap gap-3">
+        <div className="border-b border-white/[0.06] px-4 sm:px-6 py-4 sm:py-5 flex items-center justify-between flex-wrap gap-3">
           <div>
             <h1 className="text-xl font-semibold tracking-tight">Files</h1>
             <p className="text-slate-400 text-sm mt-0.5">Upload documents and attach notes</p>
@@ -139,7 +139,7 @@ export default function FilesPage() {
           <Link href="/" className="text-sm px-4 py-1.5 rounded-full bg-white/[0.04] hover:bg-white/[0.10] text-slate-300 hover:text-white">← Jarvis</Link>
         </div>
 
-        <div className="max-w-5xl mx-auto px-6 py-8 space-y-6">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
           <div
             ref={dragRef}
             onDrop={onDrop}

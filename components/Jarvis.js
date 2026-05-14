@@ -374,7 +374,7 @@ export default function Jarvis() {
         </div>
       )}
 
-      <div className="relative z-20 px-6 py-3 flex items-center justify-between border-b border-cyan-500/10">
+      <div className="relative z-20 px-4 sm:px-6 py-3 flex items-center justify-between gap-3 border-b border-cyan-500/10">
         <div className="flex items-center gap-3">
           <div className="relative">
             <div className={`w-8 h-8 rounded-full border ${loading ? 'border-cyan-300 shadow-lg shadow-cyan-400/40' : 'border-cyan-300/70'} flex items-center justify-center transition-all duration-500`}>
@@ -422,8 +422,8 @@ export default function Jarvis() {
         {!hasMessages ? (
           <div className="flex flex-col items-center justify-center h-full text-center px-6">
             <div className="relative mb-8 fade-up" style={{ animationDelay: '0.1s' }}>
-              <h2 className="text-4xl md:text-5xl font-semibold text-white tracking-tight mb-2 greet-glow">{greeting}</h2>
-              <p className="text-slate-300 text-base max-w-md">All systems online. How can I help today?</p>
+              <h2 className="text-2xl sm:text-4xl md:text-5xl font-semibold text-white tracking-tight mb-2 greet-glow">{greeting}</h2>
+              <p className="text-slate-300 text-sm sm:text-base max-w-md">All systems online. How can I help today?</p>
             </div>
             <button
               onClick={() => setPromptsOpen(true)}

@@ -116,7 +116,7 @@ export default function AccountsPage() {
     <>
       <Head><title>Jarvis — Accounts</title></Head>
       <div className="min-h-screen bg-black text-white">
-        <div className="border-b border-white/[0.06] px-6 py-5 flex items-center justify-between flex-wrap gap-3">
+        <div className="border-b border-white/[0.06] px-4 sm:px-6 py-4 sm:py-5 flex items-center justify-between flex-wrap gap-3">
           <div>
             <h1 className="text-xl font-semibold tracking-tight">Accounts</h1>
             <p className="text-slate-400 text-sm mt-0.5">Platform credentials &amp; notes</p>
@@ -132,7 +132,7 @@ export default function AccountsPage() {
           </div>
         </div>
 
-        <div className="max-w-6xl mx-auto px-6 py-8 space-y-4">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-4">
           {error && <div className="rounded-lg bg-rose-400/10 text-rose-300 px-4 py-3 text-sm">{error}</div>}
           {loading && !accounts.length && <div className="text-slate-400 text-sm">Loading…</div>}
 
@@ -141,8 +141,8 @@ export default function AccountsPage() {
           )}
 
           {accounts.length > 0 && (
-            <div className="rounded-2xl bg-white/[0.02] border border-white/[0.06] overflow-hidden">
-              <table className="w-full text-sm">
+            <div className="rounded-2xl bg-white/[0.02] border border-white/[0.06] overflow-x-auto">
+              <table className="w-full text-sm min-w-[720px]">
                 <thead className="bg-white/[0.04] border-b border-white/[0.06]">
                   <tr className="text-left text-slate-400 text-xs">
                     <th className="px-4 py-3 font-medium">Platform</th>

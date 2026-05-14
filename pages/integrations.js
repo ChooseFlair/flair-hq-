@@ -157,7 +157,7 @@ export default function IntegrationsPage() {
         <title>Jarvis — Integrations</title>
       </Head>
       <div className="min-h-screen bg-black text-white">
-        <div className="border-b border-white/[0.06] px-6 py-5 flex items-center justify-between flex-wrap gap-3">
+        <div className="border-b border-white/[0.06] px-4 sm:px-6 py-4 sm:py-5 flex items-center justify-between flex-wrap gap-3">
           <div>
             <h1 className="text-white text-xl font-semibold tracking-tight">Integrations</h1>
             <p className="text-slate-400 text-sm mt-0.5">Connector health &amp; setup</p>
@@ -183,7 +183,7 @@ export default function IntegrationsPage() {
           </div>
         </div>
 
-        <div className="max-w-4xl mx-auto px-6 py-8">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
           {loading && !data && <div className="text-slate-400 text-sm">Loading…</div>}
           {data?.error && <div className="text-rose-300 text-sm">Error: {data.error}</div>}
           {data?.connectors && (
