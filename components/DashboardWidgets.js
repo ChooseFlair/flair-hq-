@@ -188,37 +188,36 @@ export default function DashboardWidgets() {
         </div>
 
         <div className={`overflow-hidden transition-all duration-300 ${expanded ? 'max-h-[28rem] mt-3' : 'max-h-0'}`}>
-          {data?.pnl?.profit && (() => {
-            const ebitda = data.pnl.profit.ebitda
-            const pct = data.pnl.profit.ebitdaPct
-            const pos = ebitda >= 0
-            return (
-              <div
-                style={{ animationDelay: '0ms' }}
-                className={`rounded-2xl px-5 py-4 mb-3 border ${pos ? 'border-emerald-400/30 bg-emerald-400/[0.06]' : 'border-rose-400/30 bg-rose-400/[0.06]'} fade-up`}
-              >
-                <div className="flex items-baseline justify-between gap-3 flex-wrap">
-                  <div className="text-xs text-slate-300 font-medium uppercase tracking-wider">EBITDA</div>
-                  <div className={`text-xs font-medium ${pos ? 'text-emerald-300' : 'text-rose-300'}`}>{pct?.toFixed(1)}% margin</div>
-                </div>
-                <div className={`text-3xl sm:text-4xl mt-1 tabular-nums font-mono font-semibold ${pos ? 'text-emerald-200' : 'text-rose-200'}`}>
-                  {loading ? '…' : fmtMoney(ebitda)}
-                </div>
-                <div className="text-xs text-slate-400 mt-1">
-                  Contribution {fmtMoney(data.pnl.profit.contributionProfit)} · OPEX {fmtMoney(data.pnl.costs.opex)}
-                </div>
-              </div>
-            )
-          })()}
           <div className="flex gap-3 flex-wrap">
-            <Stat label="Ad spend" value={loading ? '…' : fmtMoney(data?.adSpend)} index={0} />
+            {(() => {
+              const ebitda = data?.pnl?.profit?.ebitda
+              const pct = data?.pnl?.profit?.ebitdaPct
+              const pos = ebitda == null || ebitda >= 0
+              return (
+                <div
+                  style={{ animationDelay: '0ms' }}
+                  className={`flex-1 basis-[44%] sm:basis-auto min-w-[44%] sm:min-w-[140px] rounded-xl border px-3 sm:px-4 py-3 hover:-translate-y-0.5 transition-all duration-200 fade-up ${pos ? 'border-emerald-400/40 bg-emerald-400/[0.08]' : 'border-rose-400/40 bg-rose-400/[0.08]'}`}
+                >
+                  <div className="flex items-baseline justify-between gap-2">
+                    <div className={`text-xs font-medium ${pos ? 'text-emerald-200' : 'text-rose-200'}`}>EBITDA</div>
+                    {pct != null && (
+                      <div className={`text-[10px] font-medium ${pos ? 'text-emerald-300/80' : 'text-rose-300/80'}`}>{pct.toFixed(1)}%</div>
+                    )}
+                  </div>
+                  <div className={`text-xl mt-1 tabular-nums font-mono font-semibold ${pos ? 'text-emerald-100' : 'text-rose-100'}`}>
+                    {loading ? '…' : fmtMoney(ebitda)}
+                  </div>
+                </div>
+              )
+            })()}
+            <Stat label="Ad spend" value={loading ? '…' : fmtMoney(data?.adSpend)} index={1} />
             <Stat
               label="OpEx / mo"
               value={loading ? '…' : fmtMoney(data?.pnl?.costs?.opex != null ? data.pnl.costs.opex * (30 / daysInRange(range)) : null)}
-              index={1}
+              index={2}
             />
-            <Stat label="COGS" value={loading ? '…' : fmtMoney(data?.pnl?.costs?.cogs)} index={2} />
-            <Stat label="ROAS" value={loading ? '…' : (data?.roas ? `${data.roas.toFixed(2)}x` : '—')} index={3} />
+            <Stat label="COGS" value={loading ? '…' : fmtMoney(data?.pnl?.costs?.cogs)} index={3} />
+            <Stat label="ROAS" value={loading ? '…' : (data?.roas ? `${data.roas.toFixed(2)}x` : '—')} index={4} />
           </div>
 
           {hasIssues && (
