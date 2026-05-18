@@ -90,7 +90,7 @@ export default async function handler(req, res) {
     }
   }
 
-  // Pull overrides
+  // Pull overrides + rules
   const ids = debits.map(d => d.transaction_id)
   let overrideMap = new Map()
   if (ids.length) {
@@ -101,13 +101,25 @@ export default async function handler(req, res) {
     for (const o of (overrides || [])) overrideMap.set(o.transaction_id, o)
   }
 
-  // Apply overrides + auto-classify
+  const counterparties = Array.from(new Set(debits.map(d => d.counterparty).filter(Boolean)))
+  let ruleMap = new Map()
+  if (counterparties.length) {
+    const { data: rules } = await supabase
+      .from('transaction_category_rules')
+      .select('counterparty, category, note')
+      .in('counterparty', counterparties)
+    for (const r of (rules || [])) ruleMap.set(r.counterparty, r)
+  }
+
+  // Apply per-tx overrides > rules > auto
   for (const d of debits) {
     const ov = overrideMap.get(d.transaction_id)
+    const rule = d.counterparty ? ruleMap.get(d.counterparty) : null
     d.autoCategory = autoCategoryFor(d.description)
-    d.category = ov?.category || d.autoCategory
-    d.note = ov?.note || null
+    d.category = ov?.category || rule?.category || d.autoCategory
+    d.note = ov?.note || rule?.note || null
     d.isOverride = !!ov
+    d.ruleApplied = !ov && !!rule
   }
 
   debits.sort((a, b) => new Date(b.date) - new Date(a.date))
