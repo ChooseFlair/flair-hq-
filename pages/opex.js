@@ -1,7 +1,7 @@
 import Head from 'next/head'
 import Link from 'next/link'
-import { useState, useEffect, useCallback, useMemo } from 'react'
-import { Wallet, Package, EyeOff, Sparkles, ExternalLink } from 'lucide-react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { Wallet, Package, EyeOff, Sparkles, ExternalLink, MoreHorizontal } from 'lucide-react'
 
 const CATEGORIES = [
   { id: 'opex', label: 'OPEX', Icon: Wallet, color: 'emerald' },
@@ -34,6 +34,15 @@ export default function OpexPage() {
   const [filter, setFilter] = useState('all')
   const [saving, setSaving] = useState({}) // txId -> bool
   const [search, setSearch] = useState('')
+  const [openMenu, setOpenMenu] = useState(null) // counterparty key
+  const menuRef = useRef(null)
+
+  useEffect(() => {
+    if (!openMenu) return
+    const onDown = e => { if (menuRef.current && !menuRef.current.contains(e.target)) setOpenMenu(null) }
+    document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
+  }, [openMenu])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -64,6 +73,35 @@ export default function OpexPage() {
       }
     } finally {
       setSaving(s => ({ ...s, [tx.transaction_id]: false }))
+    }
+  }
+
+  async function categoriseAllByCounterparty(counterparty, category) {
+    if (!counterparty) return
+    const key = `cp:${counterparty}`
+    setSaving(s => ({ ...s, [key]: true }))
+    setOpenMenu(null)
+    try {
+      const matching = (data?.transactions || []).filter(t => t.counterparty === counterparty)
+      const r = await fetch('/api/opex/categorize', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          scope: 'counterparty',
+          counterparty,
+          category,
+          bulk: matching.map(t => ({ transactionId: t.transaction_id })),
+        }),
+      })
+      if (r.ok) {
+        setData(d => {
+          const txs = d.transactions.map(t => t.counterparty === counterparty
+            ? { ...t, category, isOverride: false, ruleApplied: true }
+            : t)
+          return { ...d, transactions: txs, totals: recomputeTotals(txs) }
+        })
+      }
+    } finally {
+      setSaving(s => ({ ...s, [key]: false }))
     }
   }
 
@@ -170,10 +208,13 @@ export default function OpexPage() {
                           {tx.isOverride && (
                             <div className="text-[10px] text-sky-400 mt-0.5">manual</div>
                           )}
+                          {tx.ruleApplied && !tx.isOverride && (
+                            <div className="text-[10px] text-purple-400 mt-0.5">rule · {tx.counterparty}</div>
+                          )}
                         </td>
                         <td className="px-4 py-3 text-right font-mono tabular-nums text-white whitespace-nowrap">{fmtMoney(tx.amount)}</td>
                         <td className="px-4 py-3">
-                          <div className="flex items-center gap-1">
+                          <div className="flex items-center gap-1 relative">
                             {CATEGORIES.map(c => {
                               const active = tx.category === c.id
                               const cs = COLOR_MAP[c.color]
@@ -192,6 +233,35 @@ export default function OpexPage() {
                                 </button>
                               )
                             })}
+                            {tx.counterparty && (
+                              <div className="relative">
+                                <button
+                                  onClick={() => setOpenMenu(openMenu === tx.transaction_id ? null : tx.transaction_id)}
+                                  disabled={saving[`cp:${tx.counterparty}`]}
+                                  className="text-xs px-1.5 py-1 rounded-full border border-white/10 text-slate-400 hover:text-white hover:bg-white/[0.06] inline-flex items-center"
+                                  title={`Apply to all from ${tx.counterparty}`}
+                                >
+                                  <MoreHorizontal className="w-3 h-3" />
+                                </button>
+                                {openMenu === tx.transaction_id && (
+                                  <div ref={menuRef} className="absolute right-0 mt-1 z-10 w-56 rounded-lg border border-white/10 bg-zinc-900 shadow-xl py-1">
+                                    <div className="px-3 py-1.5 text-[10px] uppercase tracking-wider text-slate-500">
+                                      Apply to all from {tx.counterparty}
+                                    </div>
+                                    {CATEGORIES.map(c => (
+                                      <button
+                                        key={c.id}
+                                        onClick={() => categoriseAllByCounterparty(tx.counterparty, c.id)}
+                                        className="w-full text-left px-3 py-1.5 text-xs text-slate-200 hover:bg-white/[0.06] inline-flex items-center gap-2"
+                                      >
+                                        <c.Icon className={`w-3 h-3 ${COLOR_MAP[c.color].text}`} strokeWidth={2} />
+                                        <span>{c.label}</span>
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </div>
                         </td>
                       </tr>
