@@ -35,6 +35,7 @@ export default function OpexPage() {
   const [saving, setSaving] = useState({}) // txId -> bool
   const [search, setSearch] = useState('')
   const [openMenu, setOpenMenu] = useState(null) // counterparty key
+  const [bulkPrompt, setBulkPrompt] = useState(null) // { description, category, siblingIds }
   const menuRef = useRef(null)
 
   useEffect(() => {
@@ -70,10 +71,45 @@ export default function OpexPage() {
           transactions: d.transactions.map(t => t.transaction_id === tx.transaction_id ? { ...t, category, isOverride: true } : t),
           totals: recomputeTotals(d.transactions.map(t => t.transaction_id === tx.transaction_id ? { ...t, category, isOverride: true } : t)),
         }))
+        // If there are other transactions with the exact same description and
+        // a different category, offer to apply the same change in bulk.
+        const desc = (tx.description || '').trim()
+        if (desc) {
+          const siblings = (data?.transactions || []).filter(t =>
+            t.transaction_id !== tx.transaction_id &&
+            (t.description || '').trim() === desc &&
+            t.category !== category
+          )
+          if (siblings.length) {
+            setBulkPrompt({ description: desc, category, siblingIds: siblings.map(s => s.transaction_id) })
+          }
+        }
       }
     } finally {
       setSaving(s => ({ ...s, [tx.transaction_id]: false }))
     }
+  }
+
+  async function applyBulkPrompt() {
+    if (!bulkPrompt) return
+    const { category, siblingIds } = bulkPrompt
+    setBulkPrompt(null)
+    if (!siblingIds.length) return
+    try {
+      const r = await fetch('/api/opex/categorize', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bulk: siblingIds.map(id => ({ transactionId: id, category })) }),
+      })
+      if (r.ok) {
+        setData(d => {
+          const idSet = new Set(siblingIds)
+          const txs = d.transactions.map(t => idSet.has(t.transaction_id)
+            ? { ...t, category, isOverride: true }
+            : t)
+          return { ...d, transactions: txs, totals: recomputeTotals(txs) }
+        })
+      }
+    } catch {}
   }
 
   async function categoriseAllByCounterparty(counterparty, category) {
@@ -279,6 +315,43 @@ export default function OpexPage() {
             Reclassifications save instantly. The <Link href="/pnl" className="text-sky-400 hover:text-sky-300 inline-flex items-center gap-1">P&amp;L page <ExternalLink className="w-3 h-3" /></Link> picks them up on next load.
           </div>
         </div>
+
+        {bulkPrompt && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setBulkPrompt(null)} />
+            <div className="relative w-full max-w-md rounded-2xl border border-white/10 bg-zinc-900 p-5 shadow-2xl">
+              <h3 className="text-white text-base font-semibold">Apply to matching transactions?</h3>
+              <p className="text-slate-400 text-sm mt-2">
+                {bulkPrompt.siblingIds.length} other transaction{bulkPrompt.siblingIds.length === 1 ? '' : 's'} match{bulkPrompt.siblingIds.length === 1 ? 'es' : ''} this exact name:
+              </p>
+              <div className="mt-2 px-3 py-2 rounded-lg bg-white/[0.04] border border-white/10 text-sm text-white break-words">
+                {bulkPrompt.description}
+              </div>
+              <p className="text-slate-400 text-sm mt-3">
+                Set {bulkPrompt.siblingIds.length === 1 ? 'it' : 'them all'} to{' '}
+                <span className={
+                  bulkPrompt.category === 'opex' ? 'text-emerald-300 font-medium'
+                  : bulkPrompt.category === 'inventory' ? 'text-amber-300 font-medium'
+                  : 'text-slate-200 font-medium'
+                }>{bulkPrompt.category.toUpperCase()}</span> too?
+              </p>
+              <div className="mt-4 flex items-center justify-end gap-2">
+                <button
+                  onClick={() => setBulkPrompt(null)}
+                  className="text-sm px-3 py-1.5 rounded-full text-slate-300 hover:text-white hover:bg-white/[0.06]"
+                >
+                  Just this one
+                </button>
+                <button
+                  onClick={applyBulkPrompt}
+                  className="text-sm px-4 py-1.5 rounded-full bg-sky-500 hover:bg-sky-400 text-white font-medium"
+                >
+                  Yes, apply to all
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </>
   )
