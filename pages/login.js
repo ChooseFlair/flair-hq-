@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useRouter } from 'next/router'
+import { Lock } from 'lucide-react'
 
 export default function Login() {
   const [password, setPassword] = useState('')
@@ -38,9 +39,9 @@ export default function Login() {
       <div className="bg-white rounded-xl shadow-lg p-8 w-full max-w-sm">
         <div className="text-center mb-6">
           <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <span className="text-3xl">🔒</span>
+            <Lock className="w-7 h-7 text-green-700" strokeWidth={1.75} />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">Flair HQ</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Jarvis</h1>
           <p className="text-gray-500 mt-1">Enter password to continue</p>
         </div>
 

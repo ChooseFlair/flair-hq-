@@ -1,4 +1,4 @@
-const KLAVIYO_KEY = 'pk_bce69162bc267f14cbb31eff287d6c10c8'
+const KLAVIYO_KEY = process.env.KLAVIYO_API_KEY || 'pk_bce69162bc267f14cbb31eff287d6c10c8'
 const BASE = 'https://a.klaviyo.com/api'
 const headers = {
   'Authorization': `Klaviyo-API-Key ${KLAVIYO_KEY}`,

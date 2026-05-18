@@ -66,6 +66,28 @@ export default function Finance({ activeSubTab, setActiveSubTab }) {
     loadData()
   }, [])
 
+  // Reload transactions when date range changes
+  useEffect(() => {
+    if (!needsAuth && accounts.length > 0) {
+      loadTransactions()
+    }
+  }, [dateRange])
+
+  const loadTransactions = async () => {
+    try {
+      const fromDate = dateRange.startDate.toISOString()
+      const toDate = dateRange.endDate.toISOString()
+      const txRes = await fetch(`/api/revolut/transactions?from=${fromDate}&to=${toDate}&count=1000`)
+      const txData = await txRes.json()
+
+      if (!txData.error) {
+        setTransactions(txData.transactions || [])
+      }
+    } catch (err) {
+      console.error('Error loading transactions:', err)
+    }
+  }
+
   const loadData = async () => {
     setLoading(true)
     setPaypalLoading(true)
@@ -84,7 +106,10 @@ export default function Finance({ activeSubTab, setActiveSubTab }) {
         setAccounts(accountsData.accounts || [])
         setNeedsAuth(false)
 
-        const txRes = await fetch('/api/revolut/transactions?count=50')
+        // Fetch transactions for the selected date range
+        const fromDate = dateRange.startDate.toISOString()
+        const toDate = dateRange.endDate.toISOString()
+        const txRes = await fetch(`/api/revolut/transactions?from=${fromDate}&to=${toDate}&count=1000`)
         const txData = await txRes.json()
 
         if (!txData.error) {
@@ -129,12 +154,12 @@ export default function Finance({ activeSubTab, setActiveSubTab }) {
     }).format(amount)
   }
 
-  // Format for transaction amounts (in minor units - pence)
+  // Format for transaction amounts (Revolut returns amounts in major units - pounds)
   const formatMinorCurrency = (amount, currency = 'GBP') => {
     return new Intl.NumberFormat('en-GB', {
       style: 'currency',
       currency: currency,
-    }).format(amount / 100)
+    }).format(amount)
   }
 
   const formatPayPalCurrency = (amount, currency = 'GBP') => {
@@ -191,11 +216,11 @@ export default function Finance({ activeSubTab, setActiveSubTab }) {
     paypalFees: paypalData?.summary?.totalFees ? formatPayPalCurrency(paypalData.summary.totalFees) : 'N/A',
   })
 
-  // Process data for cash flow chart (last 14 days)
+  // Process data for cash flow chart (uses selected date range)
   const cashFlowData = useMemo(() => {
     const days = eachDayOfInterval({
-      start: subDays(new Date(), 13),
-      end: new Date()
+      start: startOfDay(dateRange.startDate),
+      end: startOfDay(dateRange.endDate)
     })
 
     return days.map(day => {
@@ -210,11 +235,11 @@ export default function Finance({ activeSubTab, setActiveSubTab }) {
 
       const income = dayTransactions
         .filter(t => t.legs?.[0]?.amount > 0)
-        .reduce((sum, t) => sum + (t.legs?.[0]?.amount || 0), 0) / 100
+        .reduce((sum, t) => sum + (t.legs?.[0]?.amount || 0), 0)
 
       const spend = dayTransactions
         .filter(t => t.legs?.[0]?.amount < 0)
-        .reduce((sum, t) => sum + Math.abs(t.legs?.[0]?.amount || 0), 0) / 100
+        .reduce((sum, t) => sum + Math.abs(t.legs?.[0]?.amount || 0), 0)
 
       return {
         date: format(day, 'MMM d'),
@@ -223,11 +248,11 @@ export default function Finance({ activeSubTab, setActiveSubTab }) {
         net: income - spend
       }
     })
-  }, [transactions])
+  }, [transactions, dateRange])
 
   // Process data for income sources pie chart
   const incomeSourcesData = useMemo(() => {
-    const revolutIncome = getMonthlyIncome() / 100
+    const revolutIncome = getMonthlyIncome()
     const paypalIncome = paypalData?.summary?.totalIncome || 0
 
     const data = []
@@ -271,7 +296,7 @@ export default function Finance({ activeSubTab, setActiveSubTab }) {
       }
 
       if (!categories[category]) categories[category] = 0
-      categories[category] += Math.abs(tx.legs?.[0]?.amount || 0) / 100
+      categories[category] += Math.abs(tx.legs?.[0]?.amount || 0)
     })
 
     const categoryData = Object.entries(categories)
@@ -287,9 +312,9 @@ export default function Finance({ activeSubTab, setActiveSubTab }) {
     })
 
     // Calculate metrics
-    const totalExpenses = expenseTransactions.reduce((sum, t) => sum + Math.abs(t.legs?.[0]?.amount || 0), 0) / 100
+    const totalExpenses = expenseTransactions.reduce((sum, t) => sum + Math.abs(t.legs?.[0]?.amount || 0), 0)
     const avgTransactionSize = transactions.length > 0
-      ? transactions.reduce((sum, t) => sum + Math.abs(t.legs?.[0]?.amount || 0), 0) / transactions.length / 100
+      ? transactions.reduce((sum, t) => sum + Math.abs(t.legs?.[0]?.amount || 0), 0) / transactions.length
       : 0
 
     return {
@@ -525,7 +550,7 @@ export default function Finance({ activeSubTab, setActiveSubTab }) {
         <div className="space-y-6">
           {/* Cash Flow Chart */}
           <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <h3 className="font-semibold text-gray-900 mb-4">Cash Flow (Last 14 Days)</h3>
+            <h3 className="font-semibold text-gray-900 mb-4">Cash Flow ({format(dateRange.startDate, 'MMM d')} - {format(dateRange.endDate, 'MMM d')})</h3>
             <div className="h-72">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={cashFlowData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
