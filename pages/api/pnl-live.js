@@ -248,6 +248,24 @@ async function fetchRevolutOpex(from, to) {
       for (const o of (ov || [])) overrideMap.set(o.transaction_id, o.category)
     }
 
+    // Load counterparty-scoped rules so an "Ignore all from X" rule
+    // takes effect on every Revolut leg from counterparty X.
+    const counterparties = new Set()
+    for (const t of list) {
+      for (const leg of (t.legs || [])) {
+        const cp = leg.counterparty?.name || t.merchant?.name
+        if (cp) counterparties.add(cp)
+      }
+    }
+    let ruleMap = new Map()
+    if (counterparties.size) {
+      const { data: rules } = await supabase
+        .from('transaction_category_rules')
+        .select('counterparty, category')
+        .in('counterparty', Array.from(counterparties))
+      for (const r of (rules || [])) ruleMap.set(r.counterparty, r.category)
+    }
+
     const opexRegex = buildOpexRegex()
     const inventoryRegex = buildInventoryRegex()
 
@@ -272,9 +290,12 @@ async function fetchRevolutOpex(from, to) {
         const day = (t.completed_at || t.created_at || '').substring(0, 10)
         const legId = leg.leg_id || `${t.id}_${leg.account_id || '0'}`
         const manualCategory = overrideMap.get(legId)
+        const cpName = leg.counterparty?.name || t.merchant?.name || null
+        const ruleCategory = cpName ? ruleMap.get(cpName) : null
 
         let category
         if (manualCategory) category = manualCategory
+        else if (ruleCategory) category = ruleCategory
         else if (opexRegex.test(desc)) category = 'opex'
         else if (inventoryRegex.test(desc)) category = 'inventory'
         else category = 'ignore'
