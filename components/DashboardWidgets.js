@@ -15,6 +15,13 @@ const fmtMoney = (n) => {
 }
 const fmtInt = (n) => (n == null ? '—' : n.toLocaleString())
 
+function daysInRange(r) {
+  if (r === '7d') return 7
+  if (r === '30d') return 30
+  if (r === 'mtd') return new Date().getDate()
+  return 1
+}
+
 function StatusDot({ status }) {
   const color = status === 'ok' ? 'bg-emerald-400' : status === 'warn' ? 'bg-amber-400' : 'bg-rose-400'
   return <span className={`inline-block w-1.5 h-1.5 rounded-full ${color}`} />
@@ -204,26 +211,14 @@ export default function DashboardWidgets() {
             )
           })()}
           <div className="flex gap-3 flex-wrap">
-            <Stat label="Revenue" value={loading ? '…' : fmtMoney(data?.revenue)} index={0} />
-            <Stat label="Orders" value={loading ? '…' : fmtInt(data?.orderCount)} index={1} />
-            <Stat label="Customers" value={loading ? '…' : fmtInt(data?.customerCount)} index={2} />
-            <Stat label="AOV" value={loading ? '…' : fmtMoney(data?.aov)} index={3} />
-            <Stat label="Ad spend" value={loading ? '…' : fmtMoney(data?.adSpend)} index={4} />
-            <Stat label="ROAS" value={loading ? '…' : (data?.roas ? `${data.roas.toFixed(2)}x` : '—')} index={5} />
-            {data?.cash?.connected && (
-              <Stat
-                label="Cash"
-                value={loading ? '…' : fmtMoney(data?.cash?.totalGBP)}
-                index={6}
-              />
-            )}
-            {data?.cash?.runwayMonths != null && (
-              <Stat
-                label="Runway"
-                value={loading ? '…' : `${data.cash.runwayMonths.toFixed(1)} mo`}
-                index={7}
-              />
-            )}
+            <Stat label="Ad spend" value={loading ? '…' : fmtMoney(data?.adSpend)} index={0} />
+            <Stat
+              label="OpEx / mo"
+              value={loading ? '…' : fmtMoney(data?.pnl?.costs?.opex != null ? data.pnl.costs.opex * (30 / daysInRange(range)) : null)}
+              index={1}
+            />
+            <Stat label="COGS" value={loading ? '…' : fmtMoney(data?.pnl?.costs?.cogs)} index={2} />
+            <Stat label="ROAS" value={loading ? '…' : (data?.roas ? `${data.roas.toFixed(2)}x` : '—')} index={3} />
           </div>
 
           {hasIssues && (
