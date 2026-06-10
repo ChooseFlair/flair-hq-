@@ -145,7 +145,7 @@ export default function Jarvis() {
   const hasMessages = messages.length > 0
 
   return (
-    <div className="h-screen flex flex-col bg-black overflow-hidden relative">
+    <div className="h-full flex flex-col bg-black overflow-hidden relative">
       <style jsx global>{`
         @keyframes hudSpinSlow { from { transform: rotate(0deg); transform-origin: 400px 400px; } to { transform: rotate(360deg); transform-origin: 400px 400px; } }
         @keyframes hudSpinCounter { from { transform: rotate(360deg); transform-origin: 400px 400px; } to { transform: rotate(0deg); transform-origin: 400px 400px; } }
