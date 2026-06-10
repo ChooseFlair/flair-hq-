@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 'react'
 
 const SUGGESTIONS = [
   'How are sales doing this week?',
@@ -100,12 +100,14 @@ function HudRings({ active }) {
   )
 }
 
-export default function Jarvis() {
+const Jarvis = forwardRef(function Jarvis(props, ref) {
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const scrollRef = useRef(null)
   const inputRef = useRef(null)
+
+  useImperativeHandle(ref, () => ({ send }))
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
@@ -308,4 +310,6 @@ export default function Jarvis() {
       </div>
     </div>
   )
-}
+})
+
+export default Jarvis
