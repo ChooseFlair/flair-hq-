@@ -2,11 +2,11 @@ import { useState, useRef, useEffect } from 'react'
 
 const SUGGESTIONS = [
   'How are sales doing this week?',
-  'Show me my top customers',
   "What's my ROAS looking like?",
-  'How are my Klaviyo flows performing?',
+  'What are my bank balances?',
+  'How much did I spend this month?',
   'Give me a full business overview',
-  'What should I focus on today?',
+  'Show me everything — life + business',
 ]
 
 function Markdown({ text }) {
@@ -196,7 +196,7 @@ export default function Jarvis() {
           <span className="hidden sm:block">SHOPIFY</span>
           <span className="hidden sm:block">KLAVIYO</span>
           <span className="hidden sm:block">META</span>
-          <span className="hidden sm:block">WINDSOR</span>
+          <span className="hidden sm:block">BANKING</span>
           <div className="flex items-center gap-1.5">
             <div className={`w-1.5 h-1.5 rounded-full ${loading ? 'bg-cyan-400 animate-pulse' : 'bg-emerald-500/60'}`} />
             <span className={loading ? 'text-cyan-400' : 'text-emerald-500/40'}>{loading ? 'PROCESSING' : 'ONLINE'}</span>
@@ -210,7 +210,7 @@ export default function Jarvis() {
           <div className="flex flex-col items-center justify-center h-full text-center px-6">
             <div className="relative mb-8">
               <h2 className="text-2xl font-mono text-cyan-300/90 tracking-[0.2em] uppercase mb-2">Systems Online</h2>
-              <p className="text-cyan-500/40 text-sm font-mono max-w-md">All data connectors active. Ready to analyse your business, Karl.</p>
+              <p className="text-cyan-500/40 text-sm font-mono max-w-md">Business + personal data connected. Ask me anything, Karl.</p>
             </div>
             <div className="grid grid-cols-2 gap-2 max-w-lg w-full">
               {SUGGESTIONS.map((s, i) => (
