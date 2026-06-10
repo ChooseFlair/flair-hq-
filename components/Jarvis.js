@@ -2,11 +2,11 @@ import { useState, useRef, useEffect } from 'react'
 
 const SUGGESTIONS = [
   'How are sales doing this week?',
-  'Show me my top customers',
   "What's my ROAS looking like?",
-  'How are my Klaviyo flows performing?',
+  'What are my bank balances?',
+  'How much did I spend this month?',
   'Give me a full business overview',
-  'What should I focus on today?',
+  'Show me everything — life + business',
 ]
 
 function Markdown({ text }) {
@@ -52,7 +52,6 @@ function HudRings({ active }) {
             return <line key={j} x1={400 + r1 * Math.cos(angle)} y1={400 + r1 * Math.sin(angle)} x2={400 + r2 * Math.cos(angle)} y2={400 + r2 * Math.sin(angle)} stroke={j % 6 === 0 ? 'rgba(0,220,255,0.6)' : 'rgba(0,220,255,0.2)'} strokeWidth={j % 6 === 0 ? 1.5 : 0.5} />
           })}
         </g>
-
         <g className={active ? 'hud-spin-counter-fast' : 'hud-spin-counter'}>
           <circle cx="400" cy="400" r="280" fill="none" stroke="rgba(0,220,255,0.1)" strokeWidth="1" />
           <path d="M 400 120 A 280 280 0 0 1 680 400" fill="none" stroke="rgba(0,220,255,0.4)" strokeWidth="2" strokeDasharray="8 4" strokeLinecap="round" />
@@ -62,14 +61,12 @@ function HudRings({ active }) {
             return <circle key={j} cx={400 + 280 * Math.cos(angle)} cy={400 + 280 * Math.sin(angle)} r={j % 4 === 0 ? 2.5 : 1} fill={j % 4 === 0 ? 'rgba(0,220,255,0.6)' : 'rgba(0,220,255,0.2)'} />
           })}
         </g>
-
         <g className={active ? 'hud-spin-inner-fast' : 'hud-spin-inner'}>
           <circle cx="400" cy="400" r="200" fill="none" stroke="rgba(0,220,255,0.08)" strokeWidth="1" />
           <path d="M 600 400 A 200 200 0 0 1 400 600" fill="none" stroke="rgba(0,220,255,0.5)" strokeWidth="2.5" strokeLinecap="round" />
           <path d="M 200 400 A 200 200 0 0 1 400 200" fill="none" stroke="rgba(0,220,255,0.35)" strokeWidth="2" strokeLinecap="round" />
           <path d="M 400 200 A 200 200 0 0 1 600 400" fill="none" stroke="rgba(0,220,255,0.15)" strokeWidth="1" strokeDasharray="4 8" strokeLinecap="round" />
         </g>
-
         <g className={active ? 'hud-pulse-fast' : 'hud-pulse'}>
           <circle cx="400" cy="400" r="120" fill="none" stroke="rgba(0,220,255,0.2)" strokeWidth="1" />
           <circle cx="400" cy="400" r="115" fill="none" stroke="rgba(0,220,255,0.08)" strokeWidth="8" />
@@ -78,10 +75,8 @@ function HudRings({ active }) {
             return <line key={j} x1={400 + 112 * Math.cos(angle)} y1={400 + 112 * Math.sin(angle)} x2={400 + 120 * Math.cos(angle)} y2={400 + 120 * Math.sin(angle)} stroke="rgba(0,220,255,0.3)" strokeWidth="1" />
           })}
         </g>
-
         <circle cx="400" cy="400" r="60" fill="url(#centerGlow)" className={active ? 'hud-pulse-fast' : 'hud-pulse'} />
         <circle cx="400" cy="400" r="4" fill="rgba(0,220,255,0.8)" />
-
         <defs>
           <radialGradient id="centerGlow">
             <stop offset="0%" stopColor="rgba(0,220,255,0.08)" />
@@ -162,9 +157,7 @@ export default function Jarvis() {
       <div className="absolute inset-0 pointer-events-none z-50 overflow-hidden opacity-[0.03]">
         <div className="scanline w-full h-[2px] bg-cyan-400" />
       </div>
-
       <div className="absolute inset-0 pointer-events-none z-40" style={{ background: 'radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.6) 100%)' }} />
-
       <div className={`transition-all duration-1000 ${hasMessages ? 'opacity-20 scale-75' : 'opacity-100 scale-100'}`}>
         <HudRings active={loading} />
       </div>
@@ -185,7 +178,7 @@ export default function Jarvis() {
           <span className="hidden sm:block">SHOPIFY</span>
           <span className="hidden sm:block">KLAVIYO</span>
           <span className="hidden sm:block">META</span>
-          <span className="hidden sm:block">WINDSOR</span>
+          <span className="hidden sm:block">BANKING</span>
           <div className="flex items-center gap-1.5">
             <div className={`w-1.5 h-1.5 rounded-full ${loading ? 'bg-cyan-400 animate-pulse' : 'bg-emerald-500/60'}`} />
             <span className={loading ? 'text-cyan-400' : 'text-emerald-500/40'}>{loading ? 'PROCESSING' : 'ONLINE'}</span>
@@ -198,7 +191,7 @@ export default function Jarvis() {
           <div className="flex flex-col items-center justify-center h-full text-center px-6">
             <div className="relative mb-8">
               <h2 className="text-2xl font-mono text-cyan-300/90 tracking-[0.2em] uppercase mb-2">Systems Online</h2>
-              <p className="text-cyan-500/40 text-sm font-mono max-w-md">All data connectors active. Ready to analyse your business, Karl.</p>
+              <p className="text-cyan-500/40 text-sm font-mono max-w-md">Business + personal data connected. Ask me anything, Karl.</p>
             </div>
             <div className="grid grid-cols-2 gap-2 max-w-lg w-full">
               {SUGGESTIONS.map((s, i) => (
@@ -244,7 +237,6 @@ export default function Jarvis() {
                 </div>
               </div>
             ))}
-
             {loading && (
               <div className="flex justify-start">
                 <div className="bg-white/[0.02] border border-cyan-500/20 rounded-lg rounded-bl-none px-4 py-3">
