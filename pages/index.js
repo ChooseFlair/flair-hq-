@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import Head from 'next/head'
 import Jarvis from '../components/Jarvis'
-import CommandCenter from '../components/CommandCenter'
+import AgentOffice from '../components/AgentOffice'
 
 function MetricCard({ label, value, sub, color }) {
   return (
@@ -107,7 +107,7 @@ export default function Home() {
               <Dashboard />
               <div className="px-6 pb-6">
                 <div className="max-w-6xl mx-auto">
-                  <CommandCenter onAsk={handleAgentAsk} />
+                  <AgentOffice onAsk={handleAgentAsk} />
                 </div>
               </div>
             </div>
@@ -115,7 +115,7 @@ export default function Home() {
           {view === 'agents' && (
             <div className="px-6 py-6">
               <div className="max-w-6xl mx-auto">
-                <CommandCenter onAsk={handleAgentAsk} />
+                <AgentOffice onAsk={handleAgentAsk} />
               </div>
             </div>
           )}
