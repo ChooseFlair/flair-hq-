@@ -1,5 +1,8 @@
 import { supabase } from '../../lib/supabase'
 import { getAccounts, getBalance, getTransactions, refreshToken } from '../../lib/truelayer'
+import { getTransactions as getPayPalTxns, getBalance as getPayPalBalance } from '../../lib/paypal'
+import { getAccounts as getRevolutAccounts, getTransactions as getRevolutTxns } from '../../lib/revolut'
+import { getPageInfo, getPageInsights, getPagePosts, getInstagramAccount, getInstagramInsights } from '../../lib/facebook'
 
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY
 const KLAVIYO_KEY = 'pk_bce69162bc267f14cbb31eff287d6c10c8'
@@ -273,6 +276,89 @@ async function getPersonalSpendingBreakdown() {
   }
 }
 
+// ─── Business banking tools ────────────────────────────────────
+
+async function getPayPalData() {
+  try {
+    const [balance, txns] = await Promise.all([
+      getPayPalBalance(),
+      getPayPalTxns({ days: 30 }),
+    ])
+    return {
+      balance: balance?.balances?.[0] || null,
+      recent_transactions: (txns || []).slice(0, 15).map(t => ({
+        date: t.transaction_info?.transaction_initiation_date?.split('T')[0],
+        amount: t.transaction_info?.transaction_amount?.value,
+        currency: t.transaction_info?.transaction_amount?.currency_code,
+        type: t.transaction_info?.transaction_event_code,
+        name: t.payer_info?.payer_name?.alternate_full_name || t.transaction_info?.transaction_subject || 'N/A',
+      })),
+      transaction_count: (txns || []).length,
+    }
+  } catch (e) {
+    return { error: e.message }
+  }
+}
+
+async function getRevolutData() {
+  try {
+    const { data: tokenRow } = await supabase.from('revolut_tokens').select('*').single()
+    if (!tokenRow?.access_token) return { error: 'Revolut not connected' }
+    const accounts = await getRevolutAccounts(tokenRow.access_token)
+    return {
+      accounts: (accounts || []).map(a => ({
+        name: a.name,
+        balance: a.balance,
+        currency: a.currency,
+        state: a.state,
+      })),
+      total_gbp: (accounts || []).filter(a => a.currency === 'GBP').reduce((s, a) => s + (a.balance || 0), 0),
+    }
+  } catch (e) {
+    return { error: e.message }
+  }
+}
+
+// ─── Social media tools ────────────────────────────────────────
+
+async function getFacebookData() {
+  try {
+    const [pageInfo, insights, posts] = await Promise.all([
+      getPageInfo(),
+      getPageInsights('day', 'last_30d'),
+      getPagePosts(10),
+    ])
+    return {
+      page: { name: pageInfo?.name, followers: pageInfo?.followers_count, likes: pageInfo?.fan_count },
+      insights_30d: insights || {},
+      recent_posts: (posts?.data || []).slice(0, 5).map(p => ({
+        message: p.message?.substring(0, 80),
+        created: p.created_time?.split('T')[0],
+        likes: p.likes?.summary?.total_count || 0,
+        comments: p.comments?.summary?.total_count || 0,
+      })),
+    }
+  } catch (e) {
+    return { error: e.message }
+  }
+}
+
+async function getInstagramData() {
+  try {
+    const igAccount = await getInstagramAccount()
+    if (!igAccount?.id) return { error: 'Instagram not connected' }
+    const insights = await getInstagramInsights(igAccount.id)
+    return {
+      username: igAccount.username,
+      followers: igAccount.followers_count,
+      media_count: igAccount.media_count,
+      insights: insights || {},
+    }
+  } catch (e) {
+    return { error: e.message }
+  }
+}
+
 // ─── Tool definitions ──────────────────────────────────────────
 
 const TOOLS = [
@@ -286,6 +372,10 @@ const TOOLS = [
   { name: 'get_pnl_summary', description: '[BUSINESS] Get Flair P&L summary: total revenue, ad spend, ROAS', fn: getPnLSummary },
   { name: 'get_windsor_data', description: '[BUSINESS] Get ad spend from all sources via Windsor AI for last 30 days', fn: getWindsorData },
   { name: 'get_products', description: '[BUSINESS] Get Flair product catalog: titles, prices, inventory', fn: getProducts },
+  { name: 'get_paypal', description: '[BUSINESS] Get PayPal balance and recent transactions (last 30 days)', fn: getPayPalData },
+  { name: 'get_revolut', description: '[BUSINESS] Get Revolut business account balances', fn: getRevolutData },
+  { name: 'get_facebook', description: '[BUSINESS] Get Facebook page info, 30-day insights, and recent posts', fn: getFacebookData },
+  { name: 'get_instagram', description: '[BUSINESS] Get Instagram account stats, followers, and insights', fn: getInstagramData },
   // Personal
   { name: 'get_personal_bank_accounts', description: '[PERSONAL] Get all personal bank account balances (Nationwide, Halifax, etc)', fn: getPersonalBankAccounts },
   { name: 'get_personal_transactions', description: '[PERSONAL] Get personal bank transactions from the last 30 days across all accounts', fn: getPersonalTransactions },
@@ -301,7 +391,7 @@ const TOOL_DEFS = TOOLS.map(t => ({
 const SYSTEM_PROMPT = `You are Jarvis, Karl's all-in-one AI assistant — handling both his personal life and his business (Flair, a UK-based aromatherapy inhaler brand at chooseflair.com).
 
 You have two categories of tools:
-- [BUSINESS] tools: Shopify orders, Klaviyo email marketing, Meta Ads, Google Ads (Windsor), P&L data, products
+- [BUSINESS] tools: Shopify orders, Klaviyo email marketing, Meta Ads, Google Ads (Windsor), P&L data, products, PayPal (balance + transactions), Revolut (accounts), Facebook page (organic posts + insights), Instagram (followers + insights)
 - [PERSONAL] tools: Personal bank accounts (Nationwide, Halifax) — balances, transactions, spending breakdowns
 
 When Karl asks about money, spending, or finances, decide whether it's personal or business based on context. If unclear, check both. You can combine data — e.g. "how much money do I have total?" should pull both business (Revolut/PayPal) and personal bank balances.
