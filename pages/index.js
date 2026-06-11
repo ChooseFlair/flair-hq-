@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import Head from 'next/head'
 import Jarvis from '../components/Jarvis'
 import AgentOffice from '../components/AgentOffice'
+import Proposals from '../components/Proposals'
 
 function MetricCard({ label, value, sub, color }) {
   return (
@@ -92,6 +93,9 @@ export default function Home() {
             <button onClick={() => setView('jarvis')} className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${view === 'jarvis' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
               Jarvis
             </button>
+            <button onClick={() => setView('proposals')} className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${view === 'proposals' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+              Approvals
+            </button>
           </nav>
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-emerald-500" />
@@ -120,6 +124,13 @@ export default function Home() {
           {view === 'jarvis' && (
             <div className="h-full">
               <Jarvis ref={jarvisRef} />
+            </div>
+          )}
+          {view === 'proposals' && (
+            <div className="px-6 py-6">
+              <div className="max-w-4xl mx-auto">
+                <Proposals />
+              </div>
             </div>
           )}
         </div>
