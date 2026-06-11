@@ -1,267 +1,156 @@
 import { useState, useEffect, useRef } from 'react'
 
-// ─── Floor plan: two wings, rooms with walls ───────────────────
+// ─── Isometric helpers ─────────────────────────────────────────
+const T = 32 // tile size
+const toIso = (col, row) => ({
+  x: 400 + (col - row) * (T / 2),
+  y: 60 + (col + row) * (T / 4),
+})
+
+// ─── Room definitions on the grid ──────────────────────────────
 const ROOMS = [
-  {
-    id: 'finance', wing: 'business', name: 'Finance Office', color: '#16a34a', tint: '#f0fdf4',
-    x: 20, y: 50, w: 210, h: 220,
-    actions: [
-      { label: 'P&L summary', query: 'Show me the P&L summary' },
-      { label: 'EBITDA this month', query: 'What is my EBITDA this month?' },
-      { label: 'Ad spend breakdown', query: 'Break down my ad spend by month' },
-    ],
-  },
-  {
-    id: 'marketing', wing: 'business', name: 'Marketing Studio', color: '#8b5cf6', tint: '#f5f3ff',
-    x: 230, y: 50, w: 210, h: 220,
-    actions: [
-      { label: 'Ad performance', query: 'How are my Meta ads performing?' },
-      { label: 'Klaviyo flows', query: 'How are my Klaviyo email flows doing?' },
-      { label: 'ROAS check', query: 'What is my ROAS right now?' },
-    ],
-  },
-  {
-    id: 'growth', wing: 'business', name: 'Boardroom', color: '#0891b2', tint: '#ecfeff',
-    x: 440, y: 50, w: 200, h: 220,
-    actions: [
-      { label: 'Growth ideas', query: 'Give me 3 growth ideas based on my data' },
-      { label: 'What to focus on', query: 'What should I focus on this week to grow Flair?' },
-      { label: 'Top customers', query: 'Who are my top customers?' },
-    ],
-  },
-  {
-    id: 'sales', wing: 'business', name: 'Sales Office', color: '#3b82f6', tint: '#eff6ff',
-    x: 20, y: 270, w: 310, h: 230,
-    actions: [
-      { label: 'Sales overview', query: 'Give me a sales overview — orders, revenue, refunds' },
-      { label: 'Recent orders', query: 'Show me my most recent orders' },
-      { label: 'This week vs last', query: 'How are sales this week compared to last week?' },
-    ],
-  },
-  {
-    id: 'product', wing: 'business', name: 'Warehouse', color: '#dc2626', tint: '#fef2f2',
-    x: 330, y: 270, w: 310, h: 230,
-    actions: [
-      { label: 'Inventory levels', query: 'Show me my product inventory levels' },
-      { label: 'Best sellers', query: 'What are my best selling products?' },
-      { label: 'COGS check', query: 'What is my COGS looking like?' },
-    ],
-  },
-  {
-    id: 'homeoffice', wing: 'personal', name: 'Home Office', color: '#ea580c', tint: '#fff7ed',
-    x: 670, y: 50, w: 310, h: 220,
-    actions: [
-      { label: 'Bank balances', query: 'What are my personal bank balances?' },
-      { label: 'Recent transactions', query: 'Show me my recent personal transactions' },
-      { label: 'Money in vs out', query: 'How much money came in vs went out this month personally?' },
-    ],
-  },
-  {
-    id: 'living', wing: 'personal', name: 'Living Room', color: '#db2777', tint: '#fdf2f8',
-    x: 670, y: 270, w: 310, h: 230,
-    actions: [
-      { label: 'Spending breakdown', query: 'Break down my personal spending by category' },
-      { label: 'Biggest expenses', query: 'What were my biggest personal expenses this month?' },
-      { label: 'Life + business total', query: 'How much money do I have in total — business and personal?' },
-    ],
-  },
+  { id: 'finance', name: 'Finance', color: '#16a34a', col: 1, row: 1, w: 5, h: 4, wing: 'biz',
+    actions: [{ label: 'P&L', q: 'Show me the P&L summary' }, { label: 'EBITDA', q: 'What is my EBITDA this month?' }, { label: 'Margins', q: 'How are my margins?' }] },
+  { id: 'marketing', name: 'Marketing', color: '#8b5cf6', col: 6, row: 1, w: 5, h: 4, wing: 'biz',
+    actions: [{ label: 'Meta Ads', q: 'How are my Meta ads performing?' }, { label: 'Klaviyo', q: 'How are my Klaviyo flows?' }, { label: 'ROAS', q: 'What is my ROAS?' }] },
+  { id: 'sales', name: 'Sales', color: '#3b82f6', col: 1, row: 6, w: 5, h: 4, wing: 'biz',
+    actions: [{ label: 'Orders', q: 'Sales overview — orders, revenue, refunds' }, { label: 'Recent', q: 'Show recent orders' }, { label: 'This week', q: 'How are sales this week?' }] },
+  { id: 'warehouse', name: 'Warehouse', color: '#dc2626', col: 6, row: 6, w: 5, h: 4, wing: 'biz',
+    actions: [{ label: 'Stock', q: 'Show inventory levels' }, { label: 'Best sellers', q: 'What are my best sellers?' }, { label: 'COGS', q: 'What is my COGS?' }] },
+  { id: 'homeoffice', name: 'Home Office', color: '#ea580c', col: 14, row: 1, w: 5, h: 4, wing: 'personal',
+    actions: [{ label: 'Balances', q: 'What are my bank balances?' }, { label: 'Transactions', q: 'Show recent transactions' }, { label: 'In vs Out', q: 'Money in vs out this month?' }] },
+  { id: 'living', name: 'Living Room', color: '#db2777', col: 14, row: 6, w: 5, h: 4, wing: 'personal',
+    actions: [{ label: 'Spending', q: 'Break down personal spending' }, { label: 'Biggest', q: 'Biggest expenses this month?' }, { label: 'Total', q: 'Total money — business + personal?' }] },
 ]
 
 const AGENTS = [
-  { id: 'finance', name: 'Finance', color: '#16a34a', room: 'finance', spots: [{ x: 120, y: 170 }, { x: 80, y: 210 }, { x: 165, y: 200 }], actions: ['Calculating EBITDA...', 'Reconciling accounts...', 'Filing the numbers...', 'Margins look healthy'] },
-  { id: 'marketing', name: 'Marketing', color: '#8b5cf6', room: 'marketing', spots: [{ x: 330, y: 170 }, { x: 290, y: 210 }, { x: 380, y: 200 }], actions: ['Reviewing Meta ads...', 'Checking Klaviyo...', 'Pinning campaign ideas...', 'ROAS updated'] },
-  { id: 'growth', name: 'Growth', color: '#0891b2', room: 'growth', spots: [{ x: 540, y: 170 }, { x: 500, y: 210 }, { x: 585, y: 200 }], actions: ['Sketching strategy...', 'Analysing LTV...', 'Preparing the pitch...', 'New idea on the board'] },
-  { id: 'sales', name: 'Sales', color: '#3b82f6', room: 'sales', spots: [{ x: 170, y: 390 }, { x: 110, y: 430 }, { x: 240, y: 420 }], actions: ['Scanning new orders...', 'Checking AOV trend...', 'Reviewing refunds...', 'Orders flowing in'] },
-  { id: 'product', name: 'Products', color: '#dc2626', room: 'product', spots: [{ x: 480, y: 390 }, { x: 420, y: 430 }, { x: 560, y: 420 }], actions: ['Counting stock...', 'Checking best sellers...', 'Scanning barcodes...', 'Inventory healthy'] },
-  { id: 'personal', name: 'Personal', color: '#ea580c', room: 'homeoffice', spots: [{ x: 820, y: 170 }, { x: 880, y: 200 }, { x: 800, y: 400 }, { x: 870, y: 430 }], actions: ['Checking Nationwide...', 'Reviewing Halifax...', 'Categorising spending...', 'Relaxing on the sofa'] },
+  { id: 'fin', name: 'Finance', color: '#16a34a', room: 'finance', msgs: ['Calculating EBITDA...', 'Filing accounts...', 'Margins look good'] },
+  { id: 'mkt', name: 'Marketing', color: '#8b5cf6', room: 'marketing', msgs: ['Checking Meta ads...', 'Reviewing Klaviyo...', 'ROAS is 2.4x'] },
+  { id: 'sales', name: 'Sales', color: '#3b82f6', room: 'sales', msgs: ['New order came in!', 'Scanning refunds...', 'AOV trending up'] },
+  { id: 'prod', name: 'Products', color: '#dc2626', room: 'warehouse', msgs: ['Counting stock...', 'Best sellers updated', 'All items in stock'] },
+  { id: 'personal', name: 'Personal', color: '#ea580c', room: 'homeoffice', msgs: ['Checking Nationwide...', 'Reviewing Halifax...', 'Categorising spend'] },
+  { id: 'life', name: 'Life', color: '#db2777', room: 'living', msgs: ['Relaxing a bit...', 'Checking expenses...', 'Budget looks ok'] },
 ]
 
-function Bot({ agent, pos, working, bubble, onClick }) {
+// ─── Isometric tile ────────────────────────────────────────────
+function Tile({ col, row, fill, stroke }) {
+  const { x, y } = toIso(col, row)
+  const points = `${x},${y - T/4} ${x + T/2},${y} ${x},${y + T/4} ${x - T/2},${y}`
+  return <polygon points={points} fill={fill} stroke={stroke || 'rgba(0,0,0,0.06)'} strokeWidth="0.5" />
+}
+
+// ─── Iso box (for furniture) ───────────────────────────────────
+function IsoBox({ col, row, w, d, h, color, topColor }) {
+  const { x, y } = toIso(col, row)
+  const top = topColor || color
+  // top face
+  const topPts = `${x},${y - h - d * T/4} ${x + w * T/2},${y - h} ${x},${y - h + d * T/4} ${x - w * T/2},${y - h}`
+  // right face
+  const rightPts = `${x + w * T/2},${y - h} ${x + w * T/2},${y} ${x},${y + d * T/4} ${x},${y - h + d * T/4}`
+  // left face
+  const leftPts = `${x - w * T/2},${y - h} ${x - w * T/2},${y} ${x},${y + d * T/4} ${x},${y - h + d * T/4}`
   return (
-    <g transform={`translate(${pos.x}, ${pos.y})`} onClick={(e) => { e.stopPropagation(); onClick() }} style={{ cursor: 'pointer', transition: 'transform 2.5s cubic-bezier(0.45, 0, 0.25, 1)' }}>
-      <ellipse cx="0" cy="24" rx="13" ry="4" fill="rgba(0,0,0,0.12)" />
-      <g className={working ? 'bot-bob' : ''}>
-        <rect x="-10" y="-1" width="20" height="22" rx="7" fill={agent.color} />
-        <rect x="-10" y="-1" width="20" height="22" rx="7" fill="url(#botShine)" />
-        <circle cx="0" cy="-12" r="9" fill={agent.color} />
-        <circle cx="0" cy="-12" r="9" fill="url(#botShine)" />
-        <rect x="-5.5" y="-15.5" width="11" height="7" rx="3.5" fill="#1e1e2e" />
-        <circle cx="-2.2" cy="-12" r="1.4" fill="#fff" className="bot-blink" />
-        <circle cx="2.2" cy="-12" r="1.4" fill="#fff" className="bot-blink" />
-        <line x1="0" y1="-21" x2="0" y2="-24" stroke={agent.color} strokeWidth="1.5" />
-        <circle cx="0" cy="-26" r="2" fill={agent.color} className={working ? 'antenna-pulse' : ''} />
-        <rect x="-14" y="2" width="4" height="11" rx="2" fill={agent.color} className={working ? 'bot-arm-l' : ''} />
-        <rect x="10" y="2" width="4" height="11" rx="2" fill={agent.color} className={working ? 'bot-arm-r' : ''} />
+    <g>
+      <polygon points={leftPts} fill={color} opacity="0.85" />
+      <polygon points={rightPts} fill={color} opacity="0.65" />
+      <polygon points={topPts} fill={top} />
+    </g>
+  )
+}
+
+// ─── Pixel tree ────────────────────────────────────────────────
+function Tree({ col, row }) {
+  const { x, y } = toIso(col, row)
+  return (
+    <g>
+      <rect x={x - 3} y={y - 6} width="6" height="10" fill="#92400e" />
+      <circle cx={x} cy={y - 18} r="12" fill="#22c55e" />
+      <circle cx={x - 5} cy={y - 14} r="8" fill="#16a34a" />
+      <circle cx={x + 6} cy={y - 16} r="9" fill="#15803d" />
+    </g>
+  )
+}
+
+// ─── Pixel agent sprite ────────────────────────────────────────
+function AgentSprite({ agent, pos, active, bubble, onClick }) {
+  const { x, y } = pos
+  return (
+    <g transform={`translate(${x}, ${y})`} onClick={(e) => { e.stopPropagation(); onClick() }} style={{ cursor: 'pointer', transition: 'transform 2s ease-in-out' }}>
+      <ellipse cx="0" cy="2" rx="8" ry="3" fill="rgba(0,0,0,0.15)" />
+      <g className={active ? 'bot-bob' : ''}>
+        {/* legs */}
+        <rect x="-4" y="-4" width="3" height="6" rx="1" fill={agent.color} opacity="0.7" className={active ? 'leg-l' : ''} />
+        <rect x="1" y="-4" width="3" height="6" rx="1" fill={agent.color} opacity="0.7" className={active ? 'leg-r' : ''} />
+        {/* body */}
+        <rect x="-6" y="-16" width="12" height="14" rx="3" fill={agent.color} />
+        {/* highlight */}
+        <rect x="-4" y="-15" width="4" height="6" rx="1" fill="rgba(255,255,255,0.3)" />
+        {/* head */}
+        <rect x="-7" y="-26" width="14" height="12" rx="4" fill={agent.color} />
+        <rect x="-5" y="-24" width="3" height="3" rx="1" fill="rgba(255,255,255,0.25)" />
+        {/* eyes */}
+        <rect x="-4" y="-22" width="3" height="3" rx="1" fill="#1e1e2e" />
+        <rect x="1" y="-22" width="3" height="3" rx="1" fill="#1e1e2e" />
+        <rect x="-3" y="-21" width="1" height="1" fill="white" />
+        <rect x="2" y="-21" width="1" height="1" fill="white" />
+        {/* antenna */}
+        <rect x="-1" y="-30" width="2" height="5" fill={agent.color} />
+        <rect x="-2" y="-33" width="4" height="4" rx="2" fill={active ? '#fbbf24' : agent.color} className={active ? 'antenna-pulse' : ''} />
       </g>
       {bubble && (
-        <g transform="translate(0, -44)" className="bubble-in">
-          <rect x="-64" y="-11" width="128" height="20" rx="9" fill="white" stroke="#e5e7eb" strokeWidth="1" filter="url(#tagShadow)" />
-          <path d="M -4 9 L 0 14 L 4 9 Z" fill="white" />
-          <text x="0" y="3" textAnchor="middle" fill="#374151" fontSize="9" fontFamily="ui-sans-serif, system-ui">{bubble}</text>
+        <g className="bubble-in">
+          <rect x="-58" y="-54" width="116" height="20" rx="8" fill="white" stroke="#d1d5db" strokeWidth="1" />
+          <polygon points="-3,-34 0,-30 3,-34" fill="white" />
+          <text x="0" y="-41" textAnchor="middle" fill="#374151" fontSize="9" fontFamily="ui-sans-serif, system-ui">{bubble}</text>
         </g>
       )}
     </g>
   )
 }
 
-// ─── Furniture per room ────────────────────────────────────────
-function RoomFurniture({ room }) {
-  switch (room.id) {
-    case 'finance':
-      return (
-        <g transform={`translate(${room.x + 20}, ${room.y + 25})`}>
-          <rect x="0" y="0" width="46" height="62" rx="2" fill="#6b7280" />
-          {[0, 1, 2].map(i => <g key={i}><rect x="4" y={4 + i * 19} width="38" height="16" rx="2" fill="#9ca3af" /><circle cx="23" cy={12 + i * 19} r="2" fill="#d1d5db" /></g>)}
-          <rect x="120" y="30" width="66" height="8" rx="2" fill="#8b6f47" />
-          <rect x="124" y="38" width="4" height="18" fill="#7a6040" />
-          <rect x="178" y="38" width="4" height="18" fill="#7a6040" />
-          <rect x="132" y="8" width="32" height="22" rx="2" fill="#1e1e2e" />
-          <rect x="135" y="11" width="26" height="16" rx="1" fill="#d1fae5" className="screen-glow" />
-        </g>
-      )
-    case 'marketing':
-      return (
-        <g transform={`translate(${room.x + 25}, ${room.y + 20})`}>
-          <rect x="0" y="0" width="100" height="68" rx="2" fill="#d4a06a" stroke="#b8894e" strokeWidth="2" />
-          <rect x="3" y="3" width="94" height="62" fill="#e8c89a" />
-          {[[8, 8, '#f87171'], [42, 6, '#a78bfa'], [72, 10, '#fbbf24'], [12, 36, '#34d399'], [46, 33, '#60a5fa'], [74, 38, '#fb923c']].map(([x, y, c], i) => (
-            <rect key={i} x={x} y={y} width="22" height="16" rx="1" fill={c} opacity="0.85" transform={`rotate(${(i % 3 - 1) * 4}, ${x + 11}, ${y + 8})`} />
-          ))}
-          <rect x="130" y="40" width="50" height="7" rx="2" fill="#8b6f47" />
-          <rect x="134" y="47" width="3" height="14" fill="#7a6040" />
-          <rect x="173" y="47" width="3" height="14" fill="#7a6040" />
-        </g>
-      )
-    case 'growth':
-      return (
-        <g transform={`translate(${room.x + 20}, ${room.y + 20})`}>
-          {/* big table */}
-          <ellipse cx="85" cy="105" rx="62" ry="26" fill="#a3845c" />
-          <ellipse cx="85" cy="100" rx="62" ry="26" fill="#b8966a" />
-          {/* whiteboard */}
-          <rect x="35" y="0" width="100" height="62" rx="2" fill="white" stroke="#9ca3af" strokeWidth="2" />
-          <text x="44" y="16" fill="#1f2937" fontSize="8" fontWeight="700" fontFamily="ui-sans-serif">GROWTH ↗</text>
-          <polyline points="44,48 60,36 74,42 92,24 108,30 124,16" fill="none" stroke="#0891b2" strokeWidth="2" />
-          <circle cx="92" cy="24" r="3" fill="#dc2626" />
-        </g>
-      )
-    case 'sales':
-      return (
-        <g transform={`translate(${room.x + 30}, ${room.y + 30})`}>
-          <rect x="0" y="28" width="110" height="9" rx="2" fill="#8b6f47" />
-          <rect x="4" y="37" width="5" height="24" fill="#7a6040" />
-          <rect x="101" y="37" width="5" height="24" fill="#7a6040" />
-          <rect x="10" y="-2" width="40" height="27" rx="2" fill="#1e1e2e" />
-          <rect x="13" y="1" width="34" height="20" rx="1" fill="#dbeafe" className="screen-glow" />
-          <polyline points="17,16 23,10 29,13 35,6 41,9 45,4" fill="none" stroke="#3b82f6" strokeWidth="1.5" />
-          <rect x="60" y="-2" width="40" height="27" rx="2" fill="#1e1e2e" />
-          <rect x="63" y="1" width="34" height="20" rx="1" fill="#dbeafe" className="screen-glow" opacity="0.8" />
-          {/* chair */}
-          <rect x="42" y="48" width="26" height="18" rx="7" fill="#374151" />
-          {/* parcel boxes */}
-          <g transform="translate(170, 90)">
-            <rect x="0" y="0" width="30" height="24" rx="2" fill="#d4a06a" stroke="#b8894e" strokeWidth="1.5" />
-            <line x1="15" y1="0" x2="15" y2="24" stroke="#b8894e" strokeWidth="1.5" />
-            <rect x="36" y="6" width="24" height="18" rx="2" fill="#deb887" stroke="#b8894e" strokeWidth="1.5" />
-          </g>
-        </g>
-      )
-    case 'product':
-      return (
-        <g transform={`translate(${room.x + 30}, ${room.y + 25})`}>
-          {[0, 1].map(s => (
-            <g key={s} transform={`translate(${s * 130}, 0)`}>
-              <rect x="0" y="0" width="100" height="58" rx="2" fill="#8b6f47" stroke="#7a6040" strokeWidth="2" />
-              <line x1="0" y1="29" x2="100" y2="29" stroke="#7a6040" strokeWidth="2" />
-              {[0, 1, 2].map(i => <rect key={'t' + i} x={8 + i * 32} y="5" width="24" height="20" rx="2" fill={['#dbeafe', '#fce7f3', '#d1fae5'][i]} stroke={['#93c5fd', '#f9a8d4', '#6ee7b7'][i]} strokeWidth="1" />)}
-              {[0, 1, 2].map(i => <rect key={'b' + i} x={8 + i * 32} y="33" width="24" height="20" rx="2" fill={['#fef3c7', '#dbeafe', '#fce7f3'][i]} stroke={['#fcd34d', '#93c5fd', '#f9a8d4'][i]} strokeWidth="1" />)}
-            </g>
-          ))}
-          {/* trolley */}
-          <g transform="translate(95, 110)">
-            <rect x="0" y="0" width="40" height="22" rx="2" fill="none" stroke="#6b7280" strokeWidth="2.5" />
-            <circle cx="8" cy="28" r="5" fill="#4b5563" />
-            <circle cx="32" cy="28" r="5" fill="#4b5563" />
-            <rect x="6" y="-12" width="18" height="14" rx="1" fill="#d4a06a" stroke="#b8894e" strokeWidth="1.5" />
-          </g>
-        </g>
-      )
-    case 'homeoffice':
-      return (
-        <g transform={`translate(${room.x + 30}, ${room.y + 30})`}>
-          <rect x="0" y="26" width="90" height="8" rx="2" fill="#8b6f47" />
-          <rect x="4" y="34" width="4" height="20" fill="#7a6040" />
-          <rect x="82" y="34" width="4" height="20" fill="#7a6040" />
-          <rect x="22" y="-2" width="44" height="26" rx="2" fill="#1e1e2e" />
-          <rect x="25" y="1" width="38" height="19" rx="1" fill="#ffedd5" className="screen-glow" />
-          <text x="44" y="14" textAnchor="middle" fill="#ea580c" fontSize="8" fontWeight="700" fontFamily="ui-sans-serif">£ BANKS</text>
-          {/* bookshelf */}
-          <g transform="translate(150, -10)">
-            <rect x="0" y="0" width="60" height="70" rx="2" fill="#8b6f47" stroke="#7a6040" strokeWidth="2" />
-            <line x1="0" y1="23" x2="60" y2="23" stroke="#7a6040" strokeWidth="2" />
-            <line x1="0" y1="46" x2="60" y2="46" stroke="#7a6040" strokeWidth="2" />
-            {[[5, 4, '#ef4444'], [13, 4, '#3b82f6'], [21, 4, '#22c55e'], [31, 4, '#f59e0b'], [5, 27, '#8b5cf6'], [14, 27, '#06b6d4'], [24, 27, '#ec4899'], [5, 50, '#64748b'], [15, 50, '#f97316']].map(([x, y, c], i) => (
-              <rect key={i} x={x} y={y} width="7" height="17" rx="1" fill={c} opacity="0.7" />
-            ))}
-          </g>
-        </g>
-      )
-    case 'living':
-      return (
-        <g transform={`translate(${room.x + 25}, ${room.y + 35})`}>
-          {/* sofa */}
-          <rect x="0" y="10" width="110" height="30" rx="9" fill="#db2777" opacity="0.25" />
-          <rect x="0" y="0" width="110" height="22" rx="9" fill="#db2777" opacity="0.35" />
-          <rect x="-8" y="5" width="13" height="35" rx="6" fill="#db2777" opacity="0.3" />
-          <rect x="105" y="5" width="13" height="35" rx="6" fill="#db2777" opacity="0.3" />
-          {/* TV on wall */}
-          <rect x="150" y="-18" width="80" height="46" rx="3" fill="#1e1e2e" stroke="#374151" strokeWidth="2" />
-          <rect x="155" y="-13" width="70" height="36" rx="1" fill="#312e81" opacity="0.7" className="screen-glow" />
-          <polyline points="162,12 172,2 182,8 194,-6 206,0 218,-8" fill="none" stroke="#a5b4fc" strokeWidth="1.5" />
-          {/* coffee table */}
-          <rect x="25" y="58" width="60" height="8" rx="3" fill="#a3845c" />
-          <rect x="32" y="66" width="4" height="10" fill="#8b7355" />
-          <rect x="74" y="66" width="4" height="10" fill="#8b7355" />
-          <rect x="48" y="51" width="9" height="9" rx="3" fill="white" stroke="#d1d5db" strokeWidth="1" />
-          {/* plant */}
-          <g transform="translate(245, 60)">
-            <rect x="-8" y="18" width="16" height="18" rx="3" fill="#92400e" opacity="0.6" />
-            <path d="M 0 18 C -12 6 -6 -6 0 -12 C 6 -6 12 6 0 18" fill="#22c55e" opacity="0.7" />
-          </g>
-        </g>
-      )
-    default: return null
-  }
-}
-
+// ─── Main component ────────────────────────────────────────────
 export default function AgentOffice({ onAsk }) {
-  const [positions, setPositions] = useState(() => Object.fromEntries(AGENTS.map(a => [a.id, a.spots[0]])))
+  const [agentPos, setAgentPos] = useState({})
   const [bubbles, setBubbles] = useState({})
-  const [working, setWorking] = useState({})
+  const [actives, setActives] = useState({})
   const [logs, setLogs] = useState([])
   const [selectedRoom, setSelectedRoom] = useState(null)
-  const [hoveredRoom, setHoveredRoom] = useState(null)
   const logRef = useRef(null)
 
+  // Place agents in their rooms initially
   useEffect(() => {
+    const initial = {}
+    AGENTS.forEach(a => {
+      const room = ROOMS.find(r => r.id === a.room)
+      if (room) {
+        const { x, y } = toIso(room.col + 2, room.row + 2)
+        initial[a.id] = { x, y }
+      }
+    })
+    setAgentPos(initial)
+
     const timers = []
     AGENTS.forEach((agent, i) => {
       const act = () => {
-        const action = agent.actions[Math.floor(Math.random() * agent.actions.length)]
-        const spot = agent.spots[Math.floor(Math.random() * agent.spots.length)]
-        setPositions(prev => ({ ...prev, [agent.id]: spot }))
-        setWorking(prev => ({ ...prev, [agent.id]: true }))
+        const room = ROOMS.find(r => r.id === agent.room)
+        if (!room) return
+        const rc = room.col + 1 + Math.floor(Math.random() * (room.w - 2))
+        const rr = room.row + 1 + Math.floor(Math.random() * (room.h - 2))
+        const { x, y } = toIso(rc, rr)
+        setAgentPos(prev => ({ ...prev, [agent.id]: { x, y } }))
+        setActives(prev => ({ ...prev, [agent.id]: true }))
+        const msg = agent.msgs[Math.floor(Math.random() * agent.msgs.length)]
         timers.push(setTimeout(() => {
-          setBubbles(prev => ({ ...prev, [agent.id]: action }))
+          setBubbles(prev => ({ ...prev, [agent.id]: msg }))
           const time = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-          setLogs(prev => [...prev.slice(-14), { agent: agent.id, msg: action, time }])
-        }, 2500))
+          setLogs(prev => [...prev.slice(-20), { id: agent.id, name: agent.name, color: agent.color, msg, time, status: 'done' }])
+        }, 2000))
         timers.push(setTimeout(() => {
           setBubbles(prev => ({ ...prev, [agent.id]: null }))
-          setWorking(prev => ({ ...prev, [agent.id]: false }))
-        }, 6500))
+          setActives(prev => ({ ...prev, [agent.id]: false }))
+        }, 5500))
       }
-      timers.push(setTimeout(() => { act(); const interval = setInterval(act, 9000 + i * 1500); timers.push(interval) }, i * 1800))
+      timers.push(setTimeout(() => { act(); timers.push(setInterval(act, 8000 + i * 1200)) }, i * 1500))
     })
     return () => timers.forEach(t => { clearTimeout(t); clearInterval(t) })
   }, [])
@@ -273,142 +162,195 @@ export default function AgentOffice({ onAsk }) {
   return (
     <div>
       <style jsx global>{`
-        @keyframes botBob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
-        .bot-bob { animation: botBob 0.8s ease-in-out infinite; }
+        @keyframes botBob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
+        .bot-bob { animation: botBob 0.6s ease-in-out infinite; }
+        @keyframes legL { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
+        @keyframes legR { 0%, 100% { transform: translateY(-2px); } 50% { transform: translateY(0); } }
+        .leg-l { animation: legL 0.3s ease-in-out infinite; }
+        .leg-r { animation: legR 0.3s ease-in-out infinite; }
         @keyframes antennaPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
-        .antenna-pulse { animation: antennaPulse 0.6s ease-in-out infinite; }
-        @keyframes botBlink { 0%, 90%, 100% { opacity: 1; } 95% { opacity: 0.1; } }
-        .bot-blink { animation: botBlink 3.5s infinite; }
-        @keyframes armL { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(-14deg); } }
-        @keyframes armR { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(14deg); } }
-        .bot-arm-l { transform-origin: -12px 4px; animation: armL 0.7s ease-in-out infinite; }
-        .bot-arm-r { transform-origin: 12px 4px; animation: armR 0.7s ease-in-out infinite; }
-        @keyframes bubbleIn { from { opacity: 0; transform: translate(0, -36px) scale(0.85); } to { opacity: 1; transform: translate(0, -44px) scale(1); } }
-        .bubble-in { animation: bubbleIn 0.25s ease-out forwards; }
-        @keyframes screenGlow { 0%, 100% { opacity: 0.7; } 50% { opacity: 0.95; } }
-        .screen-glow { animation: screenGlow 2s ease-in-out infinite; }
+        .antenna-pulse { animation: antennaPulse 0.5s ease-in-out infinite; }
+        @keyframes bubbleIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+        .bubble-in { animation: bubbleIn 0.2s ease-out; }
       `}</style>
 
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="text-lg font-semibold text-gray-800">Flair HQ — Floor Plan</h2>
-        <span className="text-xs text-gray-400">Click a room or agent to interact</span>
-      </div>
-
-      <div className="rounded-2xl border border-gray-200 overflow-hidden shadow-sm mb-4 bg-[#efe9e1]">
-        <svg viewBox="0 0 1000 560" className="w-full" style={{ display: 'block' }}>
-          <defs>
-            <linearGradient id="botShine" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stopColor="rgba(255,255,255,0.4)" /><stop offset="60%" stopColor="rgba(255,255,255,0)" />
-            </linearGradient>
-            <filter id="tagShadow"><feDropShadow dx="0" dy="1" stdDeviation="2" floodOpacity="0.08" /></filter>
-          </defs>
-
-          {/* Wing labels */}
-          <text x="330" y="32" textAnchor="middle" fill="#6b7280" fontSize="14" fontWeight="700" fontFamily="ui-sans-serif, system-ui" letterSpacing="2">BUSINESS WING</text>
-          <text x="825" y="32" textAnchor="middle" fill="#9d6b53" fontSize="14" fontWeight="700" fontFamily="ui-sans-serif, system-ui" letterSpacing="2">PERSONAL WING</text>
-
-          {/* Corridor between wings */}
-          <rect x="640" y="50" width="30" height="450" fill="#ddd5c8" />
-          <line x1="640" y1="50" x2="640" y2="500" stroke="#a89a85" strokeWidth="3" />
-          <line x1="670" y1="50" x2="670" y2="500" stroke="#a89a85" strokeWidth="3" />
-          {/* doors in corridor */}
-          <rect x="640" y="140" width="30" height="44" fill="#efe9e1" />
-          <rect x="640" y="370" width="30" height="44" fill="#efe9e1" />
-
-          {/* Rooms */}
-          {ROOMS.map(room => {
-            const isSelected = selectedRoom === room.id
-            const isHovered = hoveredRoom === room.id
-            return (
-              <g
-                key={room.id}
-                onClick={() => setSelectedRoom(isSelected ? null : room.id)}
-                onMouseEnter={() => setHoveredRoom(room.id)}
-                onMouseLeave={() => setHoveredRoom(null)}
-                style={{ cursor: 'pointer' }}
-              >
-                {/* floor */}
-                <rect x={room.x} y={room.y} width={room.w} height={room.h} fill={isSelected || isHovered ? room.tint : '#faf7f2'} style={{ transition: 'fill 0.2s' }} />
-                {/* walls */}
-                <rect x={room.x} y={room.y} width={room.w} height={room.h} fill="none" stroke={isSelected ? room.color : '#a89a85'} strokeWidth={isSelected ? 4 : 3} style={{ transition: 'stroke 0.2s' }} />
-                {/* room label */}
-                <g transform={`translate(${room.x + 10}, ${room.y + 20})`}>
-                  <circle cx="5" cy="-4" r="4" fill={room.color} />
-                  <text x="15" y="0" fill="#4b5563" fontSize="12" fontWeight="600" fontFamily="ui-sans-serif, system-ui">{room.name}</text>
-                </g>
-                <RoomFurniture room={room} />
-              </g>
-            )
-          })}
-
-          {/* front door */}
-          <rect x="300" y="496" width="60" height="8" fill="#8b6f47" />
-          <text x="330" y="525" textAnchor="middle" fill="#9ca3af" fontSize="10" fontFamily="ui-sans-serif, system-ui">Entrance</text>
-
-          {/* Agents */}
-          {AGENTS.map(agent => {
-            const room = ROOMS.find(r => r.id === agent.room)
-            return (
-              <Bot
-                key={agent.id}
-                agent={agent}
-                pos={positions[agent.id]}
-                working={!!working[agent.id]}
-                bubble={bubbles[agent.id]}
-                onClick={() => onAsk(room?.actions[0]?.query || `Tell me about ${agent.name}`)}
-              />
-            )
-          })}
-        </svg>
-      </div>
-
-      {/* Room action panel */}
-      {selected && (
-        <div className="rounded-xl border-2 bg-white overflow-hidden shadow-sm mb-4" style={{ borderColor: selected.color + '40' }}>
-          <div className="px-4 py-3 flex items-center justify-between" style={{ backgroundColor: selected.tint }}>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: selected.color }} />
-              <span className="text-sm font-semibold text-gray-800">{selected.name}</span>
-              <span className="text-xs text-gray-400 ml-1">{selected.wing === 'personal' ? 'Personal' : 'Business'}</span>
+      <div className="flex gap-4">
+        {/* Left: isometric office */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-lg font-semibold text-gray-800">Flair HQ</h2>
+            <div className="flex items-center gap-1.5">
+              {AGENTS.map(a => (
+                <div key={a.id} className={`w-2.5 h-2.5 rounded-full transition-all ${actives[a.id] ? 'scale-125' : ''}`}
+                  style={{ backgroundColor: a.color, boxShadow: actives[a.id] ? `0 0 6px ${a.color}` : 'none' }} />
+              ))}
             </div>
-            <button onClick={() => setSelectedRoom(null)} className="text-gray-400 hover:text-gray-600 text-lg leading-none">×</button>
           </div>
-          <div className="px-4 py-3 flex flex-wrap gap-2">
-            {selected.actions.map((a, i) => (
-              <button
-                key={i}
-                onClick={() => onAsk(a.query)}
-                className="px-4 py-2 rounded-lg text-sm font-medium border transition-all hover:shadow-sm"
-                style={{ borderColor: selected.color + '50', color: selected.color, backgroundColor: selected.tint }}
-              >
-                {a.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
 
-      {/* Activity log */}
-      <div className="rounded-xl border border-gray-200 bg-white overflow-hidden shadow-sm">
-        <div className="px-4 py-2 border-b border-gray-100 flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-          <span className="text-xs text-gray-500 font-medium">Office Activity</span>
-        </div>
-        <div ref={logRef} className="px-4 py-2 h-24 overflow-y-auto">
-          {logs.length === 0 ? (
-            <p className="text-sm text-gray-400">Agents arriving...</p>
-          ) : (
-            logs.map((log, i) => {
-              const agent = AGENTS.find(a => a.id === log.agent)
-              return (
-                <div key={i} className="flex items-center gap-3 py-0.5 text-sm">
-                  <span className="text-gray-400 text-xs font-mono flex-shrink-0">{log.time}</span>
-                  <span className="font-semibold flex-shrink-0 text-xs" style={{ color: agent?.color }}>{agent?.name}</span>
-                  <span className="text-gray-500 truncate text-xs">{log.msg}</span>
+          <div className="rounded-2xl border border-gray-200 overflow-hidden shadow-sm bg-[#7ec850] mb-3">
+            <svg viewBox="0 0 800 420" className="w-full" style={{ display: 'block' }}>
+              {/* Grass base */}
+              <rect width="800" height="420" fill="#7ec850" />
+              <rect width="800" height="420" fill="url(#grassPattern)" opacity="0.3" />
+              <defs>
+                <pattern id="grassPattern" width="8" height="8" patternUnits="userSpaceOnUse">
+                  <rect width="8" height="8" fill="#6db840" />
+                  <rect x="2" y="2" width="2" height="2" fill="#7ec850" />
+                  <rect x="6" y="5" width="1" height="1" fill="#5da832" />
+                </pattern>
+              </defs>
+
+              {/* Path / walkway */}
+              <rect x="370" y="0" width="60" height="420" fill="#d4b896" opacity="0.7" rx="4" />
+
+              {/* Room floors */}
+              {ROOMS.map(room => {
+                const tiles = []
+                for (let c = room.col; c < room.col + room.w; c++) {
+                  for (let r = room.row; r < room.row + room.h; r++) {
+                    const isAlt = (c + r) % 2 === 0
+                    tiles.push(
+                      <Tile key={`${c}-${r}`} col={c} row={r}
+                        fill={room.wing === 'personal'
+                          ? (isAlt ? '#f5e6d3' : '#eddcc8')
+                          : (isAlt ? '#e8e0d5' : '#ded5c8')
+                        }
+                      />
+                    )
+                  }
+                }
+
+                const tl = toIso(room.col, room.row)
+                const tr = toIso(room.col + room.w, room.row)
+                const br = toIso(room.col + room.w, room.row + room.h)
+                const bl = toIso(room.col, room.row + room.h)
+                const isSelected = selectedRoom === room.id
+
+                return (
+                  <g key={room.id} onClick={() => setSelectedRoom(selectedRoom === room.id ? null : room.id)} style={{ cursor: 'pointer' }}>
+                    {tiles}
+                    {/* walls */}
+                    <polygon points={`${tl.x},${tl.y} ${tr.x},${tr.y} ${tr.x},${tr.y - 20} ${tl.x},${tl.y - 20}`} fill={room.wing === 'personal' ? '#fde68a' : '#e2d8cc'} stroke="#b8a48c" strokeWidth="1" opacity="0.9" />
+                    <polygon points={`${tl.x},${tl.y} ${bl.x},${bl.y} ${bl.x},${bl.y - 20} ${tl.x},${tl.y - 20}`} fill={room.wing === 'personal' ? '#fcd34d' : '#d4c8b6'} stroke="#b8a48c" strokeWidth="1" opacity="0.7" />
+                    {/* room border highlight */}
+                    <polygon points={`${tl.x},${tl.y} ${tr.x},${tr.y} ${br.x},${br.y} ${bl.x},${bl.y}`} fill="none" stroke={isSelected ? room.color : 'rgba(0,0,0,0.1)'} strokeWidth={isSelected ? 3 : 1} />
+                    {/* label */}
+                    <g transform={`translate(${(tl.x + br.x) / 2}, ${tl.y - 28})`}>
+                      <rect x="-36" y="-9" width="72" height="16" rx="7" fill="white" stroke={room.color} strokeWidth="1.5" opacity="0.95" />
+                      <text x="0" y="3" textAnchor="middle" fill={room.color} fontSize="9" fontWeight="700" fontFamily="ui-sans-serif, system-ui">{room.name}</text>
+                    </g>
+                  </g>
+                )
+              })}
+
+              {/* Furniture: simple iso boxes */}
+              {/* Finance: desk + cabinet */}
+              <IsoBox col={2} row={2} w={1.5} d={0.8} h={10} color="#6b7280" topColor="#9ca3af" />
+              <IsoBox col={4} row={2.5} w={2} d={1} h={6} color="#8b6f47" topColor="#a3845c" />
+
+              {/* Marketing: pinboard (flat on wall) + desk */}
+              <IsoBox col={7.5} row={2} w={2.5} d={0.3} h={14} color="#d4a06a" topColor="#e8c89a" />
+              <IsoBox col={8} row={3.5} w={1.5} d={0.8} h={6} color="#8b6f47" topColor="#a3845c" />
+
+              {/* Sales: desks */}
+              <IsoBox col={2.5} row={7.5} w={2} d={1} h={6} color="#8b6f47" topColor="#a3845c" />
+              <IsoBox col={2.5} row={7.5} w={0.8} d={0.5} h={12} color="#1e1e2e" topColor="#3b82f6" />
+
+              {/* Warehouse: shelves */}
+              <IsoBox col={7} row={7} w={1} d={2} h={14} color="#8b6f47" topColor="#a3845c" />
+              <IsoBox col={9} row={7} w={1} d={2} h={14} color="#8b6f47" topColor="#a3845c" />
+
+              {/* Home office: desk */}
+              <IsoBox col={15.5} row={2.5} w={2} d={1} h={6} color="#8b6f47" topColor="#a3845c" />
+              <IsoBox col={15.5} row={2.5} w={0.8} d={0.5} h={12} color="#1e1e2e" topColor="#ea580c" />
+
+              {/* Living room: sofa */}
+              <IsoBox col={15} row={7.5} w={2.5} d={1.2} h={6} color="#db2777" topColor="#f472b6" />
+              <IsoBox col={16} row={9} w={1.5} d={0.8} h={4} color="#92400e" topColor="#a3845c" />
+
+              {/* Trees around the office */}
+              <Tree col={0} row={0} />
+              <Tree col={12} row={0} />
+              <Tree col={0} row={11} />
+              <Tree col={12} row={11} />
+              <Tree col={20} row={0} />
+              <Tree col={20} row={11} />
+              <Tree col={-1} row={5} />
+              <Tree col={21} row={5} />
+
+              {/* Wing labels on ground */}
+              <text x="260" y="38" textAnchor="middle" fill="#2d5016" fontSize="11" fontWeight="800" fontFamily="ui-sans-serif" opacity="0.6">BUSINESS</text>
+              <text x="560" y="38" textAnchor="middle" fill="#92400e" fontSize="11" fontWeight="800" fontFamily="ui-sans-serif" opacity="0.6">PERSONAL</text>
+
+              {/* Agents */}
+              {AGENTS.map(agent => agentPos[agent.id] && (
+                <AgentSprite
+                  key={agent.id}
+                  agent={agent}
+                  pos={agentPos[agent.id]}
+                  active={!!actives[agent.id]}
+                  bubble={bubbles[agent.id]}
+                  onClick={() => {
+                    const room = ROOMS.find(r => r.id === agent.room)
+                    if (room) onAsk(room.actions[0].q)
+                  }}
+                />
+              ))}
+            </svg>
+          </div>
+
+          {/* Room actions */}
+          {selected && (
+            <div className="rounded-xl border-2 bg-white overflow-hidden shadow-sm mb-3" style={{ borderColor: selected.color + '40' }}>
+              <div className="px-4 py-2.5 flex items-center justify-between" style={{ backgroundColor: selected.color + '10' }}>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: selected.color }} />
+                  <span className="text-sm font-semibold text-gray-800">{selected.name}</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-400">{selected.wing === 'personal' ? 'Personal' : 'Business'}</span>
                 </div>
-              )
-            })
+                <button onClick={(e) => { e.stopPropagation(); setSelectedRoom(null) }} className="text-gray-400 hover:text-gray-600">×</button>
+              </div>
+              <div className="px-4 py-2.5 flex flex-wrap gap-2">
+                {selected.actions.map((a, i) => (
+                  <button key={i} onClick={() => onAsk(a.q)}
+                    className="px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all hover:shadow-sm"
+                    style={{ borderColor: selected.color + '40', color: selected.color }}>
+                    {a.label}
+                  </button>
+                ))}
+              </div>
+            </div>
           )}
+        </div>
+
+        {/* Right: Activity feed */}
+        <div className="w-72 flex-shrink-0">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <h3 className="text-sm font-semibold text-gray-700">Activity Feed</h3>
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 font-medium">Live</span>
+          </div>
+          <div ref={logRef} className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-y-auto" style={{ height: 'calc(100% - 36px)' }}>
+            {logs.length === 0 ? (
+              <p className="text-sm text-gray-400 p-4">Agents clocking in...</p>
+            ) : (
+              <div className="divide-y divide-gray-50">
+                {[...logs].reverse().map((log, i) => (
+                  <div key={i} className="px-3.5 py-2.5 hover:bg-gray-50 transition-colors">
+                    <div className="flex items-center justify-between mb-0.5">
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: log.color }} />
+                        <span className="text-xs font-semibold" style={{ color: log.color }}>@{log.name.toLowerCase()}</span>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 font-medium">done</span>
+                      </div>
+                      <span className="text-[10px] text-gray-400">{log.time}</span>
+                    </div>
+                    <p className="text-xs text-gray-600 pl-3.5">{log.msg}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
