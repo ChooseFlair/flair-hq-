@@ -1,51 +1,236 @@
 import { useState, useEffect, useRef } from 'react'
 
+// ─── Floor plan: two wings, rooms with walls ───────────────
+const ROOMS = [
+  {
+    id: 'finance', wing: 'business', name: 'Finance Office', color: '#16a34a', tint: '#f0fdf4',
+    x: 20, y: 50, w: 210, h: 220,
+    actions: [
+      { label: 'P&L summary', query: 'Show me the P&L summary' },
+      { label: 'EBITDA this month', query: 'What is my EBITDA this month?' },
+      { label: 'Ad spend breakdown', query: 'Break down my ad spend by month' },
+    ],
+  },
+  {
+    id: 'marketing', wing: 'business', name: 'Marketing Studio', color: '#8b5cf6', tint: '#f5f3ff',
+    x: 230, y: 50, w: 210, h: 220,
+    actions: [
+      { label: 'Ad performance', query: 'How are my Meta ads performing?' },
+      { label: 'Klaviyo flows', query: 'How are my Klaviyo email flows doing?' },
+      { label: 'ROAS check', query: 'What is my ROAS right now?' },
+    ],
+  },
+  {
+    id: 'growth', wing: 'business', name: 'Boardroom', color: '#0891b2', tint: '#ecfeff',
+    x: 440, y: 50, w: 200, h: 220,
+    actions: [
+      { label: 'Growth ideas', query: 'Give me 3 growth ideas based on my data' },
+      { label: 'What to focus on', query: 'What should I focus on this week to grow Flair?' },
+      { label: 'Top customers', query: 'Who are my top customers?' },
+    ],
+  },
+  {
+    id: 'sales', wing: 'business', name: 'Sales Office', color: '#3b82f6', tint: '#eff6ff',
+    x: 20, y: 270, w: 310, h: 230,
+    actions: [
+      { label: 'Sales overview', query: 'Give me a sales overview — orders, revenue, refunds' },
+      { label: 'Recent orders', query: 'Show me my most recent orders' },
+      { label: 'This week vs last', query: 'How are sales this week compared to last week?' },
+    ],
+  },
+  {
+    id: 'product', wing: 'business', name: 'Warehouse', color: '#dc2626', tint: '#fef2f2',
+    x: 330, y: 270, w: 310, h: 230,
+    actions: [
+      { label: 'Inventory levels', query: 'Show me my product inventory levels' },
+      { label: 'Best sellers', query: 'What are my best selling products?' },
+      { label: 'COGS check', query: 'What is my COGS looking like?' },
+    ],
+  },
+  {
+    id: 'homeoffice', wing: 'personal', name: 'Home Office', color: '#ea580c', tint: '#fff7ed',
+    x: 670, y: 50, w: 310, h: 220,
+    actions: [
+      { label: 'Bank balances', query: 'What are my personal bank balances?' },
+      { label: 'Recent transactions', query: 'Show me my recent personal transactions' },
+      { label: 'Money in vs out', query: 'How much money came in vs went out this month personally?' },
+    ],
+  },
+  {
+    id: 'living', wing: 'personal', name: 'Living Room', color: '#db2777', tint: '#fdf2f8',
+    x: 670, y: 270, w: 310, h: 230,
+    actions: [
+      { label: 'Spending breakdown', query: 'Break down my personal spending by category' },
+      { label: 'Biggest expenses', query: 'What were my biggest personal expenses this month?' },
+      { label: 'Life + business total', query: 'How much money do I have in total — business and personal?' },
+    ],
+  },
+]
+
 const AGENTS = [
-  { id: 'sales', name: 'Sales', color: '#3b82f6', home: { x: 260, y: 330 }, spots: [{ x: 260, y: 330 }, { x: 300, y: 360 }, { x: 230, y: 370 }], query: 'Give me a sales overview — orders, revenue, refunds', actions: ['Scanning new orders...', 'Checking AOV trend...', 'Reviewing refunds...', 'Order velocity: normal'] },
-  { id: 'marketing', name: 'Marketing', color: '#8b5cf6', home: { x: 620, y: 200 }, spots: [{ x: 620, y: 200 }, { x: 680, y: 230 }, { x: 570, y: 230 }], query: 'How are my ads and email marketing performing?', actions: ['Pinning ROAS report...', 'Reviewing Meta ads...', 'Checking Klaviyo flows...', 'Updating campaign board'] },
-  { id: 'finance', name: 'Finance', color: '#16a34a', home: { x: 130, y: 200 }, spots: [{ x: 130, y: 200 }, { x: 180, y: 230 }, { x: 110, y: 250 }], query: 'Show me P&L summary and financial health', actions: ['Auditing the vault...', 'Calculating EBITDA...', 'Reconciling accounts...', 'Margins look healthy'] },
-  { id: 'personal', name: 'Personal', color: '#ea580c', home: { x: 800, y: 350 }, spots: [{ x: 800, y: 350 }, { x: 760, y: 380 }, { x: 840, y: 380 }], query: 'What are my personal bank balances and recent spending?', actions: ['Watching Nationwide...', 'Checking Halifax...', 'Categorising spending...', 'Awaiting bank link'] },
-  { id: 'product', name: 'Products', color: '#dc2626', home: { x: 450, y: 400 }, spots: [{ x: 450, y: 400 }, { x: 500, y: 430 }, { x: 410, y: 440 }], query: 'Show me product inventory and best sellers', actions: ['Counting stock...', 'Checking best sellers...', 'Updating COGS...', 'Inventory: healthy'] },
-  { id: 'growth', name: 'Growth', color: '#0891b2', home: { x: 870, y: 180 }, spots: [{ x: 870, y: 180 }, { x: 820, y: 210 }, { x: 900, y: 220 }], query: 'What should I focus on to grow the business?', actions: ['Sketching strategy...', 'Analysing LTV...', 'Spotting opportunities...', 'New idea pinned'] },
+  { id: 'finance', name: 'Finance', color: '#16a34a', room: 'finance', spots: [{ x: 120, y: 170 }, { x: 80, y: 210 }, { x: 165, y: 200 }], actions: ['Calculating EBITDA...', 'Reconciling accounts...', 'Filing the numbers...', 'Margins look healthy'] },
+  { id: 'marketing', name: 'Marketing', color: '#8b5cf6', room: 'marketing', spots: [{ x: 330, y: 170 }, { x: 290, y: 210 }, { x: 380, y: 200 }], actions: ['Reviewing Meta ads...', 'Checking Klaviyo...', 'Pinning campaign ideas...', 'ROAS updated'] },
+  { id: 'growth', name: 'Growth', color: '#0891b2', room: 'growth', spots: [{ x: 540, y: 170 }, { x: 500, y: 210 }, { x: 585, y: 200 }], actions: ['Sketching strategy...', 'Analysing LTV...', 'Preparing the pitch...', 'New idea on the board'] },
+  { id: 'sales', name: 'Sales', color: '#3b82f6', room: 'sales', spots: [{ x: 170, y: 390 }, { x: 110, y: 430 }, { x: 240, y: 420 }], actions: ['Scanning new orders...', 'Checking AOV trend...', 'Reviewing refunds...', 'Orders flowing in'] },
+  { id: 'product', name: 'Products', color: '#dc2626', room: 'product', spots: [{ x: 480, y: 390 }, { x: 420, y: 430 }, { x: 560, y: 420 }], actions: ['Counting stock...', 'Checking best sellers...', 'Scanning barcodes...', 'Inventory healthy'] },
+  { id: 'personal', name: 'Personal', color: '#ea580c', room: 'homeoffice', spots: [{ x: 820, y: 170 }, { x: 880, y: 200 }, { x: 800, y: 400 }, { x: 870, y: 430 }], actions: ['Checking Nationwide...', 'Reviewing Halifax...', 'Categorising spending...', 'Relaxing on the sofa'] },
 ]
 
 function Bot({ agent, pos, working, bubble, onClick }) {
   return (
-    <g transform={`translate(${pos.x}, ${pos.y})`} onClick={onClick} style={{ cursor: 'pointer', transition: 'transform 2.5s cubic-bezier(0.45, 0, 0.25, 1)' }}>
-      <ellipse cx="0" cy="26" rx="14" ry="4" fill="rgba(0,0,0,0.12)" />
+    <g transform={`translate(${pos.x}, ${pos.y})`} onClick={(e) => { e.stopPropagation(); onClick() }} style={{ cursor: 'pointer', transition: 'transform 2.5s cubic-bezier(0.45, 0, 0.25, 1)' }}>
+      <ellipse cx="0" cy="24" rx="13" ry="4" fill="rgba(0,0,0,0.12)" />
       <g className={working ? 'bot-bob' : ''}>
-        <rect x="-11" y="-1" width="22" height="24" rx="8" fill={agent.color} />
-        <rect x="-11" y="-1" width="22" height="24" rx="8" fill="url(#botShine)" />
-        <circle cx="0" cy="-13" r="10" fill={agent.color} />
-        <circle cx="0" cy="-13" r="10" fill="url(#botShine)" />
-        <rect x="-6" y="-17" width="12" height="8" rx="4" fill="#1e1e2e" />
-        <circle cx="-2.5" cy="-13" r="1.6" fill="#fff" className="bot-blink" />
-        <circle cx="2.5" cy="-13" r="1.6" fill="#fff" className="bot-blink" />
-        <line x1="0" y1="-23" x2="0" y2="-27" stroke={agent.color} strokeWidth="1.5" />
-        <circle cx="0" cy="-29" r="2.2" fill={agent.color} className={working ? 'antenna-pulse' : ''} />
-        <rect x="-15" y="2" width="4" height="12" rx="2" fill={agent.color} className={working ? 'bot-arm-l' : ''} />
-        <rect x="11" y="2" width="4" height="12" rx="2" fill={agent.color} className={working ? 'bot-arm-r' : ''} />
-      </g>
-      <g transform="translate(0, 38)">
-        <rect x="-28" y="-8" width="56" height="15" rx="7.5" fill="white" stroke={agent.color} strokeWidth="1" filter="url(#tagShadow)" />
-        <text x="0" y="3" textAnchor="middle" fill={agent.color} fontSize="9" fontWeight="700" fontFamily="ui-sans-serif, system-ui">{agent.name}</text>
+        <rect x="-10" y="-1" width="20" height="22" rx="7" fill={agent.color} />
+        <rect x="-10" y="-1" width="20" height="22" rx="7" fill="url(#botShine)" />
+        <circle cx="0" cy="-12" r="9" fill={agent.color} />
+        <circle cx="0" cy="-12" r="9" fill="url(#botShine)" />
+        <rect x="-5.5" y="-15.5" width="11" height="7" rx="3.5" fill="#1e1e2e" />
+        <circle cx="-2.2" cy="-12" r="1.4" fill="#fff" className="bot-blink" />
+        <circle cx="2.2" cy="-12" r="1.4" fill="#fff" className="bot-blink" />
+        <line x1="0" y1="-21" x2="0" y2="-24" stroke={agent.color} strokeWidth="1.5" />
+        <circle cx="0" cy="-26" r="2" fill={agent.color} className={working ? 'antenna-pulse' : ''} />
+        <rect x="-14" y="2" width="4" height="11" rx="2" fill={agent.color} className={working ? 'bot-arm-l' : ''} />
+        <rect x="10" y="2" width="4" height="11" rx="2" fill={agent.color} className={working ? 'bot-arm-r' : ''} />
       </g>
       {bubble && (
-        <g transform="translate(0, -48)" className="bubble-in">
-          <rect x="-68" y="-12" width="136" height="22" rx="10" fill="white" stroke="#e5e7eb" strokeWidth="1" filter="url(#tagShadow)" />
-          <path d="M -4 10 L 0 16 L 4 10 Z" fill="white" />
-          <text x="0" y="3" textAnchor="middle" fill="#374151" fontSize="9.5" fontFamily="ui-sans-serif, system-ui">{bubble}</text>
+        <g transform="translate(0, -44)" className="bubble-in">
+          <rect x="-64" y="-11" width="128" height="20" rx="9" fill="white" stroke="#e5e7eb" strokeWidth="1" filter="url(#tagShadow)" />
+          <path d="M -4 9 L 0 14 L 4 9 Z" fill="white" />
+          <text x="0" y="3" textAnchor="middle" fill="#374151" fontSize="9" fontFamily="ui-sans-serif, system-ui">{bubble}</text>
         </g>
       )}
     </g>
   )
 }
 
+// ─── Furniture per room ────────────────────────────────
+function RoomFurniture({ room }) {
+  switch (room.id) {
+    case 'finance':
+      return (
+        <g transform={`translate(${room.x + 20}, ${room.y + 25})`}>
+          <rect x="0" y="0" width="46" height="62" rx="2" fill="#6b7280" />
+          {[0, 1, 2].map(i => <g key={i}><rect x="4" y={4 + i * 19} width="38" height="16" rx="2" fill="#9ca3af" /><circle cx="23" cy={12 + i * 19} r="2" fill="#d1d5db" /></g>)}
+          <rect x="120" y="30" width="66" height="8" rx="2" fill="#8b6f47" />
+          <rect x="124" y="38" width="4" height="18" fill="#7a6040" />
+          <rect x="178" y="38" width="4" height="18" fill="#7a6040" />
+          <rect x="132" y="8" width="32" height="22" rx="2" fill="#1e1e2e" />
+          <rect x="135" y="11" width="26" height="16" rx="1" fill="#d1fae5" className="screen-glow" />
+        </g>
+      )
+    case 'marketing':
+      return (
+        <g transform={`translate(${room.x + 25}, ${room.y + 20})`}>
+          <rect x="0" y="0" width="100" height="68" rx="2" fill="#d4a06a" stroke="#b8894e" strokeWidth="2" />
+          <rect x="3" y="3" width="94" height="62" fill="#e8c89a" />
+          {[[8, 8, '#f87171'], [42, 6, '#a78bfa'], [72, 10, '#fbbf24'], [12, 36, '#34d399'], [46, 33, '#60a5fa'], [74, 38, '#fb923c']].map(([x, y, c], i) => (
+            <rect key={i} x={x} y={y} width="22" height="16" rx="1" fill={c} opacity="0.85" transform={`rotate(${(i % 3 - 1) * 4}, ${x + 11}, ${y + 8})`} />
+          ))}
+          <rect x="130" y="40" width="50" height="7" rx="2" fill="#8b6f47" />
+          <rect x="134" y="47" width="3" height="14" fill="#7a6040" />
+          <rect x="173" y="47" width="3" height="14" fill="#7a6040" />
+        </g>
+      )
+    case 'growth':
+      return (
+        <g transform={`translate(${room.x + 20}, ${room.y + 20})`}>
+          <ellipse cx="85" cy="105" rx="62" ry="26" fill="#a3845c" />
+          <ellipse cx="85" cy="100" rx="62" ry="26" fill="#b8966a" />
+          <rect x="35" y="0" width="100" height="62" rx="2" fill="white" stroke="#9ca3af" strokeWidth="2" />
+          <text x="44" y="16" fill="#1f2937" fontSize="8" fontWeight="700" fontFamily="ui-sans-serif">GROWTH ↗</text>
+          <polyline points="44,48 60,36 74,42 92,24 108,30 124,16" fill="none" stroke="#0891b2" strokeWidth="2" />
+          <circle cx="92" cy="24" r="3" fill="#dc2626" />
+        </g>
+      )
+    case 'sales':
+      return (
+        <g transform={`translate(${room.x + 30}, ${room.y + 30})`}>
+          <rect x="0" y="28" width="110" height="9" rx="2" fill="#8b6f47" />
+          <rect x="4" y="37" width="5" height="24" fill="#7a6040" />
+          <rect x="101" y="37" width="5" height="24" fill="#7a6040" />
+          <rect x="10" y="-2" width="40" height="27" rx="2" fill="#1e1e2e" />
+          <rect x="13" y="1" width="34" height="20" rx="1" fill="#dbeafe" className="screen-glow" />
+          <polyline points="17,16 23,10 29,13 35,6 41,9 45,4" fill="none" stroke="#3b82f6" strokeWidth="1.5" />
+          <rect x="60" y="-2" width="40" height="27" rx="2" fill="#1e1e2e" />
+          <rect x="63" y="1" width="34" height="20" rx="1" fill="#dbeafe" className="screen-glow" opacity="0.8" />
+          <rect x="42" y="48" width="26" height="18" rx="7" fill="#374151" />
+          <g transform="translate(170, 90)">
+            <rect x="0" y="0" width="30" height="24" rx="2" fill="#d4a06a" stroke="#b8894e" strokeWidth="1.5" />
+            <line x1="15" y1="0" x2="15" y2="24" stroke="#b8894e" strokeWidth="1.5" />
+            <rect x="36" y="6" width="24" height="18" rx="2" fill="#deb887" stroke="#b8894e" strokeWidth="1.5" />
+          </g>
+        </g>
+      )
+    case 'product':
+      return (
+        <g transform={`translate(${room.x + 30}, ${room.y + 25})`}>
+          {[0, 1].map(s => (
+            <g key={s} transform={`translate(${s * 130}, 0)`}>
+              <rect x="0" y="0" width="100" height="58" rx="2" fill="#8b6f47" stroke="#7a6040" strokeWidth="2" />
+              <line x1="0" y1="29" x2="100" y2="29" stroke="#7a6040" strokeWidth="2" />
+              {[0, 1, 2].map(i => <rect key={'t' + i} x={8 + i * 32} y="5" width="24" height="20" rx="2" fill={['#dbeafe', '#fce7f3', '#d1fae5'][i]} stroke={['#93c5fd', '#f9a8d4', '#6ee7b7'][i]} strokeWidth="1" />)}
+              {[0, 1, 2].map(i => <rect key={'b' + i} x={8 + i * 32} y="33" width="24" height="20" rx="2" fill={['#fef3c7', '#dbeafe', '#fce7f3'][i]} stroke={['#fcd34d', '#93c5fd', '#f9a8d4'][i]} strokeWidth="1" />)}
+            </g>
+          ))}
+          <g transform="translate(95, 110)">
+            <rect x="0" y="0" width="40" height="22" rx="2" fill="none" stroke="#6b7280" strokeWidth="2.5" />
+            <circle cx="8" cy="28" r="5" fill="#4b5563" />
+            <circle cx="32" cy="28" r="5" fill="#4b5563" />
+            <rect x="6" y="-12" width="18" height="14" rx="1" fill="#d4a06a" stroke="#b8894e" strokeWidth="1.5" />
+          </g>
+        </g>
+      )
+    case 'homeoffice':
+      return (
+        <g transform={`translate(${room.x + 30}, ${room.y + 30})`}>
+          <rect x="0" y="26" width="90" height="8" rx="2" fill="#8b6f47" />
+          <rect x="4" y="34" width="4" height="20" fill="#7a6040" />
+          <rect x="82" y="34" width="4" height="20" fill="#7a6040" />
+          <rect x="22" y="-2" width="44" height="26" rx="2" fill="#1e1e2e" />
+          <rect x="25" y="1" width="38" height="19" rx="1" fill="#ffedd5" className="screen-glow" />
+          <text x="44" y="14" textAnchor="middle" fill="#ea580c" fontSize="8" fontWeight="700" fontFamily="ui-sans-serif">£ BANKS</text>
+          <g transform="translate(150, -10)">
+            <rect x="0" y="0" width="60" height="70" rx="2" fill="#8b6f47" stroke="#7a6040" strokeWidth="2" />
+            <line x1="0" y1="23" x2="60" y2="23" stroke="#7a6040" strokeWidth="2" />
+            <line x1="0" y1="46" x2="60" y2="46" stroke="#7a6040" strokeWidth="2" />
+            {[[5, 4, '#ef4444'], [13, 4, '#3b82f6'], [21, 4, '#22c55e'], [31, 4, '#f59e0b'], [5, 27, '#8b5cf6'], [14, 27, '#06b6d4'], [24, 27, '#ec4899'], [5, 50, '#64748b'], [15, 50, '#f97316']].map(([x, y, c], i) => (
+              <rect key={i} x={x} y={y} width="7" height="17" rx="1" fill={c} opacity="0.7" />
+            ))}
+          </g>
+        </g>
+      )
+    case 'living':
+      return (
+        <g transform={`translate(${room.x + 25}, ${room.y + 35})`}>
+          <rect x="0" y="10" width="110" height="30" rx="9" fill="#db2777" opacity="0.25" />
+          <rect x="0" y="0" width="110" height="22" rx="9" fill="#db2777" opacity="0.35" />
+          <rect x="-8" y="5" width="13" height="35" rx="6" fill="#db2777" opacity="0.3" />
+          <rect x="105" y="5" width="13" height="35" rx="6" fill="#db2777" opacity="0.3" />
+          <rect x="150" y="-18" width="80" height="46" rx="3" fill="#1e1e2e" stroke="#374151" strokeWidth="2" />
+          <rect x="155" y="-13" width="70" height="36" rx="1" fill="#312e81" opacity="0.7" className="screen-glow" />
+          <polyline points="162,12 172,2 182,8 194,-6 206,0 218,-8" fill="none" stroke="#a5b4fc" strokeWidth="1.5" />
+          <rect x="25" y="58" width="60" height="8" rx="3" fill="#a3845c" />
+          <rect x="32" y="66" width="4" height="10" fill="#8b7355" />
+          <rect x="74" y="66" width="4" height="10" fill="#8b7355" />
+          <rect x="48" y="51" width="9" height="9" rx="3" fill="white" stroke="#d1d5db" strokeWidth="1" />
+          <g transform="translate(245, 60)">
+            <rect x="-8" y="18" width="16" height="18" rx="3" fill="#92400e" opacity="0.6" />
+            <path d="M 0 18 C -12 6 -6 -6 0 -12 C 6 -6 12 6 0 18" fill="#22c55e" opacity="0.7" />
+          </g>
+        </g>
+      )
+    default: return null
+  }
+}
+
 export default function AgentOffice({ onAsk }) {
-  const [positions, setPositions] = useState(() => Object.fromEntries(AGENTS.map(a => [a.id, a.home])))
+  const [positions, setPositions] = useState(() => Object.fromEntries(AGENTS.map(a => [a.id, a.spots[0]])))
   const [bubbles, setBubbles] = useState({})
   const [working, setWorking] = useState({})
   const [logs, setLogs] = useState([])
+  const [selectedRoom, setSelectedRoom] = useState(null)
+  const [hoveredRoom, setHoveredRoom] = useState(null)
   const logRef = useRef(null)
 
   useEffect(() => {
@@ -73,6 +258,8 @@ export default function AgentOffice({ onAsk }) {
 
   useEffect(() => { if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight }, [logs])
 
+  const selected = ROOMS.find(r => r.id === selectedRoom)
+
   return (
     <div>
       <style jsx global>{`
@@ -84,149 +271,102 @@ export default function AgentOffice({ onAsk }) {
         .bot-blink { animation: botBlink 3.5s infinite; }
         @keyframes armL { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(-14deg); } }
         @keyframes armR { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(14deg); } }
-        .bot-arm-l { transform-origin: -14px 4px; animation: armL 0.7s ease-in-out infinite; }
-        .bot-arm-r { transform-origin: 14px 4px; animation: armR 0.7s ease-in-out infinite; }
-        @keyframes bubbleIn { from { opacity: 0; transform: translate(0, -40px) scale(0.85); } to { opacity: 1; transform: translate(0, -48px) scale(1); } }
+        .bot-arm-l { transform-origin: -12px 4px; animation: armL 0.7s ease-in-out infinite; }
+        .bot-arm-r { transform-origin: 12px 4px; animation: armR 0.7s ease-in-out infinite; }
+        @keyframes bubbleIn { from { opacity: 0; transform: translate(0, -36px) scale(0.85); } to { opacity: 1; transform: translate(0, -44px) scale(1); } }
         .bubble-in { animation: bubbleIn 0.25s ease-out forwards; }
-        @keyframes screenGlow { 0%, 100% { opacity: 0.7; } 50% { opacity: 0.9; } }
+        @keyframes screenGlow { 0%, 100% { opacity: 0.7; } 50% { opacity: 0.95; } }
         .screen-glow { animation: screenGlow 2s ease-in-out infinite; }
       `}</style>
 
       <div className="flex items-center justify-between mb-3">
-        <h2 className="text-lg font-semibold text-gray-800">The Office</h2>
-        <span className="text-xs text-gray-400">Click an agent to chat</span>
+        <h2 className="text-lg font-semibold text-gray-800">Flair HQ — Floor Plan</h2>
+        <span className="text-xs text-gray-400">Click a room or agent to interact</span>
       </div>
 
-      <div className="rounded-2xl border border-gray-200 overflow-hidden shadow-sm mb-4">
-        <svg viewBox="0 0 1000 500" className="w-full" style={{ display: 'block' }}>
+      <div className="rounded-2xl border border-gray-200 overflow-hidden shadow-sm mb-4 bg-[#efe9e1]">
+        <svg viewBox="0 0 1000 560" className="w-full" style={{ display: 'block' }}>
           <defs>
             <linearGradient id="botShine" x1="0" y1="0" x2="1" y2="1">
               <stop offset="0%" stopColor="rgba(255,255,255,0.4)" /><stop offset="60%" stopColor="rgba(255,255,255,0)" />
             </linearGradient>
-            <linearGradient id="wallGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#f1ede8" /><stop offset="100%" stopColor="#e8e2db" />
-            </linearGradient>
-            <linearGradient id="floorGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#d4b896" /><stop offset="100%" stopColor="#c4a882" />
-            </linearGradient>
-            <pattern id="floorPattern" width="60" height="60" patternUnits="userSpaceOnUse">
-              <rect width="60" height="60" fill="#c9a67a" />
-              <rect x="0" y="0" width="30" height="30" fill="#c4a070" />
-              <rect x="30" y="30" width="30" height="30" fill="#c4a070" />
-            </pattern>
             <filter id="tagShadow"><feDropShadow dx="0" dy="1" stdDeviation="2" floodOpacity="0.08" /></filter>
           </defs>
 
-          <rect x="0" y="0" width="1000" height="160" fill="url(#wallGrad)" />
-          <rect x="0" y="152" width="1000" height="10" fill="#b8a48c" />
-          <rect x="0" y="162" width="1000" height="338" fill="url(#floorPattern)" opacity="0.85" />
-          <rect x="0" y="162" width="1000" height="338" fill="url(#floorGrad)" opacity="0.3" />
+          <text x="330" y="32" textAnchor="middle" fill="#6b7280" fontSize="14" fontWeight="700" fontFamily="ui-sans-serif, system-ui" letterSpacing="2">BUSINESS WING</text>
+          <text x="825" y="32" textAnchor="middle" fill="#9d6b53" fontSize="14" fontWeight="700" fontFamily="ui-sans-serif, system-ui" letterSpacing="2">PERSONAL WING</text>
 
-          <g transform="translate(360, 18)">
-            <rect x="0" y="0" width="180" height="110" rx="4" fill="#87ceeb" stroke="#a09080" strokeWidth="5" />
-            <line x1="90" y1="0" x2="90" y2="110" stroke="#a09080" strokeWidth="4" />
-            <line x1="0" y1="55" x2="180" y2="55" stroke="#a09080" strokeWidth="4" />
-            <circle cx="140" cy="30" r="16" fill="#fde68a" opacity="0.9" />
-            <ellipse cx="50" cy="85" rx="30" ry="10" fill="#6dc66d" opacity="0.5" />
-            <ellipse cx="130" cy="90" rx="24" ry="8" fill="#5db85d" opacity="0.4" />
-            <rect x="-12" y="-4" width="16" height="118" rx="3" fill="#dcd0c0" />
-            <rect x="176" y="-4" width="16" height="118" rx="3" fill="#dcd0c0" />
-          </g>
+          <rect x="640" y="50" width="30" height="450" fill="#ddd5c8" />
+          <line x1="640" y1="50" x2="640" y2="500" stroke="#a89a85" strokeWidth="3" />
+          <line x1="670" y1="50" x2="670" y2="500" stroke="#a89a85" strokeWidth="3" />
+          <rect x="640" y="140" width="30" height="44" fill="#efe9e1" />
+          <rect x="640" y="370" width="30" height="44" fill="#efe9e1" />
 
-          <g transform="translate(280, 50)">
-            <circle cx="0" cy="0" r="20" fill="white" stroke="#a09080" strokeWidth="2" />
-            <line x1="0" y1="0" x2="0" y2="-12" stroke="#374151" strokeWidth="2" strokeLinecap="round" />
-            <line x1="0" y1="0" x2="8" y2="4" stroke="#374151" strokeWidth="1.5" strokeLinecap="round" />
-            <circle cx="0" cy="0" r="2" fill="#374151" />
-          </g>
+          {ROOMS.map(room => {
+            const isSelected = selectedRoom === room.id
+            const isHovered = hoveredRoom === room.id
+            return (
+              <g
+                key={room.id}
+                onClick={() => setSelectedRoom(isSelected ? null : room.id)}
+                onMouseEnter={() => setHoveredRoom(room.id)}
+                onMouseLeave={() => setHoveredRoom(null)}
+                style={{ cursor: 'pointer' }}
+              >
+                <rect x={room.x} y={room.y} width={room.w} height={room.h} fill={isSelected || isHovered ? room.tint : '#faf7f2'} style={{ transition: 'fill 0.2s' }} />
+                <rect x={room.x} y={room.y} width={room.w} height={room.h} fill="none" stroke={isSelected ? room.color : '#a89a85'} strokeWidth={isSelected ? 4 : 3} style={{ transition: 'stroke 0.2s' }} />
+                <g transform={`translate(${room.x + 10}, ${room.y + 20})`}>
+                  <circle cx="5" cy="-4" r="4" fill={room.color} />
+                  <text x="15" y="0" fill="#4b5563" fontSize="12" fontWeight="600" fontFamily="ui-sans-serif, system-ui">{room.name}</text>
+                </g>
+                <RoomFurniture room={room} />
+              </g>
+            )
+          })}
 
-          <g transform="translate(60, 70)">
-            <rect x="0" y="0" width="70" height="90" rx="3" fill="#6b7280" stroke="#4b5563" strokeWidth="2" />
-            {[0, 1, 2].map(i => <g key={i}><rect x="6" y={6 + i * 28} width="58" height="24" rx="2" fill="#9ca3af" /><circle cx="35" cy={18 + i * 28} r="3" fill="#d1d5db" /></g>)}
-            <text x="35" y="108" textAnchor="middle" fill="#6b7280" fontSize="11" fontFamily="ui-sans-serif, system-ui" fontWeight="500">Finance</text>
-          </g>
+          <rect x="300" y="496" width="60" height="8" fill="#8b6f47" />
+          <text x="330" y="525" textAnchor="middle" fill="#9ca3af" fontSize="10" fontFamily="ui-sans-serif, system-ui">Entrance</text>
 
-          <g transform="translate(195, 250)">
-            <rect x="0" y="30" width="130" height="10" rx="2" fill="#8b6f47" />
-            <rect x="4" y="40" width="6" height="30" fill="#7a6040" />
-            <rect x="120" y="40" width="6" height="30" fill="#7a6040" />
-            <rect x="15" y="-4" width="44" height="30" rx="3" fill="#1e1e2e" stroke="#374151" strokeWidth="1.5" />
-            <rect x="19" y="0" width="36" height="22" rx="2" fill="#dbeafe" className="screen-glow" />
-            <polyline points="23,16 29,10 35,13 41,5 47,8 51,4" fill="none" stroke="#3b82f6" strokeWidth="1.5" />
-            <rect x="71" y="-4" width="44" height="30" rx="3" fill="#1e1e2e" stroke="#374151" strokeWidth="1.5" />
-            <rect x="75" y="0" width="36" height="22" rx="2" fill="#dbeafe" className="screen-glow" opacity="0.8" />
-            <ellipse cx="65" cy="85" rx="18" ry="6" fill="rgba(0,0,0,0.06)" />
-            <rect x="50" y="60" width="30" height="22" rx="8" fill="#374151" />
-            <rect x="55" y="48" width="20" height="16" rx="5" fill="#4b5563" />
-            <text x="65" y="102" textAnchor="middle" fill="#6b7280" fontSize="11" fontFamily="ui-sans-serif, system-ui" fontWeight="500">Sales Desk</text>
-          </g>
-
-          <g transform="translate(570, 20)">
-            <rect x="0" y="0" width="150" height="105" rx="3" fill="#d4a06a" stroke="#b8894e" strokeWidth="3" />
-            <rect x="4" y="4" width="142" height="97" fill="#e8c89a" />
-            {[[10, 10, '#f87171'], [60, 8, '#a78bfa'], [105, 12, '#fbbf24'], [15, 45, '#34d399'], [65, 42, '#60a5fa'], [110, 48, '#fb923c'], [20, 75, '#f472b6'], [70, 72, '#a78bfa'], [115, 78, '#34d399']].map(([x, y, c], i) => (
-              <rect key={i} x={x} y={y} width="32" height="22" rx="1" fill={c} opacity="0.8" transform={`rotate(${(i % 3 - 1) * 3}, ${x + 16}, ${y + 11})`} />
-            ))}
-            {[[26, 10], [76, 8], [121, 12], [31, 45], [81, 42], [126, 48]].map(([x, y], i) => (
-              <circle key={i} cx={x} cy={y} r="3" fill="#ef4444" stroke="#fff" strokeWidth="0.5" />
-            ))}
-            <text x="75" y="122" textAnchor="middle" fill="#6b7280" fontSize="11" fontFamily="ui-sans-serif, system-ui" fontWeight="500">Campaign Board</text>
-          </g>
-
-          <g transform="translate(800, 22)">
-            <rect x="0" y="0" width="140" height="95" rx="3" fill="white" stroke="#9ca3af" strokeWidth="2" />
-            <rect x="0" y="88" width="140" height="10" rx="2" fill="#d1d5db" />
-            <text x="14" y="20" fill="#1f2937" fontSize="10" fontFamily="ui-sans-serif" fontWeight="700">GROWTH STRATEGY</text>
-            <line x1="14" y1="24" x2="126" y2="24" stroke="#e5e7eb" strokeWidth="1" />
-            <polyline points="18,70 40,52 60,58 82,36 105,42 126,22" fill="none" stroke="#0891b2" strokeWidth="2.5" />
-            <circle cx="82" cy="36" r="4" fill="#dc2626" />
-            <circle cx="126" cy="22" r="4" fill="#16a34a" />
-            <rect x="8" y="90" width="20" height="5" rx="2" fill="#dc2626" />
-            <rect x="32" y="90" width="20" height="5" rx="2" fill="#2563eb" />
-            <rect x="56" y="90" width="20" height="5" rx="2" fill="#16a34a" />
-            <text x="70" y="114" textAnchor="middle" fill="#6b7280" fontSize="11" fontFamily="ui-sans-serif, system-ui" fontWeight="500">Strategy</text>
-          </g>
-
-          <g transform="translate(400, 295)">
-            <rect x="0" y="0" width="110" height="65" rx="3" fill="#8b6f47" stroke="#7a6040" strokeWidth="2" />
-            <line x1="0" y1="32" x2="110" y2="32" stroke="#7a6040" strokeWidth="2" />
-            {[0, 1, 2, 3].map(i => <rect key={'t' + i} x={8 + i * 26} y="6" width="20" height="22" rx="3" fill={['#dbeafe', '#fce7f3', '#d1fae5', '#fef3c7'][i]} stroke={['#93c5fd', '#f9a8d4', '#6ee7b7', '#fcd34d'][i]} strokeWidth="1" />)}
-            {[0, 1, 2, 3].map(i => <rect key={'b' + i} x={8 + i * 26} y="37" width="20" height="22" rx="3" fill={['#fef3c7', '#dbeafe', '#fce7f3', '#d1fae5'][i]} stroke={['#fcd34d', '#93c5fd', '#f9a8d4', '#6ee7b7'][i]} strokeWidth="1" />)}
-            <text x="55" y="82" textAnchor="middle" fill="#6b7280" fontSize="11" fontFamily="ui-sans-serif, system-ui" fontWeight="500">Inventory</text>
-          </g>
-
-          <g transform="translate(740, 275)">
-            <rect x="0" y="12" width="120" height="32" rx="10" fill="#7c3aed" opacity="0.15" />
-            <rect x="0" y="0" width="120" height="24" rx="10" fill="#8b5cf6" opacity="0.25" />
-            <rect x="-8" y="6" width="14" height="38" rx="6" fill="#8b5cf6" opacity="0.2" />
-            <rect x="114" y="6" width="14" height="38" rx="6" fill="#8b5cf6" opacity="0.2" />
-            <rect x="30" y="52" width="60" height="8" rx="3" fill="#a3845c" />
-            <rect x="38" y="60" width="4" height="10" fill="#8b7355" />
-            <rect x="78" y="60" width="4" height="10" fill="#8b7355" />
-            <rect x="52" y="46" width="10" height="10" rx="3" fill="white" stroke="#d1d5db" strokeWidth="1" />
-            <g transform="translate(140, 16)">
-              <rect x="-7" y="16" width="14" height="16" rx="3" fill="#92400e" opacity="0.6" />
-              <path d="M 0 16 C -10 4 -5 -6 0 -10 C 5 -6 10 4 0 16" fill="#22c55e" opacity="0.7" />
-              <path d="M 0 12 C -7 4 -3 -2 0 -5 C 3 -2 7 4 0 12" fill="#16a34a" opacity="0.6" />
-            </g>
-            <text x="60" y="82" textAnchor="middle" fill="#6b7280" fontSize="11" fontFamily="ui-sans-serif, system-ui" fontWeight="500">Lounge</text>
-          </g>
-
-          <ellipse cx="500" cy="420" rx="120" ry="35" fill="#be185d" opacity="0.08" />
-          <ellipse cx="500" cy="420" rx="100" ry="28" fill="#be185d" opacity="0.06" />
-
-          <g transform="translate(40, 380)">
-            <rect x="-10" y="30" width="20" height="22" rx="4" fill="#92400e" opacity="0.5" />
-            <path d="M 0 30 C -16 14 -8 -4 0 -14 C 8 -4 16 14 0 30" fill="#22c55e" opacity="0.6" />
-            <path d="M -6 28 C -14 18 -10 8 -6 2" fill="none" stroke="#16a34a" strokeWidth="2" opacity="0.4" />
-            <path d="M 6 28 C 14 18 10 8 6 2" fill="none" stroke="#16a34a" strokeWidth="2" opacity="0.4" />
-          </g>
-
-          {AGENTS.map(agent => (
-            <Bot key={agent.id} agent={agent} pos={positions[agent.id]} working={!!working[agent.id]} bubble={bubbles[agent.id]} onClick={() => onAsk(agent.query)} />
-          ))}
+          {AGENTS.map(agent => {
+            const room = ROOMS.find(r => r.id === agent.room)
+            return (
+              <Bot
+                key={agent.id}
+                agent={agent}
+                pos={positions[agent.id]}
+                working={!!working[agent.id]}
+                bubble={bubbles[agent.id]}
+                onClick={() => onAsk(room?.actions[0]?.query || `Tell me about ${agent.name}`)}
+              />
+            )
+          })}
         </svg>
       </div>
+
+      {selected && (
+        <div className="rounded-xl border-2 bg-white overflow-hidden shadow-sm mb-4" style={{ borderColor: selected.color + '40' }}>
+          <div className="px-4 py-3 flex items-center justify-between" style={{ backgroundColor: selected.tint }}>
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: selected.color }} />
+              <span className="text-sm font-semibold text-gray-800">{selected.name}</span>
+              <span className="text-xs text-gray-400 ml-1">{selected.wing === 'personal' ? 'Personal' : 'Business'}</span>
+            </div>
+            <button onClick={() => setSelectedRoom(null)} className="text-gray-400 hover:text-gray-600 text-lg leading-none">×</button>
+          </div>
+          <div className="px-4 py-3 flex flex-wrap gap-2">
+            {selected.actions.map((a, i) => (
+              <button
+                key={i}
+                onClick={() => onAsk(a.query)}
+                className="px-4 py-2 rounded-lg text-sm font-medium border transition-all hover:shadow-sm"
+                style={{ borderColor: selected.color + '50', color: selected.color, backgroundColor: selected.tint }}
+              >
+                {a.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="rounded-xl border border-gray-200 bg-white overflow-hidden shadow-sm">
         <div className="px-4 py-2 border-b border-gray-100 flex items-center gap-2">
