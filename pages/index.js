@@ -12,23 +12,60 @@ import Marketing from '../components/Marketing'
 import PnL from '../components/PnL'
 import Researcher from '../components/Researcher'
 
+const QUICK_LINKS = [
+  { name: 'Shopify', url: 'https://admin.shopify.com', color: '#96bf48' },
+  { name: 'Klaviyo', url: 'https://www.klaviyo.com/dashboard', color: '#1a1a2e' },
+  { name: 'Meta Ads', url: 'https://adsmanager.facebook.com', color: '#1877f2' },
+  { name: 'Facebook', url: 'https://www.facebook.com/chooseflair', color: '#1877f2' },
+  { name: 'Instagram', url: 'https://www.instagram.com/chooseflair', color: '#e1306c' },
+  { name: 'Revolut', url: 'https://business.revolut.com', color: '#0075eb' },
+  { name: 'PayPal', url: 'https://www.paypal.com/myaccount', color: '#003087' },
+  { name: 'Windsor AI', url: 'https://onboard.windsor.ai', color: '#6366f1' },
+  { name: 'Vercel', url: 'https://vercel.com/dashboard', color: '#000' },
+  { name: 'Supabase', url: 'https://supabase.com/dashboard', color: '#3ecf8e' },
+  { name: 'Flair Store', url: 'https://chooseflair.com', color: '#1d9e75' },
+  { name: 'Nationwide', url: 'https://www.nationwide.co.uk', color: '#003366' },
+  { name: 'Halifax', url: 'https://www.halifax.co.uk', color: '#005b99' },
+]
+
 const NAV = [
   { section: 'AI', items: [
-    { id: 'office', label: 'Agent Office' },
-    { id: 'jarvis', label: 'Jarvis Chat' },
-    { id: 'approvals', label: 'Approvals' },
+    { id: 'office', label: 'Agent Office', icon: '🏢' },
+    { id: 'jarvis', label: 'Jarvis Chat', icon: '⚡' },
+    { id: 'approvals', label: 'Approvals', icon: '✅' },
   ]},
   { section: 'Business', items: [
-    { id: 'overview', label: 'Overview' },
-    { id: 'pnl', label: 'P&L' },
-    { id: 'finance', label: 'Finance' },
-    { id: 'forecast', label: 'Forecast' },
-    { id: 'products', label: 'Products' },
-    { id: 'marketing', label: 'Marketing' },
+    { id: 'overview', label: 'Overview', icon: '📊' },
+    { id: 'pnl', label: 'P&L', icon: '💰' },
+    { id: 'finance', label: 'Finance', icon: '🏦', subs: [
+      { id: 'overview', label: 'Overview' },
+      { id: 'accounts', label: 'Revolut' },
+      { id: 'paypal', label: 'PayPal' },
+    ]},
+    { id: 'forecast', label: 'Forecast', icon: '📈' },
+    { id: 'products', label: 'Products', icon: '🛒', subs: [
+      { id: 'analytics', label: 'Sales Analytics' },
+      { id: 'catalog', label: 'Catalog & COGS' },
+      { id: 'potential', label: 'Profitability' },
+      { id: 'alibaba', label: 'Alibaba' },
+    ]},
+    { id: 'marketing', label: 'Marketing', icon: '📣', subs: [
+      { id: 'overview', label: 'Overview' },
+      { id: 'organic', label: 'Organic Social' },
+      { id: 'email', label: 'Email (Klaviyo)' },
+      { id: 'meta', label: 'Meta Ads' },
+    ]},
   ]},
   { section: 'Tools', items: [
-    { id: 'tasks', label: 'Task Manager' },
-    { id: 'researcher', label: 'Researcher' },
+    { id: 'tasks', label: 'Task Manager', icon: '📋' },
+    { id: 'researcher', label: 'Researcher', icon: '🔬', subs: [
+      { id: 'trends', label: 'Industry Trends' },
+      { id: 'products', label: 'Hot Products' },
+      { id: 'competitors', label: 'Competitors' },
+      { id: 'calculator', label: 'Profitability' },
+      { id: 'alibaba', label: 'Alibaba' },
+      { id: 'ask', label: 'Ask AI' },
+    ]},
   ]},
 ]
 
@@ -36,6 +73,7 @@ export default function Home() {
   const [view, setView] = useState('office')
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [activeSubTab, setActiveSubTab] = useState(null)
+  const [expanded, setExpanded] = useState(['finance', 'products', 'marketing', 'researcher'])
   const jarvisRef = useRef(null)
 
   function handleAgentAsk(query) {
@@ -45,32 +83,32 @@ export default function Home() {
     }, 100)
   }
 
+  function handleNav(item, sub) {
+    setView(item.id)
+    if (sub) {
+      setActiveSubTab(sub.id)
+    } else if (item.subs) {
+      setActiveSubTab(item.subs[0].id)
+      setExpanded(prev => prev.includes(item.id) ? prev.filter(x => x !== item.id) : [...prev, item.id])
+    } else {
+      setActiveSubTab(null)
+    }
+  }
+
   function renderContent() {
     switch (view) {
-      case 'office':
-        return <div className="px-6 py-6"><div className="max-w-6xl mx-auto"><AgentOffice onAsk={handleAgentAsk} /></div></div>
-      case 'jarvis':
-        return <div className="h-full"><Jarvis ref={jarvisRef} /></div>
-      case 'approvals':
-        return <div className="px-6 py-6"><div className="max-w-4xl mx-auto"><Proposals /></div></div>
-      case 'overview':
-        return <div className="px-6 py-6"><Overview /></div>
-      case 'pnl':
-        return <div className="px-6 py-6"><PnL /></div>
-      case 'finance':
-        return <div className="px-6 py-6"><Finance activeSubTab={activeSubTab} setActiveSubTab={setActiveSubTab} /></div>
-      case 'forecast':
-        return <div className="px-6 py-6"><Forecast /></div>
-      case 'products':
-        return <div className="px-6 py-6"><Products activeSubTab={activeSubTab} setActiveSubTab={setActiveSubTab} /></div>
-      case 'marketing':
-        return <div className="px-6 py-6"><Marketing activeSubTab={activeSubTab} setActiveSubTab={setActiveSubTab} /></div>
-      case 'tasks':
-        return <div className="px-6 py-6"><TaskManager /></div>
-      case 'researcher':
-        return <div className="px-6 py-6"><Researcher activeSubTab={activeSubTab} setActiveSubTab={setActiveSubTab} /></div>
-      default:
-        return <div className="px-6 py-6"><div className="max-w-6xl mx-auto"><AgentOffice onAsk={handleAgentAsk} /></div></div>
+      case 'office': return <div className="px-6 py-6"><div className="max-w-6xl mx-auto"><AgentOffice onAsk={handleAgentAsk} /></div></div>
+      case 'jarvis': return <div className="h-full"><Jarvis ref={jarvisRef} /></div>
+      case 'approvals': return <div className="px-6 py-6"><div className="max-w-4xl mx-auto"><Proposals /></div></div>
+      case 'overview': return <div className="px-6 py-6"><Overview /></div>
+      case 'pnl': return <div className="px-6 py-6"><PnL /></div>
+      case 'finance': return <div className="px-6 py-6"><Finance activeSubTab={activeSubTab} setActiveSubTab={setActiveSubTab} /></div>
+      case 'forecast': return <div className="px-6 py-6"><Forecast /></div>
+      case 'products': return <div className="px-6 py-6"><Products activeSubTab={activeSubTab} setActiveSubTab={setActiveSubTab} /></div>
+      case 'marketing': return <div className="px-6 py-6"><Marketing activeSubTab={activeSubTab} setActiveSubTab={setActiveSubTab} /></div>
+      case 'tasks': return <div className="px-6 py-6"><TaskManager /></div>
+      case 'researcher': return <div className="px-6 py-6"><Researcher activeSubTab={activeSubTab} setActiveSubTab={setActiveSubTab} /></div>
+      default: return <div className="px-6 py-6"><div className="max-w-6xl mx-auto"><AgentOffice onAsk={handleAgentAsk} /></div></div>
     }
   }
 
@@ -83,34 +121,79 @@ export default function Home() {
         <link rel="icon" href="/favicon.ico" />
       </Head>
       <div className="h-screen flex bg-gray-50">
-        <aside className={`${sidebarOpen ? 'w-56' : 'w-0'} flex-shrink-0 bg-white border-r border-gray-200 flex flex-col transition-all duration-200 overflow-hidden`}>
-          <div className="px-4 py-4 border-b border-gray-100 flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-sm font-bold shadow-sm">F</div>
-            <span className="text-lg font-bold text-gray-900">Flair HQ</span>
+        <aside className={`${sidebarOpen ? 'w-60' : 'w-0'} flex-shrink-0 bg-white border-r border-gray-200 flex flex-col transition-all duration-200 overflow-hidden`}>
+          <div className="px-4 py-3.5 border-b border-gray-100 flex items-center gap-3 flex-shrink-0">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white text-sm font-bold shadow-sm">F</div>
+            <div>
+              <span className="text-base font-bold text-gray-900 block leading-tight">Flair HQ</span>
+              <span className="text-[10px] text-gray-400">chooseflair.com</span>
+            </div>
           </div>
 
-          <nav className="flex-1 overflow-y-auto py-3 px-3">
+          <nav className="flex-1 overflow-y-auto py-2 px-2.5">
             {NAV.map(group => (
-              <div key={group.section} className="mb-4">
-                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider px-2 mb-1.5">{group.section}</p>
+              <div key={group.section} className="mb-3">
+                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider px-2.5 mb-1">{group.section}</p>
                 {group.items.map(item => (
-                  <button
-                    key={item.id}
-                    onClick={() => { setView(item.id); setActiveSubTab(null) }}
-                    className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-all mb-0.5 ${
-                      view === item.id
-                        ? 'bg-gray-900 text-white'
-                        : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-                    }`}
-                  >
-                    {item.label}
-                  </button>
+                  <div key={item.id}>
+                    <button
+                      onClick={() => handleNav(item)}
+                      className={`w-full text-left px-2.5 py-2 rounded-lg text-sm transition-all mb-0.5 flex items-center justify-between ${
+                        view === item.id ? 'bg-gray-900 text-white font-medium' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                      }`}
+                    >
+                      <span className="flex items-center gap-2">
+                        <span className="text-sm">{item.icon}</span>
+                        {item.label}
+                      </span>
+                      {item.subs && (
+                        <svg className={`w-3.5 h-3.5 transition-transform ${expanded.includes(item.id) ? 'rotate-180' : ''} ${view === item.id ? 'text-white/60' : 'text-gray-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                      )}
+                    </button>
+                    {item.subs && expanded.includes(item.id) && (
+                      <div className="ml-5 pl-3 border-l-2 border-gray-100 mb-1">
+                        {item.subs.map(sub => (
+                          <button
+                            key={sub.id}
+                            onClick={() => handleNav(item, sub)}
+                            className={`w-full text-left px-2.5 py-1.5 rounded-md text-xs transition-all ${
+                              view === item.id && activeSubTab === sub.id
+                                ? 'bg-gray-100 text-gray-900 font-medium'
+                                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                            }`}
+                          >
+                            {sub.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 ))}
               </div>
             ))}
+
+            <div className="mb-3">
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider px-2.5 mb-1">Quick Links</p>
+              <div className="grid grid-cols-3 gap-1 px-1">
+                {QUICK_LINKS.map(link => (
+                  <a
+                    key={link.name}
+                    href={link.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex flex-col items-center gap-1 px-1 py-2 rounded-lg hover:bg-gray-50 transition-colors group"
+                  >
+                    <div className="w-6 h-6 rounded-md flex items-center justify-center text-white text-[9px] font-bold" style={{ backgroundColor: link.color }}>
+                      {link.name.charAt(0)}
+                    </div>
+                    <span className="text-[9px] text-gray-400 group-hover:text-gray-600 text-center leading-tight truncate w-full">{link.name}</span>
+                  </a>
+                ))}
+              </div>
+            </div>
           </nav>
 
-          <div className="px-4 py-3 border-t border-gray-100">
+          <div className="px-4 py-3 border-t border-gray-100 flex-shrink-0">
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 rounded-full bg-emerald-500" />
               <span className="text-xs text-gray-400">6 agents online</span>
@@ -123,7 +206,10 @@ export default function Home() {
             <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
             </button>
-            <span className="text-sm font-medium text-gray-700 capitalize">{NAV.flatMap(g => g.items).find(i => i.id === view)?.label || view}</span>
+            <span className="text-sm font-medium text-gray-700">{NAV.flatMap(g => g.items).find(i => i.id === view)?.label || view}</span>
+            {activeSubTab && view !== 'jarvis' && view !== 'office' && view !== 'approvals' && (
+              <span className="text-xs text-gray-400">/ {NAV.flatMap(g => g.items).find(i => i.id === view)?.subs?.find(s => s.id === activeSubTab)?.label}</span>
+            )}
           </header>
 
           <div className="flex-1 min-h-0 overflow-auto">
