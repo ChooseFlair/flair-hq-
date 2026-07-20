@@ -158,26 +158,30 @@ export default function Home() {
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="icon" href="/favicon.ico" />
       </Head>
-      <div className="h-screen flex bg-gray-50">
-        <aside className={`${sidebarOpen ? 'w-60' : 'w-0'} flex-shrink-0 bg-white border-r border-gray-200 flex flex-col transition-all duration-200 overflow-hidden`}>
-          <div className="px-4 py-3.5 border-b border-gray-100 flex items-center gap-3 flex-shrink-0">
-            <div className={`w-8 h-8 rounded-lg bg-gradient-to-br flex items-center justify-center text-white text-sm font-bold shadow-sm ${mode === 'personal' ? 'from-indigo-500 to-violet-600' : 'from-emerald-500 to-teal-600'}`}>
+      <div className="h-screen flex p-3 gap-3">
+        <aside className={`${sidebarOpen ? 'w-60' : 'w-0'} flex-shrink-0 glass rounded-3xl flex flex-col transition-all duration-300 overflow-hidden`}>
+          <div className="px-4 py-4 flex items-center gap-3 flex-shrink-0">
+            <div className={`w-9 h-9 rounded-2xl bg-gradient-to-br flex items-center justify-center text-white text-sm font-extrabold shadow-md ${mode === 'personal' ? 'from-indigo-500 to-violet-600' : 'from-emerald-500 to-teal-600'}`}>
               {mode === 'personal' ? 'K' : 'F'}
             </div>
             <div>
-              <span className="text-base font-bold text-gray-900 block leading-tight">Flair HQ</span>
-              <span className="text-[10px] text-gray-400">{mode === 'personal' ? 'personal space' : 'chooseflair.com'}</span>
+              <span className="text-base font-extrabold text-ink block leading-tight">Flair HQ</span>
+              <span className="text-[10px] text-ink-faint font-medium">{mode === 'personal' ? 'personal space' : 'chooseflair.com'}</span>
             </div>
           </div>
 
-          <div className="px-2.5 pt-2.5 flex-shrink-0">
-            <div className="grid grid-cols-2 gap-1 p-1 bg-gray-100 rounded-lg">
+          <div className="px-3 pb-2 flex-shrink-0">
+            <div className="relative grid grid-cols-2 p-1 bg-white/40 rounded-full border border-white/60">
+              <span
+                className={`absolute top-1 bottom-1 w-[calc(50%-4px)] rounded-full bg-gray-900 shadow-md transition-transform duration-300 ease-out ${mode === 'personal' ? 'translate-x-[calc(100%+4px)]' : 'translate-x-0'}`}
+                aria-hidden
+              />
               {['work', 'personal'].map(m => (
                 <button
                   key={m}
                   onClick={() => switchMode(m)}
-                  className={`py-1.5 text-xs font-medium rounded-md capitalize transition-all ${
-                    mode === m ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                  className={`relative z-10 py-1.5 text-xs font-semibold rounded-full capitalize transition-colors ${
+                    mode === m ? 'text-white' : 'text-ink-soft hover:text-ink'
                   }`}
                 >
                   {m}
@@ -189,33 +193,33 @@ export default function Home() {
           <nav className="flex-1 overflow-y-auto py-2 px-2.5">
             {currentNav.map(group => (
               <div key={group.section} className="mb-3">
-                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider px-2.5 mb-1">{group.section}</p>
+                <p className="text-[10px] font-bold text-ink-faint uppercase tracking-wider px-2.5 mb-1.5">{group.section}</p>
                 {group.items.map(item => (
                   <div key={item.id}>
                     <button
                       onClick={() => handleNav(item)}
-                      className={`w-full text-left px-2.5 py-2 rounded-lg text-sm transition-all mb-0.5 flex items-center justify-between ${
-                        view === item.id ? 'bg-gray-900 text-white font-medium' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                      className={`w-full text-left px-3 py-2 rounded-2xl text-sm transition-all mb-0.5 flex items-center justify-between ${
+                        view === item.id ? 'bg-gray-900 text-white font-semibold shadow-md' : 'text-ink-soft hover:bg-white/60 hover:text-ink'
                       }`}
                     >
-                      <span className="flex items-center gap-2">
+                      <span className="flex items-center gap-2.5">
                         <span className="text-sm">{item.icon}</span>
                         {item.label}
                       </span>
                       {item.subs && (
-                        <svg className={`w-3.5 h-3.5 transition-transform ${expanded.includes(item.id) ? 'rotate-180' : ''} ${view === item.id ? 'text-white/60' : 'text-gray-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                        <svg className={`w-3.5 h-3.5 transition-transform ${expanded.includes(item.id) ? 'rotate-180' : ''} ${view === item.id ? 'text-white/60' : 'text-ink-faint'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
                       )}
                     </button>
                     {item.subs && expanded.includes(item.id) && (
-                      <div className="ml-5 pl-3 border-l-2 border-gray-100 mb-1">
+                      <div className="ml-5 pl-3 border-l-2 border-emerald-200/50 mb-1">
                         {item.subs.map(sub => (
                           <button
                             key={sub.id}
                             onClick={() => handleNav(item, sub)}
-                            className={`w-full text-left px-2.5 py-1.5 rounded-md text-xs transition-all ${
+                            className={`w-full text-left px-2.5 py-1.5 rounded-xl text-xs transition-all ${
                               view === item.id && activeSubTab === sub.id
-                                ? 'bg-gray-100 text-gray-900 font-medium'
-                                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                                ? 'bg-white/70 text-ink font-semibold shadow-sm'
+                                : 'text-ink-faint hover:text-ink-soft hover:bg-white/40'
                             }`}
                           >
                             {sub.label}
@@ -229,7 +233,7 @@ export default function Home() {
             ))}
 
             <div className="mb-3">
-              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider px-2.5 mb-1">Quick Links</p>
+              <p className="text-[10px] font-bold text-ink-faint uppercase tracking-wider px-2.5 mb-1.5">Quick Links</p>
               <div className="grid grid-cols-3 gap-1 px-1">
                 {quickLinks.map(link => (
                   <a
@@ -237,38 +241,38 @@ export default function Home() {
                     href={link.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex flex-col items-center gap-1 px-1 py-2 rounded-lg hover:bg-gray-50 transition-colors group"
+                    className="flex flex-col items-center gap-1 px-1 py-2 rounded-2xl hover:bg-white/60 transition-colors group"
                   >
-                    <div className="w-6 h-6 rounded-md flex items-center justify-center text-white text-[9px] font-bold" style={{ backgroundColor: link.color }}>
+                    <div className="w-7 h-7 rounded-xl flex items-center justify-center text-white text-[10px] font-bold shadow-sm" style={{ backgroundColor: link.color }}>
                       {link.name.charAt(0)}
                     </div>
-                    <span className="text-[9px] text-gray-400 group-hover:text-gray-600 text-center leading-tight truncate w-full">{link.name}</span>
+                    <span className="text-[9px] text-ink-faint group-hover:text-ink-soft text-center leading-tight truncate w-full">{link.name}</span>
                   </a>
                 ))}
               </div>
             </div>
           </nav>
 
-          <div className="px-4 py-3 border-t border-gray-100 flex-shrink-0">
-            <div className="flex items-center gap-2">
-              <div className={`w-2 h-2 rounded-full ${mode === 'personal' ? 'bg-indigo-500' : 'bg-emerald-500'}`} />
-              <span className="text-xs text-gray-400">{mode === 'personal' ? 'Kept separate from business' : '6 agents online'}</span>
+          <div className="px-4 py-3.5 flex-shrink-0">
+            <div className="flex items-center gap-2 glass-strong rounded-full px-3 py-2">
+              <div className={`w-2 h-2 rounded-full animate-pulse-soft ${mode === 'personal' ? 'bg-indigo-500' : 'bg-emerald-500'}`} />
+              <span className="text-xs text-ink-soft font-medium">{mode === 'personal' ? 'Kept separate from business' : '6 agents online'}</span>
             </div>
           </div>
         </aside>
 
-        <div className="flex-1 flex flex-col min-w-0">
-          <header className="h-12 flex-shrink-0 bg-white border-b border-gray-200 flex items-center px-4 gap-3">
-            <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500">
+        <div className="flex-1 flex flex-col min-w-0 gap-3">
+          <header className="h-14 flex-shrink-0 glass rounded-3xl flex items-center px-4 gap-3">
+            <button onClick={() => setSidebarOpen(!sidebarOpen)} className="glass-orb w-9 h-9 rounded-full flex items-center justify-center text-ink-soft hover:text-ink">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
             </button>
-            <span className="text-sm font-medium text-gray-700">{currentNav.flatMap(g => g.items).find(i => i.id === view)?.label || view}</span>
+            <span className="text-lg font-extrabold text-ink">{currentNav.flatMap(g => g.items).find(i => i.id === view)?.label || view}</span>
             {activeSubTab && view !== 'jarvis' && view !== 'office' && view !== 'approvals' && (
-              <span className="text-xs text-gray-400">/ {currentNav.flatMap(g => g.items).find(i => i.id === view)?.subs?.find(s => s.id === activeSubTab)?.label}</span>
+              <span className="text-xs text-ink-faint font-medium">/ {currentNav.flatMap(g => g.items).find(i => i.id === view)?.subs?.find(s => s.id === activeSubTab)?.label}</span>
             )}
           </header>
 
-          <div className="flex-1 min-h-0 overflow-auto">
+          <div className="flex-1 min-h-0 overflow-auto glass rounded-3xl">
             {renderContent()}
           </div>
         </div>
