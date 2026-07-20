@@ -284,6 +284,12 @@ function CashFlowTab({ txns }) {
 function BillsTab({ txns, bills, setBills }) {
   const { total, groups } = useMemo(() => groupPlannedBills(bills), [bills])
   const bankAvgs = useMemo(() => billBankAverages(bills, txns), [bills, txns])
+  const summary = useMemo(() => cashflowSummary(txns), [txns])
+  const income = summary.avgIn
+  const allSpend = summary.avgOut
+  const savings = income - allSpend // avg money left each month
+  const otherSpend = Math.max(0, allSpend - total) // spend that isn't a tracked bill
+  const hasIncome = income > 0
   const catData = useMemo(
     () => groups.filter((g) => g.subtotal > 0).map((g) => ({ name: g.category, value: g.subtotal, color: g.color })),
     [groups]
@@ -323,10 +329,24 @@ function BillsTab({ txns, bills, setBills }) {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-3">
-        <StatTile label="Monthly bills" value={fmtGBP(total)} tone="out" icon={<Repeat className="w-4 h-4" />} sub={`${bills.length} recurring items`} />
-        <StatTile label="Yearly" value={fmtGBP0(total * 12)} tone="neg" sub="× 12 months" />
-      </div>
+      {/* Dashboard — income vs spending vs savings */}
+      {hasIncome ? (
+        <>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <StatTile label="Income" value={fmtGBP0(income)} tone="in" icon={<TrendingUp className="w-4 h-4" />} sub="avg / month" />
+            <StatTile label="Bills" value={fmtGBP0(total)} tone="out" icon={<Repeat className="w-4 h-4" />} sub={`${fmtGBP0(total * 12)} / yr`} />
+            <StatTile label="All spending" value={fmtGBP0(allSpend)} tone="out" icon={<TrendingDown className="w-4 h-4" />} sub="avg / month" />
+            <StatTile label={savings >= 0 ? 'Left to save' : 'Overspend'} value={fmtGBP0(savings)} tone={savings >= 0 ? 'in' : 'neg'} sub="income − spend" />
+          </div>
+          <IncomeAllocation income={income} bills={total} otherSpend={otherSpend} savings={savings} />
+          <IncomeVsSpend txns={txns} />
+        </>
+      ) : (
+        <div className="grid grid-cols-2 gap-3">
+          <StatTile label="Monthly bills" value={fmtGBP(total)} tone="out" icon={<Repeat className="w-4 h-4" />} sub={`${bills.length} recurring items`} />
+          <StatTile label="Yearly" value={fmtGBP0(total * 12)} tone="neg" sub="× 12 months" />
+        </div>
+      )}
 
       <div className="glass-strong rounded-3xl overflow-hidden">
         <div className="px-5 py-3.5 border-b border-white/50 flex items-center justify-between gap-2">
@@ -452,6 +472,76 @@ function BillsTab({ txns, bills, setBills }) {
         <EmptyTab label="Add amounts to your bills (or use “Match to bank”) to see the breakdown charts." />
       )}
     </div>
+  )
+}
+
+// How monthly income splits into bills, other spending and what's left.
+function IncomeAllocation({ income, bills, otherSpend, savings }) {
+  const seg = (v) => `${Math.max(0, Math.min(100, (v / income) * 100))}%`
+  const save = Math.max(0, savings)
+  return (
+    <div className="glass-strong rounded-3xl p-5">
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-sm font-bold text-ink">Income allocation</h2>
+        <span className="text-[11px] text-ink-faint">of {fmtGBP0(income)}/mo income</span>
+      </div>
+      <div className="h-5 rounded-full overflow-hidden flex bg-white/50">
+        <div style={{ width: seg(bills), backgroundColor: '#6366f1' }} />
+        <div style={{ width: seg(otherSpend), backgroundColor: '#f59e0b' }} />
+        <div style={{ width: seg(save), backgroundColor: '#10b981' }} />
+      </div>
+      <div className="flex flex-wrap gap-x-5 gap-y-1.5 mt-3">
+        <AllocKey color="#6366f1" label="Bills" value={bills} income={income} />
+        <AllocKey color="#f59e0b" label="Other spending" value={otherSpend} income={income} />
+        <AllocKey color="#10b981" label={savings >= 0 ? 'Savings' : 'Shortfall'} value={save} income={income} />
+      </div>
+      {savings < 0 && (
+        <p className="text-[11px] text-red-500 mt-2 font-medium">Spending is above income by {fmtGBP0(Math.abs(savings))}/mo.</p>
+      )}
+    </div>
+  )
+}
+
+// Income vs spending by month, with the gap (what's saved) as a line.
+function IncomeVsSpend({ txns }) {
+  const data = useMemo(() => monthlyCashflow(txns, 6), [txns])
+  if (data.length < 2) return null
+  return (
+    <div className="glass-strong rounded-3xl p-5">
+      <h2 className="text-sm font-bold text-ink mb-4">Income vs spending</h2>
+      <div style={{ width: '100%', height: 240 }}>
+        <ResponsiveContainer>
+          <ComposedChart data={data} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(44,74,62,0.08)" vertical={false} />
+            <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#8a988f' }} axisLine={false} tickLine={false} />
+            <YAxis tick={{ fontSize: 11, fill: '#8a988f' }} axisLine={false} tickLine={false} tickFormatter={(v) => `£${v >= 1000 ? `${Math.round(v / 1000)}k` : Math.round(v)}`} />
+            <Tooltip
+              formatter={(v, n) => [fmtGBP(v), n]}
+              contentStyle={{ borderRadius: 14, border: '1px solid rgba(255,255,255,0.7)', background: 'rgba(255,255,255,0.9)', backdropFilter: 'blur(8px)', fontSize: 12 }}
+            />
+            <Bar dataKey="in" name="Income" fill="#10b981" radius={[5, 5, 0, 0]} maxBarSize={26} />
+            <Bar dataKey="out" name="Spending" fill="#cbd5e1" radius={[5, 5, 0, 0]} maxBarSize={26} />
+            <Line dataKey="net" name="Saved" stroke="#6366f1" strokeWidth={2.5} dot={{ r: 3, fill: '#6366f1' }} />
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
+      <div className="flex items-center justify-center gap-5 mt-3 text-[11px] text-ink-soft">
+        <Legend color="#10b981" label="Income" />
+        <Legend color="#cbd5e1" label="Spending" />
+        <Legend color="#6366f1" label="Saved" />
+      </div>
+    </div>
+  )
+}
+
+function AllocKey({ color, label, value, income }) {
+  const pct = income > 0 ? Math.round((value / income) * 100) : 0
+  return (
+    <span className="flex items-center gap-1.5 text-xs text-ink-soft">
+      <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: color }} />
+      <span className="font-semibold text-ink">{label}</span>
+      {fmtGBP0(value)} <span className="text-ink-faint">{pct}%</span>
+    </span>
   )
 }
 
