@@ -1077,24 +1077,40 @@ const SAVINGS_KEYWORDS = ['savings', 'isa', 'saver', 'nationwide saver', 'halifa
 
 // Editable input that uses local state during typing
 function EditableNumber({ value, onChange, placeholder, className }) {
-  const [localValue, setLocalValue] = useState(String(value || ''))
-  const [focused, setFocused] = useState(false)
+  const inputRef = useRef(null)
+  const [editing, setEditing] = useState(false)
+  const [localValue, setLocalValue] = useState('')
 
-  useEffect(() => {
-    if (!focused) setLocalValue(String(value || ''))
-  }, [value, focused])
+  const displayValue = value || 0
+
+  function handleFocus() {
+    setEditing(true)
+    setLocalValue(String(displayValue === 0 ? '' : displayValue))
+  }
+
+  function handleBlur() {
+    setEditing(false)
+    const numVal = parseFloat(localValue) || 0
+    if (numVal !== displayValue) {
+      onChange(numVal)
+    }
+  }
+
+  function handleChange(e) {
+    // Allow empty, numbers, and decimal points only
+    const val = e.target.value.replace(/[^0-9.]/g, '')
+    setLocalValue(val)
+  }
 
   return (
     <input
+      ref={inputRef}
       type="text"
       inputMode="decimal"
-      value={localValue}
-      onChange={(e) => setLocalValue(e.target.value)}
-      onFocus={() => setFocused(true)}
-      onBlur={(e) => {
-        setFocused(false)
-        onChange(Number(e.target.value) || 0)
-      }}
+      value={editing ? localValue : (displayValue || '')}
+      onChange={handleChange}
+      onFocus={handleFocus}
+      onBlur={handleBlur}
       className={className}
       placeholder={placeholder}
     />
