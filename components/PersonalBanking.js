@@ -1278,27 +1278,27 @@ function SavingsTab({ txns, settings, setSettings }) {
                       {pct}% complete{monthsLeft && pct < 100 ? ` · ${monthsLeft} months left` : ''}
                     </span>
                   </div>
-                  <div className="grid grid-cols-2 gap-3 mt-3">
+                  <div className="grid grid-cols-2 gap-3 mt-4 p-3 bg-emerald-50/50 rounded-2xl border border-emerald-200">
                     <div>
-                      <label className="block text-[11px] text-ink-faint mb-1">Current savings</label>
+                      <label className="block text-xs font-medium text-emerald-700 mb-1">Current savings £</label>
                       <input
                         type="number"
                         inputMode="decimal"
                         defaultValue={g.saved || ''}
                         onBlur={(e) => updateGoal(g.id, { saved: Number(e.target.value) || 0 })}
-                        className="w-full px-3 py-2 text-sm bg-white/60 border border-white/70 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
-                        placeholder="0"
+                        className="w-full px-3 py-3 text-base font-semibold bg-white border-2 border-emerald-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                        placeholder="Enter amount"
                       />
                     </div>
                     <div>
-                      <label className="block text-[11px] text-ink-faint mb-1">Monthly contribution</label>
+                      <label className="block text-xs font-medium text-emerald-700 mb-1">Monthly contribution £</label>
                       <input
                         type="number"
                         inputMode="decimal"
                         defaultValue={g.contribution || ''}
                         onBlur={(e) => updateGoal(g.id, { contribution: Number(e.target.value) || 0 })}
-                        className="w-full px-3 py-2 text-sm bg-white/60 border border-white/70 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
-                        placeholder="0"
+                        className="w-full px-3 py-3 text-base font-semibold bg-white border-2 border-emerald-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                        placeholder="Enter amount"
                       />
                     </div>
                   </div>
