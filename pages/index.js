@@ -36,7 +36,12 @@ const PERSONAL_QUICK_LINKS = [
 
 const PERSONAL_NAV = [
   { section: 'Personal', items: [
-    { id: 'banking', label: 'Banking', icon: '🏦' },
+    { id: 'banking', label: 'Banking', icon: '🏦', subs: [
+      { id: 'overview', label: 'Overview' },
+      { id: 'cashflow', label: 'Cash Flow' },
+      { id: 'bills', label: 'Bills' },
+      { id: 'breakdown', label: 'Breakdown' },
+    ]},
     { id: 'personal-tasks', label: 'Tasks', icon: '📝' },
   ]},
 ]
@@ -87,7 +92,7 @@ export default function Home() {
   const [view, setView] = useState('office')
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [activeSubTab, setActiveSubTab] = useState(null)
-  const [expanded, setExpanded] = useState(['finance', 'products', 'marketing', 'researcher'])
+  const [expanded, setExpanded] = useState(['finance', 'products', 'marketing', 'researcher', 'banking'])
   const jarvisRef = useRef(null)
 
   const currentNav = mode === 'personal' ? PERSONAL_NAV : NAV
@@ -144,7 +149,7 @@ export default function Home() {
       case 'marketing': return <div className="px-6 py-6"><Marketing activeSubTab={activeSubTab} setActiveSubTab={setActiveSubTab} /></div>
       case 'tasks': return <div className="px-6 py-6"><TaskManager /></div>
       case 'researcher': return <div className="px-6 py-6"><Researcher activeSubTab={activeSubTab} setActiveSubTab={setActiveSubTab} /></div>
-      case 'banking': return <div className="px-6 py-6"><PersonalBanking /></div>
+      case 'banking': return <div className="px-6 py-6"><PersonalBanking activeSubTab={activeSubTab} setActiveSubTab={setActiveSubTab} /></div>
       case 'personal-tasks': return <div className="px-6 py-6"><PersonalTasks /></div>
       default: return <div className="px-6 py-6"><div className="max-w-6xl mx-auto"><AgentOffice onAsk={handleAgentAsk} /></div></div>
     }
