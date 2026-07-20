@@ -3,7 +3,7 @@ import {
   Landmark, Upload, FileText, Trash2, Link2, AlertCircle, X,
   ArrowDownLeft, ArrowUpRight, Plus, CheckCircle2, TrendingUp, TrendingDown, Repeat,
   Pencil, Cloud, CloudOff, RefreshCw, EyeOff, Eye, Filter, ArrowUpDown, Search,
-  PiggyBank, CreditCard, Home, Calendar,
+  PiggyBank, CreditCard, Home, Calendar, Tag, ChevronDown, Sparkles,
 } from 'lucide-react'
 import {
   ResponsiveContainer, ComposedChart, Bar, BarChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Cell,
@@ -11,7 +11,7 @@ import {
 } from 'recharts'
 import { parseBankCsv, currentBalance, netImported, mergeTransactions } from '../lib/parseBankCsv'
 import {
-  monthlyCashflow, cashflowSummary, categoryBreakdown,
+  monthlyCashflow, cashflowSummary, categoryBreakdown, categorise, CATEGORY_COLORS,
   groupPlannedBills, DEFAULT_PLANNED_BILLS, BILL_CATEGORY_ORDER, BILL_CATEGORY_COLORS, billBankAverages,
 } from '../lib/bankAnalytics'
 
@@ -324,6 +324,7 @@ export default function PersonalBanking({ activeSubTab, setActiveSubTab }) {
           settings={settings}
         />
       )}
+      {activeTab === 'transactions' && <TransactionsTab txns={scopedTxns} settings={settings} setSettings={setSettings} />}
       {activeTab === 'cashflow' && <CashFlowTab txns={filteredTxns} />}
       {activeTab === 'bills' && <BillsTab txns={filteredTxns} bills={bills} setBills={setBills} settings={settings} setSettings={setSettings} />}
       {activeTab === 'savings' && <SavingsTab txns={filteredTxns} settings={settings} setSettings={setSettings} />}
@@ -1734,6 +1735,265 @@ function MortgageTab({ settings, setSettings }) {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+// ── Transactions ────────────────────────────────────────────────
+// Full transaction list with AI categorization and manual overrides.
+const ALL_CATEGORIES = [
+  'Groceries', 'Eating out', 'Transport', 'Shopping', 'Utilities',
+  'Telecoms', 'Subscriptions', 'Housing', 'Insurance', 'Cash',
+  'Transfers', 'Income', 'Other'
+]
+
+function TransactionsTab({ txns, settings, setSettings }) {
+  const [searchTerm, setSearchTerm] = useState('')
+  const [filterCategory, setFilterCategory] = useState('all')
+  const [sortBy, setSortBy] = useState('date')
+  const [sortDir, setSortDir] = useState('desc')
+
+  // Get category for a transaction (manual override or AI)
+  const getCategory = useCallback((txn) => {
+    const overrides = settings.categoryOverrides || {}
+    if (overrides[txn.id]) return overrides[txn.id]
+    return categorise(txn)
+  }, [settings.categoryOverrides])
+
+  // Set manual category override
+  const setCategory = useCallback((txnId, category) => {
+    setSettings(s => ({
+      ...s,
+      categoryOverrides: { ...s.categoryOverrides, [txnId]: category }
+    }))
+  }, [setSettings])
+
+  // Clear manual override (revert to AI)
+  const clearOverride = useCallback((txnId) => {
+    setSettings(s => {
+      const { [txnId]: _, ...rest } = s.categoryOverrides || {}
+      return { ...s, categoryOverrides: rest }
+    })
+  }, [setSettings])
+
+  // Process and filter transactions
+  const processedTxns = useMemo(() => {
+    let result = txns.map(t => ({
+      ...t,
+      category: getCategory(t),
+      isOverride: !!(settings.categoryOverrides || {})[t.id]
+    }))
+
+    // Search filter
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase()
+      result = result.filter(t => t.description.toLowerCase().includes(term))
+    }
+
+    // Category filter
+    if (filterCategory !== 'all') {
+      result = result.filter(t => t.category === filterCategory)
+    }
+
+    // Sort
+    result.sort((a, b) => {
+      if (sortBy === 'date') {
+        return sortDir === 'desc'
+          ? new Date(b.date) - new Date(a.date)
+          : new Date(a.date) - new Date(b.date)
+      }
+      if (sortBy === 'amount') {
+        return sortDir === 'desc'
+          ? Math.abs(b.amount) - Math.abs(a.amount)
+          : Math.abs(a.amount) - Math.abs(b.amount)
+      }
+      return 0
+    })
+
+    return result
+  }, [txns, searchTerm, filterCategory, sortBy, sortDir, getCategory, settings.categoryOverrides])
+
+  // Category stats
+  const categoryStats = useMemo(() => {
+    const stats = {}
+    for (const t of txns) {
+      const cat = getCategory(t)
+      if (!stats[cat]) stats[cat] = { count: 0, total: 0 }
+      stats[cat].count++
+      stats[cat].total += Math.abs(t.amount)
+    }
+    return stats
+  }, [txns, getCategory])
+
+  const overrideCount = Object.keys(settings.categoryOverrides || {}).length
+
+  if (!txns.length) return <EmptyTab label="No transactions yet — import a bank statement first." />
+
+  return (
+    <div className="space-y-4">
+      {/* Header stats */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <StatTile label="Transactions" value={txns.length} sub="total imported" />
+        <StatTile label="Categorized" value={`${txns.length - (categoryStats['Other']?.count || 0)}`} tone="in" icon={<Sparkles className="w-4 h-4" />} sub="by AI" />
+        <StatTile label="Manual" value={overrideCount} sub="overrides" />
+        <StatTile label="Uncategorized" value={categoryStats['Other']?.count || 0} sub="need review" />
+      </div>
+
+      {/* Filters */}
+      <div className="glass-strong rounded-3xl p-4">
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Search */}
+          <div className="relative flex-1 min-w-[200px]">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-ink-faint" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search transactions..."
+              className="w-full pl-10 pr-4 py-2 text-sm bg-white/60 border border-white/70 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-900/10"
+            />
+          </div>
+
+          {/* Category filter */}
+          <select
+            value={filterCategory}
+            onChange={(e) => setFilterCategory(e.target.value)}
+            className="px-3 py-2 text-sm bg-white/60 border border-white/70 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-900/10"
+          >
+            <option value="all">All categories</option>
+            {ALL_CATEGORIES.map(cat => (
+              <option key={cat} value={cat}>{cat} ({categoryStats[cat]?.count || 0})</option>
+            ))}
+          </select>
+
+          {/* Sort */}
+          <select
+            value={`${sortBy}-${sortDir}`}
+            onChange={(e) => {
+              const [by, dir] = e.target.value.split('-')
+              setSortBy(by)
+              setSortDir(dir)
+            }}
+            className="px-3 py-2 text-sm bg-white/60 border border-white/70 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-900/10"
+          >
+            <option value="date-desc">Newest first</option>
+            <option value="date-asc">Oldest first</option>
+            <option value="amount-desc">Highest amount</option>
+            <option value="amount-asc">Lowest amount</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Transaction list */}
+      <div className="glass-strong rounded-3xl overflow-hidden">
+        <div className="px-5 py-3.5 border-b border-white/50 flex items-center justify-between">
+          <h2 className="text-sm font-bold text-ink">
+            {filterCategory === 'all' ? 'All transactions' : filterCategory}
+            <span className="text-ink-faint font-normal ml-2">({processedTxns.length})</span>
+          </h2>
+        </div>
+
+        <div className="max-h-[500px] overflow-y-auto divide-y divide-white/40">
+          {processedTxns.slice(0, 100).map((t) => (
+            <TransactionRow
+              key={t.id}
+              txn={t}
+              onSetCategory={(cat) => setCategory(t.id, cat)}
+              onClearOverride={() => clearOverride(t.id)}
+            />
+          ))}
+          {processedTxns.length > 100 && (
+            <p className="px-5 py-3 text-xs text-ink-faint text-center">
+              Showing first 100 of {processedTxns.length} transactions
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function TransactionRow({ txn, onSetCategory, onClearOverride }) {
+  const [showCategoryPicker, setShowCategoryPicker] = useState(false)
+  const isIncome = txn.amount >= 0
+
+  return (
+    <div className="px-5 py-3 hover:bg-white/30 transition-colors">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-ink truncate">{txn.description}</p>
+          <p className="text-xs text-ink-faint mt-0.5">
+            {new Date(txn.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+          </p>
+        </div>
+        <div className="text-right">
+          <p className={`text-sm font-bold ${isIncome ? 'text-emerald-600' : 'text-ink'}`}>
+            {isIncome ? '+' : ''}{fmtGBP(txn.amount)}
+          </p>
+        </div>
+      </div>
+
+      {/* Category selector */}
+      <div className="mt-2 flex items-center gap-2">
+        <div className="relative">
+          <button
+            onClick={() => setShowCategoryPicker(!showCategoryPicker)}
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full transition-colors ${
+              txn.isOverride
+                ? 'bg-indigo-100 text-indigo-700 border border-indigo-200'
+                : 'bg-white/60 text-ink-soft border border-white/70 hover:bg-white/80'
+            }`}
+          >
+            <span
+              className="w-2 h-2 rounded-full"
+              style={{ backgroundColor: CATEGORY_COLORS[txn.category] || CATEGORY_COLORS.Other }}
+            />
+            {txn.category}
+            <ChevronDown className="w-3 h-3" />
+          </button>
+
+          {showCategoryPicker && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setShowCategoryPicker(false)} />
+              <div className="absolute left-0 top-full mt-1 z-20 bg-white rounded-xl shadow-lg border border-gray-200 py-1 min-w-[160px]">
+                {ALL_CATEGORIES.map(cat => (
+                  <button
+                    key={cat}
+                    onClick={() => {
+                      onSetCategory(cat)
+                      setShowCategoryPicker(false)
+                    }}
+                    className={`w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2 ${
+                      txn.category === cat ? 'font-semibold' : ''
+                    }`}
+                  >
+                    <span
+                      className="w-2 h-2 rounded-full"
+                      style={{ backgroundColor: CATEGORY_COLORS[cat] || CATEGORY_COLORS.Other }}
+                    />
+                    {cat}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+
+        {txn.isOverride && (
+          <button
+            onClick={onClearOverride}
+            className="text-[10px] text-ink-faint hover:text-ink-soft"
+          >
+            Reset to AI
+          </button>
+        )}
+
+        {!txn.isOverride && (
+          <span className="inline-flex items-center gap-1 text-[10px] text-ink-faint">
+            <Sparkles className="w-3 h-3" /> AI
+          </span>
+        )}
+      </div>
     </div>
   )
 }

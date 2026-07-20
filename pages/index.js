@@ -38,6 +38,7 @@ const PERSONAL_NAV = [
   { section: 'Personal', items: [
     { id: 'banking', label: 'Banking', icon: '🏦', subs: [
       { id: 'overview', label: 'Overview' },
+      { id: 'transactions', label: 'Transactions' },
       { id: 'cashflow', label: 'Cash Flow' },
       { id: 'bills', label: 'Bills' },
       { id: 'savings', label: 'Savings' },
