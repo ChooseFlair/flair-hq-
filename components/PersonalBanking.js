@@ -2,7 +2,8 @@ import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import {
   Landmark, Upload, FileText, Trash2, Link2, AlertCircle, X,
   ArrowDownLeft, ArrowUpRight, Plus, CheckCircle2, TrendingUp, TrendingDown, Repeat,
-  Pencil, Cloud, CloudOff, RefreshCw,
+  Pencil, Cloud, CloudOff, RefreshCw, EyeOff, Eye, Filter, ArrowUpDown, Search,
+  PiggyBank, CreditCard,
 } from 'lucide-react'
 import {
   ResponsiveContainer, ComposedChart, Bar, BarChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Cell,
@@ -45,7 +46,7 @@ const fmtDate = (iso) =>
 export default function PersonalBanking({ activeSubTab, setActiveSubTab }) {
   const [accounts, setAccounts] = useState([])
   const [bills, setBills] = useState(DEFAULT_PLANNED_BILLS)
-  const [settings, setSettings] = useState({ monthlyIncome: null }) // null = use bank average
+  const [settings, setSettings] = useState({ monthlyIncome: null, excludedTxns: [] }) // excludedTxns = transaction IDs to ignore
   const [loaded, setLoaded] = useState(false)
   const [scope, setScope] = useState('all') // 'all' | accountId
   const [showImport, setShowImport] = useState(false)
@@ -194,10 +195,24 @@ export default function PersonalBanking({ activeSubTab, setActiveSubTab }) {
     if (scope === id) setScope('all')
   }
 
+  // All transactions for display
   const scopedTxns = useMemo(() => {
     const src = scope === 'all' ? accounts.flatMap((a) => a.transactions) : (accounts.find((a) => a.id === scope)?.transactions || [])
     return src.slice().sort((a, b) => new Date(b.date) - new Date(a.date))
   }, [accounts, scope])
+
+  // Filtered transactions for calculations (excludes marked transactions)
+  const excludedSet = useMemo(() => new Set(settings.excludedTxns || []), [settings.excludedTxns])
+  const filteredTxns = useMemo(() => scopedTxns.filter((t) => !excludedSet.has(t.id)), [scopedTxns, excludedSet])
+
+  function toggleExcludeTxn(id) {
+    setSettings((s) => {
+      const excluded = new Set(s.excludedTxns || [])
+      if (excluded.has(id)) excluded.delete(id)
+      else excluded.add(id)
+      return { ...s, excludedTxns: [...excluded] }
+    })
+  }
 
   if (!loaded) return null
 
@@ -259,11 +274,21 @@ export default function PersonalBanking({ activeSubTab, setActiveSubTab }) {
       )}
 
       {activeTab === 'overview' && (
-        <OverviewTab accounts={accounts} scope={scope} scopedTxns={scopedTxns} onSelect={setScope} onRemove={removeAccount} />
+        <OverviewTab
+          accounts={accounts}
+          scope={scope}
+          scopedTxns={scopedTxns}
+          excludedSet={excludedSet}
+          onToggleExclude={toggleExcludeTxn}
+          onSelect={setScope}
+          onRemove={removeAccount}
+        />
       )}
-      {activeTab === 'cashflow' && <CashFlowTab txns={scopedTxns} />}
-      {activeTab === 'bills' && <BillsTab txns={scopedTxns} bills={bills} setBills={setBills} settings={settings} setSettings={setSettings} />}
-      {activeTab === 'breakdown' && <BreakdownTab txns={scopedTxns} />}
+      {activeTab === 'cashflow' && <CashFlowTab txns={filteredTxns} />}
+      {activeTab === 'bills' && <BillsTab txns={filteredTxns} bills={bills} setBills={setBills} settings={settings} setSettings={setSettings} />}
+      {activeTab === 'savings' && <SavingsTab txns={filteredTxns} settings={settings} setSettings={setSettings} />}
+      {activeTab === 'debt' && <DebtTab settings={settings} setSettings={setSettings} />}
+      {activeTab === 'breakdown' && <BreakdownTab txns={filteredTxns} />}
 
       <p className="text-[11px] text-ink-faint text-center">
         Statements sync across your devices and are kept separate from Flair business data.
@@ -275,7 +300,44 @@ export default function PersonalBanking({ activeSubTab, setActiveSubTab }) {
 }
 
 // ── Overview ───────────────────────────────────────────────────
-function OverviewTab({ accounts, scope, scopedTxns, onSelect, onRemove }) {
+function OverviewTab({ accounts, scope, scopedTxns, excludedSet, onToggleExclude, onSelect, onRemove }) {
+  const [sortBy, setSortBy] = useState('date') // 'date' | 'amount'
+  const [sortDir, setSortDir] = useState('desc') // 'asc' | 'desc'
+  const [filterMin, setFilterMin] = useState('')
+  const [showFilters, setShowFilters] = useState(false)
+  const [searchTerm, setSearchTerm] = useState('')
+
+  const processedTxns = useMemo(() => {
+    let txns = [...scopedTxns]
+
+    // Search filter
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase()
+      txns = txns.filter((t) => t.description.toLowerCase().includes(term))
+    }
+
+    // Amount filter
+    if (filterMin) {
+      const min = Number(filterMin)
+      txns = txns.filter((t) => Math.abs(t.amount) >= min)
+    }
+
+    // Sort
+    txns.sort((a, b) => {
+      if (sortBy === 'date') {
+        return sortDir === 'desc'
+          ? new Date(b.date) - new Date(a.date)
+          : new Date(a.date) - new Date(b.date)
+      }
+      return sortDir === 'desc'
+        ? Math.abs(b.amount) - Math.abs(a.amount)
+        : Math.abs(a.amount) - Math.abs(b.amount)
+    })
+
+    return txns
+  }, [scopedTxns, sortBy, sortDir, filterMin, searchTerm])
+
+  const excludedCount = scopedTxns.filter((t) => excludedSet.has(t.id)).length
   return (
     <>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -315,35 +377,144 @@ function OverviewTab({ accounts, scope, scopedTxns, onSelect, onRemove }) {
 
       <div className="glass-strong rounded-3xl overflow-hidden mt-5">
         <div className="px-5 py-3.5 border-b border-white/50">
-          <h2 className="text-sm font-bold text-ink">Transactions</h2>
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <h2 className="text-sm font-bold text-ink">Transactions</h2>
+              {excludedCount > 0 && (
+                <span className="text-[10px] font-medium text-amber-600 bg-amber-500/10 px-2 py-0.5 rounded-full">
+                  {excludedCount} hidden
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              {/* Search */}
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-faint" />
+                <input
+                  type="text"
+                  placeholder="Search..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-8 pr-3 py-1.5 text-xs bg-white/50 border border-white/70 rounded-full w-32 focus:w-48 focus:outline-none focus:ring-2 focus:ring-gray-900/10 transition-all"
+                />
+              </div>
+              {/* Filter toggle */}
+              <button
+                onClick={() => setShowFilters(!showFilters)}
+                className={`p-1.5 rounded-full transition-colors ${showFilters ? 'bg-gray-900 text-white' : 'bg-white/50 text-ink-faint hover:bg-white/70'}`}
+                title="Filter"
+              >
+                <Filter className="w-3.5 h-3.5" />
+              </button>
+              {/* Sort */}
+              <button
+                onClick={() => {
+                  if (sortBy === 'date') {
+                    setSortBy('amount')
+                    setSortDir('desc')
+                  } else {
+                    setSortBy('date')
+                    setSortDir('desc')
+                  }
+                }}
+                className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-medium bg-white/50 rounded-full hover:bg-white/70 transition-colors"
+                title="Sort by"
+              >
+                <ArrowUpDown className="w-3 h-3" />
+                {sortBy === 'date' ? 'Date' : 'Amount'}
+              </button>
+            </div>
+          </div>
+          {/* Filter controls */}
+          {showFilters && (
+            <div className="flex items-center gap-3 mt-3 pt-3 border-t border-white/30">
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] text-ink-faint">Min £</span>
+                <input
+                  type="number"
+                  min="0"
+                  placeholder="0"
+                  value={filterMin}
+                  onChange={(e) => setFilterMin(e.target.value)}
+                  className="w-20 px-2 py-1 text-xs bg-white/50 border border-white/70 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900/10"
+                />
+              </div>
+              <button
+                onClick={() => setSortDir(sortDir === 'desc' ? 'asc' : 'desc')}
+                className="text-[11px] text-ink-soft hover:text-ink"
+              >
+                {sortDir === 'desc' ? '↓ Newest/Largest first' : '↑ Oldest/Smallest first'}
+              </button>
+              {(filterMin || searchTerm) && (
+                <button
+                  onClick={() => { setFilterMin(''); setSearchTerm('') }}
+                  className="text-[11px] text-red-500 hover:text-red-600 ml-auto"
+                >
+                  Clear filters
+                </button>
+              )}
+            </div>
+          )}
         </div>
-        <TransactionList txns={scopedTxns} />
+        <TransactionList txns={processedTxns} excludedSet={excludedSet} onToggleExclude={onToggleExclude} />
       </div>
     </>
   )
 }
 
-function TransactionList({ txns, max = 200 }) {
+function TransactionList({ txns, excludedSet, onToggleExclude, max = 200 }) {
   if (!txns.length) return <p className="px-5 py-8 text-sm text-ink-faint text-center">No transactions</p>
   return (
     <ul className="divide-y divide-white/40 max-h-[520px] overflow-y-auto">
-      {txns.slice(0, max).map((t) => (
-        <li key={t.id} className="px-5 py-2.5 flex items-center gap-3 hover:bg-white/40 transition-colors">
-          <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${t.amount >= 0 ? 'bg-emerald-500/15 text-emerald-600' : 'bg-gray-500/10 text-ink-faint'}`}>
-            {t.amount >= 0 ? <ArrowDownLeft className="w-3.5 h-3.5" /> : <ArrowUpRight className="w-3.5 h-3.5" />}
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-ink truncate">{t.description}</p>
-            <p className="text-[11px] text-ink-faint">{fmtDate(t.date)}</p>
-          </div>
-          <div className="text-right">
-            <span className={`text-sm font-bold ${t.amount >= 0 ? 'text-emerald-600' : 'text-ink'}`}>
-              {t.amount >= 0 ? '+' : ''}{fmtGBP(t.amount)}
-            </span>
-            {t.balance != null && <p className="text-[11px] text-ink-faint">{fmtGBP(t.balance)}</p>}
-          </div>
-        </li>
-      ))}
+      {txns.slice(0, max).map((t) => {
+        const isExcluded = excludedSet?.has(t.id)
+        const isLarge = Math.abs(t.amount) >= 5000 // Flag large transactions
+        return (
+          <li
+            key={t.id}
+            className={`px-5 py-2.5 flex items-center gap-3 hover:bg-white/40 transition-colors group ${isExcluded ? 'opacity-40' : ''}`}
+          >
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${t.amount >= 0 ? 'bg-emerald-500/15 text-emerald-600' : 'bg-gray-500/10 text-ink-faint'}`}>
+              {t.amount >= 0 ? <ArrowDownLeft className="w-3.5 h-3.5" /> : <ArrowUpRight className="w-3.5 h-3.5" />}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <p className={`text-sm font-medium truncate ${isExcluded ? 'text-ink-faint line-through' : 'text-ink'}`}>{t.description}</p>
+                {isLarge && !isExcluded && (
+                  <span className="text-[9px] font-medium text-amber-600 bg-amber-500/10 px-1.5 py-0.5 rounded-full flex-shrink-0">
+                    large
+                  </span>
+                )}
+                {isExcluded && (
+                  <span className="text-[9px] font-medium text-ink-faint bg-gray-500/10 px-1.5 py-0.5 rounded-full flex-shrink-0">
+                    hidden
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-ink-faint">{fmtDate(t.date)}</p>
+            </div>
+            <div className="text-right flex-shrink-0">
+              <span className={`text-sm font-bold ${isExcluded ? 'text-ink-faint' : t.amount >= 0 ? 'text-emerald-600' : 'text-ink'}`}>
+                {t.amount >= 0 ? '+' : ''}{fmtGBP(t.amount)}
+              </span>
+              {t.balance != null && <p className="text-[11px] text-ink-faint">{fmtGBP(t.balance)}</p>}
+            </div>
+            {onToggleExclude && (
+              <button
+                onClick={() => onToggleExclude(t.id)}
+                className={`p-1.5 rounded-full transition-all flex-shrink-0 ${
+                  isExcluded
+                    ? 'bg-gray-500/10 text-ink-faint hover:bg-emerald-500/10 hover:text-emerald-600'
+                    : 'opacity-0 group-hover:opacity-100 bg-white/50 text-ink-faint hover:bg-amber-500/10 hover:text-amber-600'
+                }`}
+                title={isExcluded ? 'Include in calculations' : 'Exclude from calculations'}
+              >
+                {isExcluded ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+              </button>
+            )}
+          </li>
+        )
+      })}
     </ul>
   )
 }
@@ -778,6 +949,370 @@ function BillRow({ bill, bank, onChange, onRemove }) {
         </button>
       </div>
     </li>
+  )
+}
+
+// ── Savings ────────────────────────────────────────────────────
+// Track savings goals and auto-detect transfers to savings accounts.
+const SAVINGS_KEYWORDS = ['savings', 'isa', 'saver', 'nationwide saver', 'halifax saver', 'easy access', 'instant saver']
+
+function SavingsTab({ txns, settings, setSettings }) {
+  const [showAddGoal, setShowAddGoal] = useState(false)
+  const [newGoal, setNewGoal] = useState({ name: '', target: '', saved: '' })
+
+  const savingsGoals = settings.savingsGoals || []
+
+  // Detect transfers to savings accounts
+  const savingsTransfers = useMemo(() => {
+    return txns.filter((t) => {
+      if (t.amount >= 0) return false // Only outgoing
+      const desc = t.description.toLowerCase()
+      return SAVINGS_KEYWORDS.some((k) => desc.includes(k))
+    })
+  }, [txns])
+
+  const totalToSavings = savingsTransfers.reduce((s, t) => s + Math.abs(t.amount), 0)
+  const monthlyToSavings = useMemo(() => {
+    const months = new Set(savingsTransfers.map((t) => t.date.slice(0, 7))).size
+    return months > 0 ? totalToSavings / months : 0
+  }, [savingsTransfers, totalToSavings])
+
+  // Savings rate by month for chart
+  const monthlyData = useMemo(() => {
+    const data = monthlyCashflow(txns, 12)
+    return data.map((m) => ({
+      ...m,
+      savings: m.net > 0 ? m.net : 0,
+      rate: m.in > 0 ? Math.round((m.net / m.in) * 100) : 0,
+    }))
+  }, [txns])
+
+  const totalGoals = savingsGoals.reduce((s, g) => s + (Number(g.target) || 0), 0)
+  const totalSaved = savingsGoals.reduce((s, g) => s + (Number(g.saved) || 0), 0)
+
+  function addGoal() {
+    if (!newGoal.name || !newGoal.target) return
+    setSettings((s) => ({
+      ...s,
+      savingsGoals: [...(s.savingsGoals || []), { id: `goal-${Date.now()}`, ...newGoal, saved: Number(newGoal.saved) || 0, target: Number(newGoal.target) }],
+    }))
+    setNewGoal({ name: '', target: '', saved: '' })
+    setShowAddGoal(false)
+  }
+
+  function updateGoal(id, patch) {
+    setSettings((s) => ({
+      ...s,
+      savingsGoals: (s.savingsGoals || []).map((g) => (g.id === id ? { ...g, ...patch } : g)),
+    }))
+  }
+
+  function removeGoal(id) {
+    setSettings((s) => ({
+      ...s,
+      savingsGoals: (s.savingsGoals || []).filter((g) => g.id !== id),
+    }))
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Stats */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <StatTile label="To savings" value={fmtGBP0(monthlyToSavings)} tone="in" icon={<PiggyBank className="w-4 h-4" />} sub="avg / month" />
+        <StatTile label="Total transferred" value={fmtGBP0(totalToSavings)} tone="in" sub={`${savingsTransfers.length} transfers`} />
+        <StatTile label="Goals target" value={fmtGBP0(totalGoals)} sub={`${savingsGoals.length} goals`} />
+        <StatTile label="Goals saved" value={fmtGBP0(totalSaved)} tone={totalSaved > 0 ? 'in' : undefined} sub={totalGoals > 0 ? `${Math.round((totalSaved / totalGoals) * 100)}% complete` : 'no goals yet'} />
+      </div>
+
+      {/* Savings rate chart */}
+      {monthlyData.length > 1 && (
+        <div className="glass-strong rounded-3xl p-5">
+          <h2 className="text-sm font-bold text-ink mb-4">Monthly savings</h2>
+          <div style={{ width: '100%', height: 200 }}>
+            <ResponsiveContainer>
+              <ComposedChart data={monthlyData} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(44,74,62,0.08)" vertical={false} />
+                <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#8a988f' }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 11, fill: '#8a988f' }} axisLine={false} tickLine={false} tickFormatter={(v) => `£${v >= 1000 ? `${Math.round(v / 1000)}k` : v}`} />
+                <Tooltip
+                  formatter={(v, n) => [n === 'rate' ? `${v}%` : fmtGBP(v), n === 'rate' ? 'Savings rate' : 'Saved']}
+                  contentStyle={{ borderRadius: 14, border: '1px solid rgba(255,255,255,0.7)', background: 'rgba(255,255,255,0.9)', backdropFilter: 'blur(8px)', fontSize: 12 }}
+                />
+                <Bar dataKey="savings" name="Saved" fill="#10b981" radius={[5, 5, 0, 0]} maxBarSize={26} />
+                <Line dataKey="rate" name="rate" stroke="#6366f1" strokeWidth={2} dot={{ r: 3, fill: '#6366f1' }} yAxisId="right" />
+                <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: '#8a988f' }} axisLine={false} tickLine={false} tickFormatter={(v) => `${v}%`} />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+
+      {/* Savings goals */}
+      <div className="glass-strong rounded-3xl overflow-hidden">
+        <div className="px-5 py-3.5 border-b border-white/50 flex items-center justify-between">
+          <h2 className="text-sm font-bold text-ink">Savings goals</h2>
+          <button
+            onClick={() => setShowAddGoal(true)}
+            className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-full bg-gray-900 text-white hover:bg-gray-800 transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" /> Add goal
+          </button>
+        </div>
+        {savingsGoals.length === 0 && !showAddGoal ? (
+          <p className="px-5 py-8 text-sm text-ink-faint text-center">No savings goals yet — add one to track your progress.</p>
+        ) : (
+          <ul className="divide-y divide-white/40">
+            {savingsGoals.map((g) => {
+              const pct = g.target > 0 ? Math.min(100, Math.round((g.saved / g.target) * 100)) : 0
+              return (
+                <li key={g.id} className="px-5 py-4 group">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-semibold text-ink">{g.name}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-bold text-emerald-600">{fmtGBP0(g.saved)}</span>
+                      <span className="text-xs text-ink-faint">/ {fmtGBP0(g.target)}</span>
+                      <button onClick={() => removeGoal(g.id)} className="p-1 rounded-full text-ink-faint/50 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="h-2 rounded-full bg-white/50 overflow-hidden">
+                    <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${pct}%` }} />
+                  </div>
+                  <div className="flex items-center justify-between mt-2">
+                    <span className="text-[11px] text-ink-faint">{pct}% complete</span>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        value={g.saved}
+                        onChange={(e) => updateGoal(g.id, { saved: Number(e.target.value) || 0 })}
+                        className="w-20 px-2 py-1 text-xs text-right bg-white/50 border border-white/70 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900/10"
+                        placeholder="Saved"
+                      />
+                      <span className="text-[11px] text-ink-faint">saved</span>
+                    </div>
+                  </div>
+                </li>
+              )
+            })}
+            {showAddGoal && (
+              <li className="px-5 py-4 bg-white/20">
+                <div className="flex items-center gap-3">
+                  <input
+                    autoFocus
+                    type="text"
+                    value={newGoal.name}
+                    onChange={(e) => setNewGoal({ ...newGoal, name: e.target.value })}
+                    placeholder="Goal name (e.g. Emergency fund)"
+                    className="flex-1 px-3 py-2 text-sm bg-white/60 border border-white/70 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-900/10"
+                  />
+                  <input
+                    type="number"
+                    value={newGoal.target}
+                    onChange={(e) => setNewGoal({ ...newGoal, target: e.target.value })}
+                    placeholder="Target £"
+                    className="w-24 px-3 py-2 text-sm bg-white/60 border border-white/70 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-900/10"
+                  />
+                  <button onClick={addGoal} className="px-4 py-2 text-sm font-semibold bg-emerald-600 text-white rounded-xl hover:bg-emerald-700">Add</button>
+                  <button onClick={() => setShowAddGoal(false)} className="px-4 py-2 text-sm font-semibold text-ink-soft hover:text-ink">Cancel</button>
+                </div>
+              </li>
+            )}
+          </ul>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── Debt ───────────────────────────────────────────────────────
+// Track debts with balances, interest rates, and payoff progress.
+function DebtTab({ settings, setSettings }) {
+  const [showAddDebt, setShowAddDebt] = useState(false)
+  const [newDebt, setNewDebt] = useState({ name: '', balance: '', apr: '', minPayment: '' })
+
+  const debts = settings.debts || []
+  const totalDebt = debts.reduce((s, d) => s + (Number(d.balance) || 0), 0)
+  const totalMinPayment = debts.reduce((s, d) => s + (Number(d.minPayment) || 0), 0)
+  const avgApr = debts.length > 0 ? debts.reduce((s, d) => s + (Number(d.apr) || 0), 0) / debts.length : 0
+
+  function addDebt() {
+    if (!newDebt.name || !newDebt.balance) return
+    setSettings((s) => ({
+      ...s,
+      debts: [...(s.debts || []), {
+        id: `debt-${Date.now()}`,
+        name: newDebt.name,
+        balance: Number(newDebt.balance) || 0,
+        apr: Number(newDebt.apr) || 0,
+        minPayment: Number(newDebt.minPayment) || 0,
+        originalBalance: Number(newDebt.balance) || 0,
+      }],
+    }))
+    setNewDebt({ name: '', balance: '', apr: '', minPayment: '' })
+    setShowAddDebt(false)
+  }
+
+  function updateDebt(id, patch) {
+    setSettings((s) => ({
+      ...s,
+      debts: (s.debts || []).map((d) => (d.id === id ? { ...d, ...patch } : d)),
+    }))
+  }
+
+  function removeDebt(id) {
+    setSettings((s) => ({
+      ...s,
+      debts: (s.debts || []).filter((d) => d.id !== id),
+    }))
+  }
+
+  // Chart data: debt balances
+  const chartData = debts.map((d) => ({
+    name: d.name,
+    balance: d.balance,
+    original: d.originalBalance || d.balance,
+    paid: (d.originalBalance || d.balance) - d.balance,
+  }))
+
+  return (
+    <div className="space-y-4">
+      {/* Stats */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <StatTile label="Total debt" value={fmtGBP0(totalDebt)} tone="neg" icon={<CreditCard className="w-4 h-4" />} sub={`${debts.length} account${debts.length === 1 ? '' : 's'}`} />
+        <StatTile label="Min payments" value={fmtGBP0(totalMinPayment)} tone="out" sub="per month" />
+        <StatTile label="Avg APR" value={`${avgApr.toFixed(1)}%`} sub="interest rate" />
+        <StatTile label="Monthly interest" value={fmtGBP0(totalDebt * (avgApr / 100) / 12)} tone="neg" sub="estimated" />
+      </div>
+
+      {/* Debt progress chart */}
+      {chartData.length > 0 && (
+        <div className="glass-strong rounded-3xl p-5">
+          <h2 className="text-sm font-bold text-ink mb-4">Debt breakdown</h2>
+          <div style={{ width: '100%', height: 200 }}>
+            <ResponsiveContainer>
+              <BarChart data={chartData} layout="vertical" margin={{ top: 4, right: 16, left: 8, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(44,74,62,0.08)" horizontal={false} />
+                <XAxis type="number" tick={{ fontSize: 11, fill: '#8a988f' }} axisLine={false} tickLine={false} tickFormatter={(v) => `£${v >= 1000 ? `${Math.round(v / 1000)}k` : v}`} />
+                <YAxis type="category" dataKey="name" width={100} tick={{ fontSize: 11, fill: '#5a6b62' }} axisLine={false} tickLine={false} />
+                <Tooltip
+                  formatter={(v, n) => [fmtGBP(v), n === 'paid' ? 'Paid off' : 'Remaining']}
+                  contentStyle={{ borderRadius: 14, border: '1px solid rgba(255,255,255,0.7)', background: 'rgba(255,255,255,0.9)', backdropFilter: 'blur(8px)', fontSize: 12 }}
+                />
+                <Bar dataKey="paid" name="paid" stackId="a" fill="#10b981" radius={[0, 0, 0, 0]} />
+                <Bar dataKey="balance" name="Remaining" stackId="a" fill="#ef4444" radius={[0, 5, 5, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+
+      {/* Debt accounts */}
+      <div className="glass-strong rounded-3xl overflow-hidden">
+        <div className="px-5 py-3.5 border-b border-white/50 flex items-center justify-between">
+          <h2 className="text-sm font-bold text-ink">Debt accounts</h2>
+          <button
+            onClick={() => setShowAddDebt(true)}
+            className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-full bg-gray-900 text-white hover:bg-gray-800 transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" /> Add debt
+          </button>
+        </div>
+        {debts.length === 0 && !showAddDebt ? (
+          <p className="px-5 py-8 text-sm text-ink-faint text-center">No debts tracked — add one to monitor your payoff progress.</p>
+        ) : (
+          <ul className="divide-y divide-white/40">
+            {debts.map((d) => {
+              const paidOff = (d.originalBalance || d.balance) - d.balance
+              const pct = d.originalBalance > 0 ? Math.round((paidOff / d.originalBalance) * 100) : 0
+              return (
+                <li key={d.id} className="px-5 py-4 group">
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <span className="text-sm font-semibold text-ink">{d.name}</span>
+                      {d.apr > 0 && <span className="text-[11px] text-ink-faint ml-2">{d.apr}% APR</span>}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-bold text-red-500">{fmtGBP0(d.balance)}</span>
+                      <button onClick={() => removeDebt(d.id)} className="p-1 rounded-full text-ink-faint/50 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                  {d.originalBalance > d.balance && (
+                    <>
+                      <div className="h-2 rounded-full bg-red-500/20 overflow-hidden">
+                        <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${pct}%` }} />
+                      </div>
+                      <p className="text-[11px] text-ink-faint mt-1">{fmtGBP0(paidOff)} paid off ({pct}%)</p>
+                    </>
+                  )}
+                  <div className="flex items-center gap-4 mt-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] text-ink-faint">Balance £</span>
+                      <input
+                        type="number"
+                        value={d.balance}
+                        onChange={(e) => updateDebt(d.id, { balance: Number(e.target.value) || 0 })}
+                        className="w-24 px-2 py-1 text-xs bg-white/50 border border-white/70 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900/10"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] text-ink-faint">Min £</span>
+                      <input
+                        type="number"
+                        value={d.minPayment}
+                        onChange={(e) => updateDebt(d.id, { minPayment: Number(e.target.value) || 0 })}
+                        className="w-20 px-2 py-1 text-xs bg-white/50 border border-white/70 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900/10"
+                      />
+                    </div>
+                  </div>
+                </li>
+              )
+            })}
+            {showAddDebt && (
+              <li className="px-5 py-4 bg-white/20">
+                <div className="grid grid-cols-4 gap-3">
+                  <input
+                    autoFocus
+                    type="text"
+                    value={newDebt.name}
+                    onChange={(e) => setNewDebt({ ...newDebt, name: e.target.value })}
+                    placeholder="Name (e.g. Credit Card)"
+                    className="col-span-2 px-3 py-2 text-sm bg-white/60 border border-white/70 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-900/10"
+                  />
+                  <input
+                    type="number"
+                    value={newDebt.balance}
+                    onChange={(e) => setNewDebt({ ...newDebt, balance: e.target.value })}
+                    placeholder="Balance £"
+                    className="px-3 py-2 text-sm bg-white/60 border border-white/70 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-900/10"
+                  />
+                  <input
+                    type="number"
+                    value={newDebt.apr}
+                    onChange={(e) => setNewDebt({ ...newDebt, apr: e.target.value })}
+                    placeholder="APR %"
+                    className="px-3 py-2 text-sm bg-white/60 border border-white/70 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-900/10"
+                  />
+                </div>
+                <div className="flex items-center gap-3 mt-3">
+                  <input
+                    type="number"
+                    value={newDebt.minPayment}
+                    onChange={(e) => setNewDebt({ ...newDebt, minPayment: e.target.value })}
+                    placeholder="Min payment £/mo"
+                    className="w-40 px-3 py-2 text-sm bg-white/60 border border-white/70 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-900/10"
+                  />
+                  <button onClick={addDebt} className="px-4 py-2 text-sm font-semibold bg-red-500 text-white rounded-xl hover:bg-red-600">Add</button>
+                  <button onClick={() => setShowAddDebt(false)} className="px-4 py-2 text-sm font-semibold text-ink-soft hover:text-ink">Cancel</button>
+                </div>
+              </li>
+            )}
+          </ul>
+        )}
+      </div>
+    </div>
   )
 }
 
