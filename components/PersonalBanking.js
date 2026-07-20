@@ -1192,22 +1192,72 @@ function SavingsTab({ txns, settings, setSettings }) {
     }))
   }
 
+  // Overall savings (not tied to goals)
+  const overallSaved = settings.overallSaved || 0
+  const overallContribution = settings.overallContribution || 0
+
+  // Combined totals (overall + goals)
+  const combinedSaved = overallSaved + totalSaved
+  const combinedContribution = overallContribution + totalContribution
+
+  // Update forecast to use combined totals
+  const combinedForecast = [1, 2, 3].map((m) => {
+    const date = new Date(new Date().getFullYear(), new Date().getMonth() + m, 1)
+    const label = date.toLocaleDateString('en-GB', { month: 'short', year: '2-digit' })
+    return { label, total: combinedSaved + combinedContribution * m }
+  })
+
   return (
     <div className="space-y-4">
+      {/* Quick entry for total savings */}
+      <div className="glass-strong rounded-3xl p-5">
+        <h2 className="text-sm font-bold text-ink mb-4">Your savings</h2>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs font-medium text-ink-soft mb-2">Total saved so far</label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-lg font-bold text-ink-faint">£</span>
+              <input
+                type="number"
+                inputMode="decimal"
+                defaultValue={overallSaved || ''}
+                onBlur={(e) => setSettings(s => ({ ...s, overallSaved: Number(e.target.value) || 0 }))}
+                className="w-full pl-8 pr-4 py-3 text-xl font-bold bg-white border-2 border-emerald-300 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                placeholder="0"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-ink-soft mb-2">Monthly contribution</label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-lg font-bold text-ink-faint">£</span>
+              <input
+                type="number"
+                inputMode="decimal"
+                defaultValue={overallContribution || ''}
+                onBlur={(e) => setSettings(s => ({ ...s, overallContribution: Number(e.target.value) || 0 }))}
+                className="w-full pl-8 pr-4 py-3 text-xl font-bold bg-white border-2 border-emerald-300 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                placeholder="0"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <StatTile label="Monthly contribution" value={fmtGBP0(totalContribution)} tone="in" icon={<PiggyBank className="w-4 h-4" />} sub="planned / month" />
-        <StatTile label="Total saved" value={fmtGBP0(totalSaved)} tone={totalSaved > 0 ? 'in' : undefined} sub={totalGoals > 0 ? `${Math.round((totalSaved / totalGoals) * 100)}% of goals` : 'no goals yet'} />
+        <StatTile label="Monthly contribution" value={fmtGBP0(combinedContribution)} tone="in" icon={<PiggyBank className="w-4 h-4" />} sub="planned / month" />
+        <StatTile label="Total saved" value={fmtGBP0(combinedSaved)} tone={combinedSaved > 0 ? 'in' : undefined} sub={savingsGoals.length > 0 ? `inc. ${savingsGoals.length} goals` : 'enter above'} />
         <StatTile label="Goals target" value={fmtGBP0(totalGoals)} sub={`${savingsGoals.length} goals`} />
-        <StatTile label="In 3 months" value={fmtGBP0(forecast[2]?.total || 0)} tone="in" sub={`+${fmtGBP0(totalContribution * 3)} projected`} />
+        <StatTile label="In 3 months" value={fmtGBP0(combinedForecast[2]?.total || 0)} tone="in" sub={`+${fmtGBP0(combinedContribution * 3)} projected`} />
       </div>
 
       {/* Forecast */}
-      {totalContribution > 0 && (
+      {combinedContribution > 0 && (
         <div className="glass-strong rounded-3xl p-5">
           <h2 className="text-sm font-bold text-ink mb-3">Savings forecast</h2>
           <div className="grid grid-cols-3 gap-3">
-            {forecast.map((f) => (
+            {combinedForecast.map((f) => (
               <div key={f.label} className="text-center">
                 <p className="text-lg font-bold text-emerald-600">{fmtGBP0(f.total)}</p>
                 <p className="text-xs text-ink-faint">{f.label}</p>
