@@ -1,5 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
 import Head from 'next/head'
+import {
+  Building2, Zap, CheckCircle, LayoutDashboard, DollarSign, Landmark, TrendingUp,
+  ShoppingCart, Megaphone, ClipboardList, FlaskConical, ListTodo, CreditCard,
+  PiggyBank, Home, Receipt, ArrowLeftRight, PieChart, Wallet,
+} from 'lucide-react'
 import Jarvis from '../components/Jarvis'
 import AgentOffice from '../components/AgentOffice'
 import Proposals from '../components/Proposals'
@@ -36,42 +41,42 @@ const PERSONAL_QUICK_LINKS = [
 
 const PERSONAL_NAV = [
   { section: 'Personal', items: [
-    { id: 'banking', label: 'Banking', icon: '🏦', subs: [
-      { id: 'overview', label: 'Overview' },
-      { id: 'transactions', label: 'Transactions' },
-      { id: 'cashflow', label: 'Cash Flow' },
-      { id: 'bills', label: 'Bills' },
-      { id: 'savings', label: 'Savings' },
-      { id: 'debt', label: 'Debt' },
-      { id: 'mortgage', label: 'Mortgage' },
-      { id: 'breakdown', label: 'Breakdown' },
+    { id: 'banking', label: 'Banking', Icon: Landmark, subs: [
+      { id: 'overview', label: 'Overview', Icon: LayoutDashboard },
+      { id: 'transactions', label: 'Transactions', Icon: ArrowLeftRight },
+      { id: 'cashflow', label: 'Cash Flow', Icon: TrendingUp },
+      { id: 'bills', label: 'Bills', Icon: Receipt },
+      { id: 'savings', label: 'Savings', Icon: PiggyBank },
+      { id: 'debt', label: 'Debt', Icon: CreditCard },
+      { id: 'mortgage', label: 'Mortgage', Icon: Home },
+      { id: 'breakdown', label: 'Breakdown', Icon: PieChart },
     ]},
-    { id: 'personal-tasks', label: 'Tasks', icon: '📝' },
+    { id: 'personal-tasks', label: 'Tasks', Icon: ListTodo },
   ]},
 ]
 
 const NAV = [
   { section: 'AI', items: [
-    { id: 'office', label: 'Agent Office', icon: '🏢' },
-    { id: 'jarvis', label: 'Jarvis Chat', icon: '⚡' },
-    { id: 'approvals', label: 'Approvals', icon: '✅' },
+    { id: 'office', label: 'Agent Office', Icon: Building2 },
+    { id: 'jarvis', label: 'Jarvis Chat', Icon: Zap },
+    { id: 'approvals', label: 'Approvals', Icon: CheckCircle },
   ]},
   { section: 'Business', items: [
-    { id: 'overview', label: 'Overview', icon: '📊' },
-    { id: 'pnl', label: 'P&L', icon: '💰' },
-    { id: 'finance', label: 'Finance', icon: '🏦', subs: [
+    { id: 'overview', label: 'Overview', Icon: LayoutDashboard },
+    { id: 'pnl', label: 'P&L', Icon: DollarSign },
+    { id: 'finance', label: 'Finance', Icon: Wallet, subs: [
       { id: 'overview', label: 'Overview' },
       { id: 'accounts', label: 'Revolut' },
       { id: 'paypal', label: 'PayPal' },
     ]},
-    { id: 'forecast', label: 'Forecast', icon: '📈' },
-    { id: 'products', label: 'Products', icon: '🛒', subs: [
+    { id: 'forecast', label: 'Forecast', Icon: TrendingUp },
+    { id: 'products', label: 'Products', Icon: ShoppingCart, subs: [
       { id: 'analytics', label: 'Sales Analytics' },
       { id: 'catalog', label: 'Catalog & COGS' },
       { id: 'potential', label: 'Profitability' },
       { id: 'alibaba', label: 'Alibaba' },
     ]},
-    { id: 'marketing', label: 'Marketing', icon: '📣', subs: [
+    { id: 'marketing', label: 'Marketing', Icon: Megaphone, subs: [
       { id: 'overview', label: 'Overview' },
       { id: 'organic', label: 'Organic Social' },
       { id: 'email', label: 'Email (Klaviyo)' },
@@ -79,8 +84,8 @@ const NAV = [
     ]},
   ]},
   { section: 'Tools', items: [
-    { id: 'tasks', label: 'Task Manager', icon: '📋' },
-    { id: 'researcher', label: 'Researcher', icon: '🔬', subs: [
+    { id: 'tasks', label: 'Task Manager', Icon: ClipboardList },
+    { id: 'researcher', label: 'Researcher', Icon: FlaskConical, subs: [
       { id: 'trends', label: 'Industry Trends' },
       { id: 'products', label: 'Hot Products' },
       { id: 'competitors', label: 'Competitors' },
@@ -168,106 +173,142 @@ export default function Home() {
         <link rel="icon" href="/favicon.ico" />
       </Head>
       <div className="h-screen flex p-3 gap-3">
-        <aside className={`${sidebarOpen ? 'w-60' : 'w-0'} flex-shrink-0 glass rounded-3xl flex flex-col transition-all duration-300 overflow-hidden`}>
-          <div className="px-4 py-4 flex items-center gap-3 flex-shrink-0">
+        <aside className={`${sidebarOpen ? 'w-60' : 'w-16'} flex-shrink-0 glass rounded-3xl flex flex-col transition-all duration-300 overflow-hidden`}>
+          <div className={`py-4 flex items-center gap-3 flex-shrink-0 ${sidebarOpen ? 'px-4' : 'px-0 justify-center'}`}>
             <div className={`w-9 h-9 rounded-2xl bg-gradient-to-br flex items-center justify-center text-white text-sm font-extrabold shadow-md ${mode === 'personal' ? 'from-indigo-500 to-violet-600' : 'from-emerald-500 to-teal-600'}`}>
               {mode === 'personal' ? 'K' : 'F'}
             </div>
-            <div>
-              <span className="text-base font-extrabold text-ink block leading-tight">Flair HQ</span>
-              <span className="text-[10px] text-ink-faint font-medium">{mode === 'personal' ? 'personal space' : 'chooseflair.com'}</span>
-            </div>
+            {sidebarOpen && (
+              <div>
+                <span className="text-base font-extrabold text-ink block leading-tight">Flair HQ</span>
+                <span className="text-[10px] text-ink-faint font-medium">{mode === 'personal' ? 'personal space' : 'chooseflair.com'}</span>
+              </div>
+            )}
           </div>
 
-          <div className="px-3 pb-2 flex-shrink-0">
-            <div className="relative grid grid-cols-2 p-1 bg-white/40 rounded-full border border-white/60">
-              <span
-                className={`absolute top-1 bottom-1 w-[calc(50%-4px)] rounded-full bg-gray-900 shadow-md transition-transform duration-300 ease-out ${mode === 'personal' ? 'translate-x-[calc(100%+4px)]' : 'translate-x-0'}`}
-                aria-hidden
-              />
-              {['work', 'personal'].map(m => (
-                <button
-                  key={m}
-                  onClick={() => switchMode(m)}
-                  className={`relative z-10 py-1.5 text-xs font-semibold rounded-full capitalize transition-colors ${
-                    mode === m ? 'text-white' : 'text-ink-soft hover:text-ink'
-                  }`}
-                >
-                  {m}
-                </button>
-              ))}
+          {sidebarOpen && (
+            <div className="px-3 pb-2 flex-shrink-0">
+              <div className="relative grid grid-cols-2 p-1 bg-white/40 rounded-full border border-white/60">
+                <span
+                  className={`absolute top-1 bottom-1 w-[calc(50%-4px)] rounded-full bg-gray-900 shadow-md transition-transform duration-300 ease-out ${mode === 'personal' ? 'translate-x-[calc(100%+4px)]' : 'translate-x-0'}`}
+                  aria-hidden
+                />
+                {['work', 'personal'].map(m => (
+                  <button
+                    key={m}
+                    onClick={() => switchMode(m)}
+                    className={`relative z-10 py-1.5 text-xs font-semibold rounded-full capitalize transition-colors ${
+                      mode === m ? 'text-white' : 'text-ink-soft hover:text-ink'
+                    }`}
+                  >
+                    {m}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
-          <nav className="flex-1 overflow-y-auto py-2 px-2.5">
+          <nav className={`flex-1 overflow-y-auto py-2 ${sidebarOpen ? 'px-2.5' : 'px-1.5'}`}>
             {currentNav.map(group => (
               <div key={group.section} className="mb-3">
-                <p className="text-[10px] font-bold text-ink-faint uppercase tracking-wider px-2.5 mb-1.5">{group.section}</p>
-                {group.items.map(item => (
-                  <div key={item.id}>
-                    <button
-                      onClick={() => handleNav(item)}
-                      className={`w-full text-left px-3 py-2 rounded-2xl text-sm transition-all mb-0.5 flex items-center justify-between ${
-                        view === item.id ? 'bg-gray-900 text-white font-semibold shadow-md' : 'text-ink-soft hover:bg-white/60 hover:text-ink'
-                      }`}
-                    >
-                      <span className="flex items-center gap-2.5">
-                        <span className="text-sm">{item.icon}</span>
-                        {item.label}
-                      </span>
-                      {item.subs && (
-                        <svg className={`w-3.5 h-3.5 transition-transform ${expanded.includes(item.id) ? 'rotate-180' : ''} ${view === item.id ? 'text-white/60' : 'text-ink-faint'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                {sidebarOpen && <p className="text-[10px] font-bold text-ink-faint uppercase tracking-wider px-2.5 mb-1.5">{group.section}</p>}
+                {group.items.map(item => {
+                  const ItemIcon = item.Icon
+                  return (
+                    <div key={item.id}>
+                      <button
+                        onClick={() => handleNav(item)}
+                        title={!sidebarOpen ? item.label : undefined}
+                        className={`w-full text-left rounded-2xl text-sm transition-all mb-0.5 flex items-center ${
+                          sidebarOpen ? 'px-3 py-2 justify-between' : 'px-0 py-2.5 justify-center'
+                        } ${
+                          view === item.id ? 'bg-gray-900 text-white font-semibold shadow-md' : 'text-ink-soft hover:bg-white/60 hover:text-ink'
+                        }`}
+                      >
+                        <span className={`flex items-center ${sidebarOpen ? 'gap-2.5' : ''}`}>
+                          {ItemIcon && <ItemIcon className="w-5 h-5" />}
+                          {sidebarOpen && item.label}
+                        </span>
+                        {sidebarOpen && item.subs && (
+                          <svg className={`w-3.5 h-3.5 transition-transform ${expanded.includes(item.id) ? 'rotate-180' : ''} ${view === item.id ? 'text-white/60' : 'text-ink-faint'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                        )}
+                      </button>
+                      {sidebarOpen && item.subs && expanded.includes(item.id) && (
+                        <div className="ml-5 pl-3 border-l-2 border-emerald-200/50 mb-1">
+                          {item.subs.map(sub => {
+                            const SubIcon = sub.Icon
+                            return (
+                              <button
+                                key={sub.id}
+                                onClick={() => handleNav(item, sub)}
+                                className={`w-full text-left px-2.5 py-1.5 rounded-xl text-xs transition-all flex items-center gap-2 ${
+                                  view === item.id && activeSubTab === sub.id
+                                    ? 'bg-white/70 text-ink font-semibold shadow-sm'
+                                    : 'text-ink-faint hover:text-ink-soft hover:bg-white/40'
+                                }`}
+                              >
+                                {SubIcon && <SubIcon className="w-3.5 h-3.5" />}
+                                {sub.label}
+                              </button>
+                            )
+                          })}
+                        </div>
                       )}
-                    </button>
-                    {item.subs && expanded.includes(item.id) && (
-                      <div className="ml-5 pl-3 border-l-2 border-emerald-200/50 mb-1">
-                        {item.subs.map(sub => (
-                          <button
-                            key={sub.id}
-                            onClick={() => handleNav(item, sub)}
-                            className={`w-full text-left px-2.5 py-1.5 rounded-xl text-xs transition-all ${
-                              view === item.id && activeSubTab === sub.id
-                                ? 'bg-white/70 text-ink font-semibold shadow-sm'
-                                : 'text-ink-faint hover:text-ink-soft hover:bg-white/40'
-                            }`}
-                          >
-                            {sub.label}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))}
+                    </div>
+                  )
+                })}
               </div>
             ))}
 
-            <div className="mb-3">
-              <p className="text-[10px] font-bold text-ink-faint uppercase tracking-wider px-2.5 mb-1.5">Quick Links</p>
-              <div className="grid grid-cols-3 gap-1 px-1">
-                {quickLinks.map(link => (
+            {sidebarOpen && (
+              <div className="mb-3">
+                <p className="text-[10px] font-bold text-ink-faint uppercase tracking-wider px-2.5 mb-1.5">Quick Links</p>
+                <div className="grid grid-cols-3 gap-1 px-1">
+                  {quickLinks.map(link => (
+                    <a
+                      key={link.name}
+                      href={link.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex flex-col items-center gap-1 px-1 py-2 rounded-2xl hover:bg-white/60 transition-colors group"
+                    >
+                      <div className="w-7 h-7 rounded-xl flex items-center justify-center text-white text-[10px] font-bold shadow-sm" style={{ backgroundColor: link.color }}>
+                        {link.name.charAt(0)}
+                      </div>
+                      <span className="text-[9px] text-ink-faint group-hover:text-ink-soft text-center leading-tight truncate w-full">{link.name}</span>
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {!sidebarOpen && (
+              <div className="flex flex-col items-center gap-1 mt-2">
+                {quickLinks.slice(0, 4).map(link => (
                   <a
                     key={link.name}
                     href={link.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex flex-col items-center gap-1 px-1 py-2 rounded-2xl hover:bg-white/60 transition-colors group"
+                    title={link.name}
+                    className="w-8 h-8 rounded-xl flex items-center justify-center text-white text-[10px] font-bold shadow-sm hover:scale-110 transition-transform"
+                    style={{ backgroundColor: link.color }}
                   >
-                    <div className="w-7 h-7 rounded-xl flex items-center justify-center text-white text-[10px] font-bold shadow-sm" style={{ backgroundColor: link.color }}>
-                      {link.name.charAt(0)}
-                    </div>
-                    <span className="text-[9px] text-ink-faint group-hover:text-ink-soft text-center leading-tight truncate w-full">{link.name}</span>
+                    {link.name.charAt(0)}
                   </a>
                 ))}
               </div>
-            </div>
+            )}
           </nav>
 
-          <div className="px-4 py-3.5 flex-shrink-0">
-            <div className="flex items-center gap-2 glass-strong rounded-full px-3 py-2">
-              <div className={`w-2 h-2 rounded-full animate-pulse-soft ${mode === 'personal' ? 'bg-indigo-500' : 'bg-emerald-500'}`} />
-              <span className="text-xs text-ink-soft font-medium">{mode === 'personal' ? 'Kept separate from business' : '6 agents online'}</span>
+          {sidebarOpen && (
+            <div className="px-4 py-3.5 flex-shrink-0">
+              <div className="flex items-center gap-2 glass-strong rounded-full px-3 py-2">
+                <div className={`w-2 h-2 rounded-full animate-pulse-soft ${mode === 'personal' ? 'bg-indigo-500' : 'bg-emerald-500'}`} />
+                <span className="text-xs text-ink-soft font-medium">{mode === 'personal' ? 'Kept separate from business' : '6 agents online'}</span>
+              </div>
             </div>
-          </div>
+          )}
         </aside>
 
         <div className="flex-1 flex flex-col min-w-0 gap-3">
