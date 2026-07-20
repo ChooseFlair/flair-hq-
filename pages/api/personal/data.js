@@ -6,7 +6,7 @@
 
 import { supabase } from '../../../lib/supabase'
 
-const VALID_KEYS = ['accounts', 'bills']
+const VALID_KEYS = ['accounts', 'bills', 'settings']
 
 export default async function handler(req, res) {
   // GET: Load personal data by key

@@ -28,6 +28,7 @@ function hydrateBillMatchers(bills) {
 
 const STORAGE_KEY = 'flair_personal_accounts'
 const BILLS_KEY = 'flair_personal_bills'
+const SETTINGS_KEY = 'flair_personal_settings'
 
 const BANKS = [
   { id: 'nationwide', name: 'Nationwide', color: '#003366' },
@@ -44,6 +45,7 @@ const fmtDate = (iso) =>
 export default function PersonalBanking({ activeSubTab, setActiveSubTab }) {
   const [accounts, setAccounts] = useState([])
   const [bills, setBills] = useState(DEFAULT_PLANNED_BILLS)
+  const [settings, setSettings] = useState({ monthlyIncome: null }) // null = use bank average
   const [loaded, setLoaded] = useState(false)
   const [scope, setScope] = useState('all') // 'all' | accountId
   const [showImport, setShowImport] = useState(false)
@@ -70,16 +72,22 @@ export default function PersonalBanking({ activeSubTab, setActiveSubTab }) {
           if (Array.isArray(parsed)) setBills(hydrateBillMatchers(parsed))
         } catch {}
       }
+      const localSettings = localStorage.getItem(SETTINGS_KEY)
+      if (localSettings) {
+        try { setSettings(JSON.parse(localSettings)) } catch {}
+      }
 
       // Then fetch from Supabase for cross-device sync
       setSyncStatus('syncing')
       try {
-        const [accRes, billsRes] = await Promise.all([
+        const [accRes, billsRes, settingsRes] = await Promise.all([
           fetch('/api/personal/data?key=accounts'),
           fetch('/api/personal/data?key=bills'),
+          fetch('/api/personal/data?key=settings'),
         ])
         const accData = await accRes.json()
         const billsData = await billsRes.json()
+        const settingsData = await settingsRes.json()
 
         // Use cloud data if it exists and is newer
         if (accData.value && Array.isArray(accData.value)) {
@@ -89,6 +97,10 @@ export default function PersonalBanking({ activeSubTab, setActiveSubTab }) {
         if (billsData.value && Array.isArray(billsData.value)) {
           setBills(hydrateBillMatchers(billsData.value))
           localStorage.setItem(BILLS_KEY, JSON.stringify(billsData.value))
+        }
+        if (settingsData.value && typeof settingsData.value === 'object') {
+          setSettings(settingsData.value)
+          localStorage.setItem(SETTINGS_KEY, JSON.stringify(settingsData.value))
         }
 
         setSyncStatus('synced')
@@ -107,8 +119,9 @@ export default function PersonalBanking({ activeSubTab, setActiveSubTab }) {
   // Debounced save to both localStorage and Supabase
   const saveToCloud = useCallback(async (key, value) => {
     // Save to localStorage immediately
+    const localKey = key === 'accounts' ? STORAGE_KEY : key === 'bills' ? BILLS_KEY : SETTINGS_KEY
     try {
-      localStorage.setItem(key === 'accounts' ? STORAGE_KEY : BILLS_KEY, JSON.stringify(value))
+      localStorage.setItem(localKey, JSON.stringify(value))
       if (storageError) setStorageError(null)
     } catch (e) {
       console.error('Failed to save to localStorage:', e)
@@ -146,6 +159,12 @@ export default function PersonalBanking({ activeSubTab, setActiveSubTab }) {
     if (!initialLoadDone.current) return
     saveToCloud('bills', bills)
   }, [bills, saveToCloud])
+
+  // Save settings when they change
+  useEffect(() => {
+    if (!initialLoadDone.current) return
+    saveToCloud('settings', settings)
+  }, [settings, saveToCloud])
 
   function saveImport({ name, bank, transactions }) {
     setAccounts((prev) => {
@@ -243,7 +262,7 @@ export default function PersonalBanking({ activeSubTab, setActiveSubTab }) {
         <OverviewTab accounts={accounts} scope={scope} scopedTxns={scopedTxns} onSelect={setScope} onRemove={removeAccount} />
       )}
       {activeTab === 'cashflow' && <CashFlowTab txns={scopedTxns} />}
-      {activeTab === 'bills' && <BillsTab txns={scopedTxns} bills={bills} setBills={setBills} />}
+      {activeTab === 'bills' && <BillsTab txns={scopedTxns} bills={bills} setBills={setBills} settings={settings} setSettings={setSettings} />}
       {activeTab === 'breakdown' && <BreakdownTab txns={scopedTxns} />}
 
       <p className="text-[11px] text-ink-faint text-center">
@@ -376,15 +395,17 @@ function CashFlowTab({ txns }) {
 // Editable monthly budget of known recurring commitments, grouped by
 // category. The auto-detected list from statements sits underneath as a
 // cross-check.
-function BillsTab({ txns, bills, setBills }) {
+function BillsTab({ txns, bills, setBills, settings, setSettings }) {
+  const [editingIncome, setEditingIncome] = useState(false)
   const { total, groups } = useMemo(() => groupPlannedBills(bills), [bills])
   const bankAvgs = useMemo(() => billBankAverages(bills, txns), [bills, txns])
   const summary = useMemo(() => cashflowSummary(txns), [txns])
-  const income = summary.avgIn
+  const bankIncome = summary.avgIn
+  const income = settings?.monthlyIncome ?? bankIncome // use manual if set, else bank avg
   const allSpend = summary.avgOut
   const savings = income - allSpend // avg money left each month
   const otherSpend = Math.max(0, allSpend - total) // spend that isn't a tracked bill
-  const hasIncome = income > 0
+  const hasIncome = income > 0 || settings?.monthlyIncome > 0
   const catData = useMemo(
     () => groups.filter((g) => g.subtotal > 0).map((g) => ({ name: g.category, value: g.subtotal, color: g.color })),
     [groups]
@@ -428,7 +449,18 @@ function BillsTab({ txns, bills, setBills }) {
       {hasIncome ? (
         <>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <StatTile label="Income" value={fmtGBP0(income)} tone="in" icon={<TrendingUp className="w-4 h-4" />} sub="avg / month" />
+            <EditableIncomeTile
+              income={income}
+              bankIncome={bankIncome}
+              isManual={settings?.monthlyIncome != null}
+              editing={editingIncome}
+              onEdit={() => setEditingIncome(true)}
+              onSave={(val) => {
+                setSettings((s) => ({ ...s, monthlyIncome: val || null }))
+                setEditingIncome(false)
+              }}
+              onCancel={() => setEditingIncome(false)}
+            />
             <StatTile label="Bills" value={fmtGBP0(total)} tone="out" icon={<Repeat className="w-4 h-4" />} sub={`${fmtGBP0(total * 12)} / yr`} />
             <StatTile label="All spending" value={fmtGBP0(allSpend)} tone="out" icon={<TrendingDown className="w-4 h-4" />} sub="avg / month" />
             <StatTile label={savings >= 0 ? 'Left to save' : 'Overspend'} value={fmtGBP0(savings)} tone={savings >= 0 ? 'in' : 'neg'} sub="income − spend" />
@@ -849,6 +881,58 @@ function StatTile({ label, value, sub, tone, icon }) {
       <p className={`text-xl font-extrabold tracking-tight ${toneColor}`}>{value}</p>
       {sub && <p className="text-[11px] text-ink-faint mt-0.5">{sub}</p>}
     </div>
+  )
+}
+
+function EditableIncomeTile({ income, bankIncome, isManual, editing, onEdit, onSave, onCancel }) {
+  const [inputVal, setInputVal] = useState(income || '')
+
+  useEffect(() => {
+    if (editing) setInputVal(income || '')
+  }, [editing, income])
+
+  if (editing) {
+    return (
+      <div className="glass-strong rounded-3xl p-4">
+        <div className="flex items-center gap-1.5 text-ink-faint mb-1">
+          <TrendingUp className="w-4 h-4" />
+          <span className="text-[11px] font-semibold uppercase tracking-wide">Income</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <span className="text-xl font-extrabold text-emerald-600">£</span>
+          <input
+            autoFocus
+            type="number"
+            min="0"
+            step="100"
+            value={inputVal}
+            onChange={(e) => setInputVal(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') onSave(inputVal ? Number(inputVal) : null)
+              if (e.key === 'Escape') onCancel()
+            }}
+            onBlur={() => onSave(inputVal ? Number(inputVal) : null)}
+            className="w-full text-xl font-extrabold text-emerald-600 bg-white/60 border border-emerald-300 rounded-lg px-2 py-0.5 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+            placeholder="0"
+          />
+        </div>
+        <p className="text-[11px] text-ink-faint mt-0.5">Enter to save, blank for bank avg</p>
+      </div>
+    )
+  }
+
+  return (
+    <button onClick={onEdit} className="glass-strong rounded-3xl p-4 text-left hover:bg-white/60 transition-colors group w-full">
+      <div className="flex items-center gap-1.5 text-ink-faint mb-1">
+        <TrendingUp className="w-4 h-4" />
+        <span className="text-[11px] font-semibold uppercase tracking-wide">Income</span>
+        <Pencil className="w-3 h-3 ml-auto opacity-0 group-hover:opacity-60 transition-opacity" />
+      </div>
+      <p className="text-xl font-extrabold tracking-tight text-emerald-600">{fmtGBP0(income)}</p>
+      <p className="text-[11px] text-ink-faint mt-0.5">
+        {isManual ? 'manual' : 'avg / month'}{bankIncome > 0 && isManual ? ` (bank: ${fmtGBP0(bankIncome)})` : ''}
+      </p>
+    </button>
   )
 }
 
