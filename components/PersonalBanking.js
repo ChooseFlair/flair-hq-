@@ -1740,17 +1740,57 @@ function MortgageTab({ settings, setSettings }) {
 
 // ── Breakdown ──────────────────────────────────────────────────
 function BreakdownTab({ txns }) {
-  const { total, rows } = useMemo(() => categoryBreakdown(txns), [txns])
-  const income = useMemo(() => txns.filter((t) => t.amount > 0).reduce((s, t) => s + t.amount, 0), [txns])
+  const [period, setPeriod] = useState('30') // '30', '90', 'all'
+
+  // Filter to selected period
+  const filteredTxns = useMemo(() => {
+    if (period === 'all') return txns
+    const days = Number(period)
+    const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000)
+    return txns.filter((t) => new Date(t.date) >= cutoff)
+  }, [txns, period])
+
+  const { total, rows } = useMemo(() => categoryBreakdown(filteredTxns), [filteredTxns])
+  const income = useMemo(() => filteredTxns.filter((t) => t.amount > 0).reduce((s, t) => s + t.amount, 0), [filteredTxns])
+
+  // Calculate monthly average
+  const months = period === 'all'
+    ? Math.max(1, new Set(txns.map(t => t.date.slice(0, 7))).size)
+    : Number(period) / 30
+  const monthlyOut = total / months
+  const monthlyIn = income / months
 
   if (!rows.length) return <EmptyTab label="No spending to break down yet — import a statement first." />
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-3 gap-3">
-        <StatTile label="Total in" value={fmtGBP0(income)} tone="in" />
-        <StatTile label="Total out" value={fmtGBP0(total)} tone="out" />
-        <StatTile label="Net" value={fmtGBP0(income - total)} tone={income - total >= 0 ? 'in' : 'neg'} />
+      {/* Period selector */}
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-ink-faint">Show:</span>
+        {[
+          { value: '30', label: 'Last 30 days' },
+          { value: '90', label: 'Last 3 months' },
+          { value: 'all', label: 'All time' },
+        ].map((opt) => (
+          <button
+            key={opt.value}
+            onClick={() => setPeriod(opt.value)}
+            className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
+              period === opt.value
+                ? 'bg-gray-900 text-white'
+                : 'bg-white/50 text-ink-soft hover:bg-white/70'
+            }`}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <StatTile label="Income" value={fmtGBP0(income)} tone="in" sub={period !== 'all' ? `${period} days` : 'all time'} />
+        <StatTile label="Spending" value={fmtGBP0(total)} tone="out" sub={period !== 'all' ? `${period} days` : 'all time'} />
+        <StatTile label="Avg / month in" value={fmtGBP0(monthlyIn)} tone="in" sub="monthly avg" />
+        <StatTile label="Avg / month out" value={fmtGBP0(monthlyOut)} tone="out" sub="monthly avg" />
       </div>
 
       <div className="glass-strong rounded-3xl p-5">
