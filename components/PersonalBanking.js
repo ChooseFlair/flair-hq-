@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import {
   Landmark, Upload, FileText, Trash2, Link2, AlertCircle, X,
   ArrowDownLeft, ArrowUpRight, Plus, CheckCircle2, TrendingUp, TrendingDown, Repeat,
+  Pencil,
 } from 'lucide-react'
 import {
   ResponsiveContainer, ComposedChart, Bar, BarChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Cell,
@@ -546,61 +547,110 @@ function AllocKey({ color, label, value, income }) {
 }
 
 function BillRow({ bill, bank, onChange, onRemove }) {
+  const [editingMatch, setEditingMatch] = useState(false)
   const avg = bank?.avg || 0
   const amount = Number(bill.amount) || 0
+  const matchText = (bill.match || []).join(', ')
   // Show the bank hint when there's a match and it isn't already the amount.
   const showHint = avg > 0 && avg !== amount
+
+  function handleMatchChange(text) {
+    const keywords = text
+      .split(',')
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean)
+    onChange({ match: keywords })
+  }
+
   return (
-    <li className="px-5 py-2.5 flex items-center gap-3 hover:bg-white/40 transition-colors group">
-      <div className="flex-1 min-w-0">
-        <input
-          value={bill.name}
-          onChange={(e) => onChange({ name: e.target.value })}
-          placeholder="Bill name"
-          className="w-full bg-transparent text-sm font-semibold text-ink placeholder:text-ink-faint/60 focus:outline-none focus:bg-white/60 rounded-lg px-2 py-1 -mx-2 transition-colors"
-        />
-        {showHint ? (
-          <button
-            onClick={() => onChange({ amount: avg })}
-            title={`Use the average from ${bank.count} matching payment${bank.count === 1 ? '' : 's'}`}
-            className="text-[11px] text-emerald-600 hover:text-emerald-700 hover:underline font-medium ml-0.5 mt-0.5"
-          >
-            bank avg ≈ {fmtGBP(avg)}/mo · tap to use
-          </button>
-        ) : avg > 0 ? (
-          <span className="text-[11px] text-ink-faint ml-0.5 mt-0.5 block">matches bank average</span>
-        ) : (
-          <span className="text-[11px] text-ink-faint/60 ml-0.5 mt-0.5 block">no bank match found</span>
-        )}
+    <li className="px-5 py-3 hover:bg-white/40 transition-colors group">
+      <div className="flex items-start gap-3">
+        <div className="flex-1 min-w-0">
+          <input
+            value={bill.name}
+            onChange={(e) => onChange({ name: e.target.value })}
+            placeholder="Bill name"
+            className="w-full bg-transparent text-sm font-semibold text-ink placeholder:text-ink-faint/60 focus:outline-none focus:bg-white/60 rounded-lg px-2 py-1 -mx-2 transition-colors"
+          />
+          {/* Match keywords editor */}
+          <div className="mt-1 ml-0.5">
+            {editingMatch ? (
+              <input
+                autoFocus
+                type="text"
+                defaultValue={matchText}
+                onBlur={(e) => {
+                  handleMatchChange(e.target.value)
+                  setEditingMatch(false)
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    handleMatchChange(e.target.value)
+                    setEditingMatch(false)
+                  }
+                  if (e.key === 'Escape') setEditingMatch(false)
+                }}
+                placeholder="e.g. netflix, disney, spotify"
+                className="w-full text-[11px] text-ink-soft bg-white/70 border border-indigo-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+              />
+            ) : (
+              <button
+                onClick={() => setEditingMatch(true)}
+                className="flex items-center gap-1 text-[11px] text-ink-faint hover:text-ink-soft transition-colors group/match"
+              >
+                <Pencil className="w-3 h-3 opacity-50 group-hover/match:opacity-100" />
+                {matchText ? (
+                  <span className="truncate max-w-[200px]">Match: {matchText}</span>
+                ) : (
+                  <span className="italic">Add match keywords…</span>
+                )}
+              </button>
+            )}
+          </div>
+          {/* Bank average hint */}
+          {showHint ? (
+            <button
+              onClick={() => onChange({ amount: avg })}
+              title={`Use the average from ${bank.count} matching payment${bank.count === 1 ? '' : 's'}`}
+              className="text-[11px] text-emerald-600 hover:text-emerald-700 hover:underline font-medium ml-0.5 mt-1"
+            >
+              bank avg ≈ {fmtGBP(avg)}/mo · tap to use
+            </button>
+          ) : avg > 0 ? (
+            <span className="text-[11px] text-emerald-600 ml-0.5 mt-1 block">✓ matches bank ({bank.count} txn{bank.count === 1 ? '' : 's'})</span>
+          ) : matchText ? (
+            <span className="text-[11px] text-amber-600 ml-0.5 mt-1 block">no matching transactions</span>
+          ) : null}
+        </div>
+        <select
+          value={bill.category || 'Other'}
+          onChange={(e) => onChange({ category: e.target.value })}
+          className="text-[11px] font-semibold text-ink-soft bg-white/50 border border-white/70 rounded-full px-2.5 py-1 focus:outline-none focus:ring-2 focus:ring-gray-900/10 cursor-pointer"
+        >
+          {BILL_CATEGORY_ORDER.map((c) => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </select>
+        <div className="flex items-center gap-1 w-24">
+          <span className="text-sm text-ink-faint">£</span>
+          <input
+            type="number"
+            min="0"
+            step="1"
+            value={bill.amount === 0 ? '' : bill.amount}
+            onChange={(e) => onChange({ amount: e.target.value === '' ? 0 : Number(e.target.value) })}
+            placeholder="0"
+            className="w-full bg-white/50 border border-white/70 rounded-lg px-2 py-1 text-sm font-bold text-ink text-right focus:outline-none focus:ring-2 focus:ring-gray-900/10"
+          />
+        </div>
+        <button
+          onClick={onRemove}
+          className="p-1 rounded-full text-ink-faint/50 hover:text-red-500 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 transition-all"
+          title="Remove bill"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+        </button>
       </div>
-      <select
-        value={bill.category || 'Other'}
-        onChange={(e) => onChange({ category: e.target.value })}
-        className="text-[11px] font-semibold text-ink-soft bg-white/50 border border-white/70 rounded-full px-2.5 py-1 focus:outline-none focus:ring-2 focus:ring-gray-900/10 cursor-pointer self-start"
-      >
-        {BILL_CATEGORY_ORDER.map((c) => (
-          <option key={c} value={c}>{c}</option>
-        ))}
-      </select>
-      <div className="flex items-center gap-1 w-24 self-start">
-        <span className="text-sm text-ink-faint">£</span>
-        <input
-          type="number"
-          min="0"
-          step="1"
-          value={bill.amount === 0 ? '' : bill.amount}
-          onChange={(e) => onChange({ amount: e.target.value === '' ? 0 : Number(e.target.value) })}
-          placeholder="0"
-          className="w-full bg-white/50 border border-white/70 rounded-lg px-2 py-1 text-sm font-bold text-ink text-right focus:outline-none focus:ring-2 focus:ring-gray-900/10"
-        />
-      </div>
-      <button
-        onClick={onRemove}
-        className="p-1 rounded-full text-ink-faint/50 hover:text-red-500 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 transition-all self-start"
-        title="Remove bill"
-      >
-        <Trash2 className="w-3.5 h-3.5" />
-      </button>
     </li>
   )
 }
