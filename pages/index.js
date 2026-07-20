@@ -3,7 +3,7 @@ import Head from 'next/head'
 import {
   Building2, Zap, CheckCircle, LayoutDashboard, DollarSign, Landmark, TrendingUp,
   ShoppingCart, Megaphone, ClipboardList, FlaskConical, ListTodo, CreditCard,
-  PiggyBank, Home, Receipt, ArrowLeftRight, PieChart, Wallet,
+  PiggyBank, Home as HomeIcon, Receipt, ArrowLeftRight, PieChart, Wallet,
 } from 'lucide-react'
 import Jarvis from '../components/Jarvis'
 import AgentOffice from '../components/AgentOffice'
@@ -48,7 +48,7 @@ const PERSONAL_NAV = [
       { id: 'bills', label: 'Bills', Icon: Receipt },
       { id: 'savings', label: 'Savings', Icon: PiggyBank },
       { id: 'debt', label: 'Debt', Icon: CreditCard },
-      { id: 'mortgage', label: 'Mortgage', Icon: Home },
+      { id: 'mortgage', label: 'Mortgage', Icon: HomeIcon },
       { id: 'breakdown', label: 'Breakdown', Icon: PieChart },
     ]},
     { id: 'personal-tasks', label: 'Tasks', Icon: ListTodo },
