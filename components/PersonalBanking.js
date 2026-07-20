@@ -47,6 +47,7 @@ export default function PersonalBanking({ activeSubTab, setActiveSubTab }) {
   const [loaded, setLoaded] = useState(false)
   const [scope, setScope] = useState('all') // 'all' | accountId
   const [showImport, setShowImport] = useState(false)
+  const [storageError, setStorageError] = useState(null)
 
   const activeTab = activeSubTab || 'overview'
 
@@ -66,11 +67,27 @@ export default function PersonalBanking({ activeSubTab, setActiveSubTab }) {
   }, [])
 
   useEffect(() => {
-    if (loaded) localStorage.setItem(STORAGE_KEY, JSON.stringify(accounts))
+    if (!loaded) return
+    try {
+      const data = JSON.stringify(accounts)
+      localStorage.setItem(STORAGE_KEY, data)
+      // Clear error if save succeeds
+      if (storageError === 'accounts') setStorageError(null)
+    } catch (e) {
+      console.error('Failed to save accounts to localStorage:', e)
+      setStorageError('accounts')
+    }
   }, [accounts, loaded])
 
   useEffect(() => {
-    if (loaded) localStorage.setItem(BILLS_KEY, JSON.stringify(bills))
+    if (!loaded) return
+    try {
+      localStorage.setItem(BILLS_KEY, JSON.stringify(bills))
+      if (storageError === 'bills') setStorageError(null)
+    } catch (e) {
+      console.error('Failed to save bills to localStorage:', e)
+      setStorageError('bills')
+    }
   }, [bills, loaded])
 
   function saveImport({ name, bank, transactions }) {
@@ -121,6 +138,23 @@ export default function PersonalBanking({ activeSubTab, setActiveSubTab }) {
 
   return (
     <div className="max-w-5xl mx-auto space-y-5">
+      {/* Storage error warning */}
+      {storageError && (
+        <div className="flex items-start gap-3 px-4 py-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl">
+          <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-amber-800">Storage limit reached</p>
+            <p className="text-xs text-amber-700 mt-0.5">
+              Your {storageError === 'accounts' ? 'bank statements' : 'bills'} couldn't be saved — browser storage is full.
+              Try removing old accounts or clearing other site data.
+            </p>
+          </div>
+          <button onClick={() => setStorageError(null)} className="text-amber-600 hover:text-amber-800">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
