@@ -9,8 +9,20 @@ import {
 import { parseBankCsv, currentBalance, netImported, mergeTransactions } from '../lib/parseBankCsv'
 import {
   monthlyCashflow, cashflowSummary, categoryBreakdown, detectRecurringBills,
-  groupPlannedBills, DEFAULT_PLANNED_BILLS, BILL_CATEGORY_ORDER,
+  groupPlannedBills, DEFAULT_PLANNED_BILLS, BILL_CATEGORY_ORDER, billBankAverages,
 } from '../lib/bankAnalytics'
+
+// Backfill statement-match keywords onto bills saved before matching existed,
+// pairing them to the seed list by name so the bank average can be computed.
+function hydrateBillMatchers(bills) {
+  return bills.map((b) => {
+    if (b.match && b.match.length) return b
+    const seed = DEFAULT_PLANNED_BILLS.find(
+      (d) => d.name.toLowerCase() === (b.name || '').toLowerCase()
+    )
+    return seed ? { ...b, match: seed.match } : b
+  })
+}
 
 const STORAGE_KEY = 'flair_personal_accounts'
 const BILLS_KEY = 'flair_personal_bills'
@@ -45,7 +57,7 @@ export default function PersonalBanking({ activeSubTab, setActiveSubTab }) {
     if (savedBills) {
       try {
         const parsed = JSON.parse(savedBills)
-        if (Array.isArray(parsed)) setBills(parsed)
+        if (Array.isArray(parsed)) setBills(hydrateBillMatchers(parsed))
       } catch {}
     }
     setLoaded(true)
@@ -271,6 +283,11 @@ function CashFlowTab({ txns }) {
 function BillsTab({ txns, bills, setBills }) {
   const { total, groups } = useMemo(() => groupPlannedBills(bills), [bills])
   const detected = useMemo(() => detectRecurringBills(txns), [txns])
+  const bankAvgs = useMemo(() => billBankAverages(bills, txns), [bills, txns])
+  const matchable = useMemo(
+    () => bills.filter((b) => (bankAvgs[b.id]?.avg || 0) > 0).length,
+    [bills, bankAvgs]
+  )
 
   function updateBill(id, patch) {
     setBills((prev) => prev.map((b) => (b.id === id ? { ...b, ...patch } : b)))
@@ -281,8 +298,15 @@ function BillsTab({ txns, bills, setBills }) {
   function addBill() {
     setBills((prev) => [
       ...prev,
-      { id: `bill-${Date.now()}`, name: '', amount: 0, category: 'Other' },
+      { id: `bill-${Date.now()}`, name: '', amount: 0, category: 'Other', match: [] },
     ])
+  }
+  // Set every matched bill's amount to its average monthly bank spend.
+  function matchAllToBank() {
+    setBills((prev) => prev.map((b) => {
+      const avg = bankAvgs[b.id]?.avg || 0
+      return avg > 0 ? { ...b, amount: avg } : b
+    }))
   }
 
   return (
@@ -293,14 +317,25 @@ function BillsTab({ txns, bills, setBills }) {
       </div>
 
       <div className="glass-strong rounded-3xl overflow-hidden">
-        <div className="px-5 py-3.5 border-b border-white/50 flex items-center justify-between">
+        <div className="px-5 py-3.5 border-b border-white/50 flex items-center justify-between gap-2">
           <h2 className="text-sm font-bold text-ink">My bills</h2>
-          <button
-            onClick={addBill}
-            className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-full bg-gray-900 text-white hover:bg-gray-800 transition-colors"
-          >
-            <Plus className="w-3.5 h-3.5" /> Add bill
-          </button>
+          <div className="flex items-center gap-1.5">
+            {matchable > 0 && (
+              <button
+                onClick={matchAllToBank}
+                title="Fill each amount with its average monthly spend from your statements"
+                className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-full bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
+              >
+                <TrendingUp className="w-3.5 h-3.5" /> Match to bank
+              </button>
+            )}
+            <button
+              onClick={addBill}
+              className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-full bg-gray-900 text-white hover:bg-gray-800 transition-colors"
+            >
+              <Plus className="w-3.5 h-3.5" /> Add bill
+            </button>
+          </div>
         </div>
 
         {groups.map((g) => (
@@ -314,7 +349,13 @@ function BillsTab({ txns, bills, setBills }) {
             </div>
             <ul className="divide-y divide-white/40">
               {g.bills.map((b) => (
-                <BillRow key={b.id} bill={b} onChange={(patch) => updateBill(b.id, patch)} onRemove={() => removeBill(b.id)} />
+                <BillRow
+                  key={b.id}
+                  bill={b}
+                  bank={bankAvgs[b.id]}
+                  onChange={(patch) => updateBill(b.id, patch)}
+                  onRemove={() => removeBill(b.id)}
+                />
               ))}
             </ul>
           </div>
@@ -326,7 +367,9 @@ function BillsTab({ txns, bills, setBills }) {
         </div>
       </div>
       <p className="text-[11px] text-ink-faint text-center">
-        Your monthly budget — edit any amount and it saves in this browser. Kept separate from Flair business data.
+        {matchable > 0
+          ? 'Amounts can be filled from your statements — “Match to bank” uses each bill’s average monthly spend. Everything stays editable and saves in this browser.'
+          : 'Your monthly budget — edit any amount and it saves in this browser. Import statements to auto-fill amounts from the bank.'}
       </p>
 
       {detected.length > 0 && (
@@ -353,25 +396,44 @@ function BillsTab({ txns, bills, setBills }) {
   )
 }
 
-function BillRow({ bill, onChange, onRemove }) {
+function BillRow({ bill, bank, onChange, onRemove }) {
+  const avg = bank?.avg || 0
+  const amount = Number(bill.amount) || 0
+  // Show the bank hint when there's a match and it isn't already the amount.
+  const showHint = avg > 0 && avg !== amount
   return (
     <li className="px-5 py-2.5 flex items-center gap-3 hover:bg-white/40 transition-colors group">
-      <input
-        value={bill.name}
-        onChange={(e) => onChange({ name: e.target.value })}
-        placeholder="Bill name"
-        className="flex-1 min-w-0 bg-transparent text-sm font-semibold text-ink placeholder:text-ink-faint/60 focus:outline-none focus:bg-white/60 rounded-lg px-2 py-1 -mx-2 transition-colors"
-      />
+      <div className="flex-1 min-w-0">
+        <input
+          value={bill.name}
+          onChange={(e) => onChange({ name: e.target.value })}
+          placeholder="Bill name"
+          className="w-full bg-transparent text-sm font-semibold text-ink placeholder:text-ink-faint/60 focus:outline-none focus:bg-white/60 rounded-lg px-2 py-1 -mx-2 transition-colors"
+        />
+        {showHint ? (
+          <button
+            onClick={() => onChange({ amount: avg })}
+            title={`Use the average from ${bank.count} matching payment${bank.count === 1 ? '' : 's'}`}
+            className="text-[11px] text-emerald-600 hover:text-emerald-700 hover:underline font-medium ml-0.5 mt-0.5"
+          >
+            bank avg ≈ {fmtGBP(avg)}/mo · tap to use
+          </button>
+        ) : avg > 0 ? (
+          <span className="text-[11px] text-ink-faint ml-0.5 mt-0.5 block">matches bank average</span>
+        ) : (
+          <span className="text-[11px] text-ink-faint/60 ml-0.5 mt-0.5 block">no bank match found</span>
+        )}
+      </div>
       <select
         value={bill.category || 'Other'}
         onChange={(e) => onChange({ category: e.target.value })}
-        className="text-[11px] font-semibold text-ink-soft bg-white/50 border border-white/70 rounded-full px-2.5 py-1 focus:outline-none focus:ring-2 focus:ring-gray-900/10 cursor-pointer"
+        className="text-[11px] font-semibold text-ink-soft bg-white/50 border border-white/70 rounded-full px-2.5 py-1 focus:outline-none focus:ring-2 focus:ring-gray-900/10 cursor-pointer self-start"
       >
         {BILL_CATEGORY_ORDER.map((c) => (
           <option key={c} value={c}>{c}</option>
         ))}
       </select>
-      <div className="flex items-center gap-1 w-24">
+      <div className="flex items-center gap-1 w-24 self-start">
         <span className="text-sm text-ink-faint">£</span>
         <input
           type="number"
@@ -385,7 +447,7 @@ function BillRow({ bill, onChange, onRemove }) {
       </div>
       <button
         onClick={onRemove}
-        className="p-1 rounded-full text-ink-faint/50 hover:text-red-500 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 transition-all"
+        className="p-1 rounded-full text-ink-faint/50 hover:text-red-500 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 transition-all self-start"
         title="Remove bill"
       >
         <Trash2 className="w-3.5 h-3.5" />
