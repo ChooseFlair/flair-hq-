@@ -7,7 +7,7 @@ module.exports = {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['Almarai', 'system-ui', 'sans-serif'],
+        sans: ['Urbanist', 'system-ui', 'sans-serif'],
       },
       colors: {
         flair: {

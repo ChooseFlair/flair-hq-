@@ -54,22 +54,22 @@ export default function PersonalTasks() {
     <div className="max-w-2xl mx-auto space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Personal Tasks</h1>
-          <p className="text-sm text-gray-500">{open.length} to do</p>
+          <h1 className="text-2xl font-extrabold text-ink">Personal Tasks</h1>
+          <p className="text-sm text-ink-soft">{open.length} to do</p>
         </div>
         <button
           onClick={() => setShowAdd(true)}
-          className="inline-flex items-center gap-1.5 px-3 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition-colors"
+          className="inline-flex items-center gap-1.5 px-4 py-2 bg-gray-900 text-white text-sm font-semibold rounded-full hover:bg-gray-800 transition-colors shadow-md"
         >
           <Plus className="w-4 h-4" /> Add task
         </button>
       </div>
 
       {showAdd && (
-        <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
+        <div className="glass-strong rounded-3xl p-5 space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-gray-900">New task</h2>
-            <button onClick={() => setShowAdd(false)} className="p-1 rounded hover:bg-gray-100 text-gray-400">
+            <h2 className="text-sm font-bold text-ink">New task</h2>
+            <button onClick={() => setShowAdd(false)} className="glass-orb w-8 h-8 rounded-full flex items-center justify-center text-ink-faint hover:text-ink">
               <X className="w-4 h-4" />
             </button>
           </div>
@@ -79,7 +79,7 @@ export default function PersonalTasks() {
             onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))}
             onKeyDown={(e) => e.key === 'Enter' && addTask()}
             placeholder="What needs doing?"
-            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900/10 focus:border-gray-400"
+            className="w-full px-4 py-2.5 text-sm bg-white/60 border border-white/70 rounded-2xl focus:outline-none focus:ring-2 focus:ring-gray-900/10 focus:bg-white/80"
           />
           <div className="flex items-center gap-3">
             <div className="flex gap-1">
@@ -87,10 +87,10 @@ export default function PersonalTasks() {
                 <button
                   key={p.id}
                   onClick={() => setDraft((d) => ({ ...d, priority: p.id }))}
-                  className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${
+                  className={`px-3 py-1 text-xs font-semibold rounded-full border transition-colors ${
                     draft.priority === p.id
                       ? 'border-gray-900 bg-gray-900 text-white'
-                      : 'border-gray-200 text-gray-500 hover:border-gray-300'
+                      : 'border-white/70 bg-white/40 text-ink-soft hover:bg-white/60'
                   }`}
                 >
                   {p.label}
@@ -101,11 +101,11 @@ export default function PersonalTasks() {
               type="date"
               value={draft.dueDate}
               onChange={(e) => setDraft((d) => ({ ...d, dueDate: e.target.value }))}
-              className="px-2.5 py-1 text-xs border border-gray-200 rounded-lg text-gray-500"
+              className="px-3 py-1.5 text-xs bg-white/60 border border-white/70 rounded-full text-ink-soft"
             />
             <button
               onClick={addTask}
-              className="ml-auto px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg hover:bg-gray-800"
+              className="ml-auto px-4 py-1.5 bg-gray-900 text-white text-xs font-semibold rounded-full hover:bg-gray-800"
             >
               Add
             </button>
@@ -113,30 +113,30 @@ export default function PersonalTasks() {
         </div>
       )}
 
-      <div className="bg-white rounded-xl border border-gray-200">
+      <div className="glass-strong rounded-3xl overflow-hidden">
         {sorted.length === 0 ? (
-          <p className="px-4 py-10 text-sm text-gray-400 text-center">Nothing on the list — enjoy it ✨</p>
+          <p className="px-4 py-10 text-sm text-ink-faint text-center">Nothing on the list — enjoy it ✨</p>
         ) : (
-          <ul className="divide-y divide-gray-50">
+          <ul className="divide-y divide-white/40">
             {sorted.map((t) => (
-              <li key={t.id} className="px-4 py-3 flex items-center gap-3 group">
+              <li key={t.id} className="px-5 py-3 flex items-center gap-3 group hover:bg-white/40 transition-colors">
                 <button
                   onClick={() => toggle(t.id)}
-                  className="w-5 h-5 rounded-full border-2 border-gray-300 hover:border-gray-900 flex items-center justify-center flex-shrink-0 transition-colors"
+                  className="w-5 h-5 rounded-full border-2 border-ink-faint/50 hover:border-gray-900 flex items-center justify-center flex-shrink-0 transition-colors"
                   title="Mark done"
                 >
-                  <Check className="w-3 h-3 text-transparent group-hover:text-gray-300" />
+                  <Check className="w-3 h-3 text-transparent group-hover:text-ink-faint/50" />
                 </button>
                 <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${PRIORITIES.find((p) => p.id === t.priority)?.dot}`} />
-                <span className="flex-1 text-sm text-gray-900 min-w-0 truncate">{t.title}</span>
+                <span className="flex-1 text-sm font-medium text-ink min-w-0 truncate">{t.title}</span>
                 {t.dueDate && (
-                  <span className="text-[11px] text-gray-400 flex items-center gap-1 flex-shrink-0">
+                  <span className="text-[11px] text-ink-faint flex items-center gap-1 flex-shrink-0">
                     <Calendar className="w-3 h-3" /> {fmtDue(t.dueDate)}
                   </span>
                 )}
                 <button
                   onClick={() => remove(t.id)}
-                  className="p-1 rounded hover:bg-red-50 text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="p-1 rounded-full hover:bg-red-500/10 text-ink-faint/60 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
@@ -150,25 +150,25 @@ export default function PersonalTasks() {
         <div>
           <button
             onClick={() => setShowDone((s) => !s)}
-            className="text-xs text-gray-400 hover:text-gray-600 mb-2"
+            className="text-xs font-medium text-ink-faint hover:text-ink-soft mb-2"
           >
             {showDone ? 'Hide' : 'Show'} completed ({done.length})
           </button>
           {showDone && (
-            <ul className="bg-white rounded-xl border border-gray-200 divide-y divide-gray-50">
+            <ul className="glass-strong rounded-3xl overflow-hidden divide-y divide-white/40">
               {done.map((t) => (
-                <li key={t.id} className="px-4 py-2.5 flex items-center gap-3 group">
+                <li key={t.id} className="px-5 py-2.5 flex items-center gap-3 group">
                   <button
                     onClick={() => toggle(t.id)}
-                    className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0"
+                    className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0 shadow-sm"
                     title="Mark not done"
                   >
                     <Check className="w-3 h-3 text-white" />
                   </button>
-                  <span className="flex-1 text-sm text-gray-400 line-through min-w-0 truncate">{t.title}</span>
+                  <span className="flex-1 text-sm text-ink-faint line-through min-w-0 truncate">{t.title}</span>
                   <button
                     onClick={() => remove(t.id)}
-                    className="p-1 rounded hover:bg-red-50 text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="p-1 rounded-full hover:bg-red-500/10 text-ink-faint/60 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
