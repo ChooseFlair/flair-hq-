@@ -1,8 +1,8 @@
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import {
   Landmark, Upload, FileText, Trash2, Link2, AlertCircle, X,
   ArrowDownLeft, ArrowUpRight, Plus, CheckCircle2, TrendingUp, TrendingDown, Repeat,
-  Pencil,
+  Pencil, Cloud, CloudOff, RefreshCw,
 } from 'lucide-react'
 import {
   ResponsiveContainer, ComposedChart, Bar, BarChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Cell,
@@ -48,47 +48,104 @@ export default function PersonalBanking({ activeSubTab, setActiveSubTab }) {
   const [scope, setScope] = useState('all') // 'all' | accountId
   const [showImport, setShowImport] = useState(false)
   const [storageError, setStorageError] = useState(null)
+  const [syncStatus, setSyncStatus] = useState('idle') // 'idle' | 'syncing' | 'synced' | 'error'
+  const [lastSynced, setLastSynced] = useState(null)
+  const saveTimeoutRef = useRef(null)
+  const initialLoadDone = useRef(false)
 
   const activeTab = activeSubTab || 'overview'
 
+  // Load data from Supabase (with localStorage as fast cache)
   useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY)
-    if (saved) {
-      try { setAccounts(JSON.parse(saved)) } catch {}
-    }
-    const savedBills = localStorage.getItem(BILLS_KEY)
-    if (savedBills) {
+    async function loadData() {
+      // First, load from localStorage for instant display
+      const localAccounts = localStorage.getItem(STORAGE_KEY)
+      if (localAccounts) {
+        try { setAccounts(JSON.parse(localAccounts)) } catch {}
+      }
+      const localBills = localStorage.getItem(BILLS_KEY)
+      if (localBills) {
+        try {
+          const parsed = JSON.parse(localBills)
+          if (Array.isArray(parsed)) setBills(hydrateBillMatchers(parsed))
+        } catch {}
+      }
+
+      // Then fetch from Supabase for cross-device sync
+      setSyncStatus('syncing')
       try {
-        const parsed = JSON.parse(savedBills)
-        if (Array.isArray(parsed)) setBills(hydrateBillMatchers(parsed))
-      } catch {}
+        const [accRes, billsRes] = await Promise.all([
+          fetch('/api/personal/data?key=accounts'),
+          fetch('/api/personal/data?key=bills'),
+        ])
+        const accData = await accRes.json()
+        const billsData = await billsRes.json()
+
+        // Use cloud data if it exists and is newer
+        if (accData.value && Array.isArray(accData.value)) {
+          setAccounts(accData.value)
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(accData.value))
+        }
+        if (billsData.value && Array.isArray(billsData.value)) {
+          setBills(hydrateBillMatchers(billsData.value))
+          localStorage.setItem(BILLS_KEY, JSON.stringify(billsData.value))
+        }
+
+        setSyncStatus('synced')
+        setLastSynced(new Date())
+      } catch (e) {
+        console.error('Failed to load from cloud:', e)
+        setSyncStatus('error')
+      }
+
+      setLoaded(true)
+      initialLoadDone.current = true
     }
-    setLoaded(true)
+    loadData()
   }, [])
 
-  useEffect(() => {
-    if (!loaded) return
+  // Debounced save to both localStorage and Supabase
+  const saveToCloud = useCallback(async (key, value) => {
+    // Save to localStorage immediately
     try {
-      const data = JSON.stringify(accounts)
-      localStorage.setItem(STORAGE_KEY, data)
-      // Clear error if save succeeds
-      if (storageError === 'accounts') setStorageError(null)
+      localStorage.setItem(key === 'accounts' ? STORAGE_KEY : BILLS_KEY, JSON.stringify(value))
+      if (storageError) setStorageError(null)
     } catch (e) {
-      console.error('Failed to save accounts to localStorage:', e)
-      setStorageError('accounts')
+      console.error('Failed to save to localStorage:', e)
+      setStorageError(key)
     }
-  }, [accounts, loaded])
 
+    // Debounced save to Supabase
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current)
+    saveTimeoutRef.current = setTimeout(async () => {
+      setSyncStatus('syncing')
+      try {
+        const res = await fetch('/api/personal/data', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key, value }),
+        })
+        if (!res.ok) throw new Error('Save failed')
+        setSyncStatus('synced')
+        setLastSynced(new Date())
+      } catch (e) {
+        console.error('Failed to save to cloud:', e)
+        setSyncStatus('error')
+      }
+    }, 1000) // 1 second debounce
+  }, [storageError])
+
+  // Save accounts when they change
   useEffect(() => {
-    if (!loaded) return
-    try {
-      localStorage.setItem(BILLS_KEY, JSON.stringify(bills))
-      if (storageError === 'bills') setStorageError(null)
-    } catch (e) {
-      console.error('Failed to save bills to localStorage:', e)
-      setStorageError('bills')
-    }
-  }, [bills, loaded])
+    if (!initialLoadDone.current) return
+    saveToCloud('accounts', accounts)
+  }, [accounts, saveToCloud])
+
+  // Save bills when they change
+  useEffect(() => {
+    if (!initialLoadDone.current) return
+    saveToCloud('bills', bills)
+  }, [bills, saveToCloud])
 
   function saveImport({ name, bank, transactions }) {
     setAccounts((prev) => {
@@ -159,7 +216,10 @@ export default function PersonalBanking({ activeSubTab, setActiveSubTab }) {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-extrabold text-ink">Personal Banking</h1>
-          <p className="text-sm text-ink-soft capitalize">{activeTab === 'overview' ? `${accounts.length} account${accounts.length === 1 ? '' : 's'}` : activeTab}</p>
+          <div className="flex items-center gap-2">
+            <p className="text-sm text-ink-soft capitalize">{activeTab === 'overview' ? `${accounts.length} account${accounts.length === 1 ? '' : 's'}` : activeTab}</p>
+            <SyncIndicator status={syncStatus} lastSynced={lastSynced} />
+          </div>
         </div>
         <button
           onClick={() => setShowImport(true)}
@@ -187,7 +247,7 @@ export default function PersonalBanking({ activeSubTab, setActiveSubTab }) {
       {activeTab === 'breakdown' && <BreakdownTab txns={scopedTxns} />}
 
       <p className="text-[11px] text-ink-faint text-center">
-        Statements are stored only in this browser and kept separate from Flair business data.
+        Statements sync across your devices and are kept separate from Flair business data.
       </p>
 
       {showImport && <ImportModal onClose={() => setShowImport(false)} onSave={saveImport} />}
@@ -731,6 +791,43 @@ function BreakdownTab({ txns }) {
 }
 
 // ── Shared bits ────────────────────────────────────────────────
+function SyncIndicator({ status, lastSynced }) {
+  const formatTime = (date) => {
+    if (!date) return ''
+    const now = new Date()
+    const diff = now - date
+    if (diff < 60000) return 'just now'
+    if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`
+    return date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+  }
+
+  if (status === 'syncing') {
+    return (
+      <span className="inline-flex items-center gap-1 text-[10px] text-ink-faint">
+        <RefreshCw className="w-3 h-3 animate-spin" />
+        <span>syncing…</span>
+      </span>
+    )
+  }
+  if (status === 'synced') {
+    return (
+      <span className="inline-flex items-center gap-1 text-[10px] text-emerald-600" title={lastSynced ? `Last synced: ${lastSynced.toLocaleString('en-GB')}` : ''}>
+        <Cloud className="w-3 h-3" />
+        <span>synced {formatTime(lastSynced)}</span>
+      </span>
+    )
+  }
+  if (status === 'error') {
+    return (
+      <span className="inline-flex items-center gap-1 text-[10px] text-amber-600" title="Couldn't sync to cloud — changes saved locally">
+        <CloudOff className="w-3 h-3" />
+        <span>offline</span>
+      </span>
+    )
+  }
+  return null
+}
+
 function ScopeChip({ active, onClick, children }) {
   return (
     <button
@@ -776,7 +873,7 @@ function EmptyState({ onImport }) {
       <h2 className="text-lg font-extrabold text-ink mb-1">Import your bank statements</h2>
       <p className="text-sm text-ink-soft mb-6">
         Download a CSV of your transactions from Nationwide or Halifax online banking, then drop it in here.
-        Everything stays private in your browser.
+        Data syncs across your devices and stays separate from Flair business data.
       </p>
       <button onClick={onImport} className="inline-flex items-center gap-2 px-5 py-2.5 bg-gray-900 text-white text-sm font-semibold rounded-full hover:bg-gray-800 transition-colors shadow-md">
         <Upload className="w-4 h-4" /> Import CSV
