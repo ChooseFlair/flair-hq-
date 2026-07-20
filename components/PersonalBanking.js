@@ -4,12 +4,13 @@ import {
   ArrowDownLeft, ArrowUpRight, Plus, CheckCircle2, TrendingUp, TrendingDown, Repeat,
 } from 'lucide-react'
 import {
-  ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Cell,
+  ResponsiveContainer, ComposedChart, Bar, BarChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Cell,
+  PieChart, Pie,
 } from 'recharts'
 import { parseBankCsv, currentBalance, netImported, mergeTransactions } from '../lib/parseBankCsv'
 import {
-  monthlyCashflow, cashflowSummary, categoryBreakdown, detectRecurringBills,
-  groupPlannedBills, DEFAULT_PLANNED_BILLS, BILL_CATEGORY_ORDER, billBankAverages,
+  monthlyCashflow, cashflowSummary, categoryBreakdown,
+  groupPlannedBills, DEFAULT_PLANNED_BILLS, BILL_CATEGORY_ORDER, BILL_CATEGORY_COLORS, billBankAverages,
 } from '../lib/bankAnalytics'
 
 // Backfill statement-match keywords onto bills saved before matching existed,
@@ -282,8 +283,19 @@ function CashFlowTab({ txns }) {
 // cross-check.
 function BillsTab({ txns, bills, setBills }) {
   const { total, groups } = useMemo(() => groupPlannedBills(bills), [bills])
-  const detected = useMemo(() => detectRecurringBills(txns), [txns])
   const bankAvgs = useMemo(() => billBankAverages(bills, txns), [bills, txns])
+  const catData = useMemo(
+    () => groups.filter((g) => g.subtotal > 0).map((g) => ({ name: g.category, value: g.subtotal, color: g.color })),
+    [groups]
+  )
+  const topBills = useMemo(
+    () => bills
+      .map((b) => ({ name: b.name || '—', amount: Number(b.amount) || 0, color: BILL_CATEGORY_COLORS[b.category] || BILL_CATEGORY_COLORS.Other }))
+      .filter((b) => b.amount > 0)
+      .sort((a, b) => b.amount - a.amount)
+      .slice(0, 8),
+    [bills]
+  )
   const matchable = useMemo(
     () => bills.filter((b) => (bankAvgs[b.id]?.avg || 0) > 0).length,
     [bills, bankAvgs]
@@ -372,25 +384,72 @@ function BillsTab({ txns, bills, setBills }) {
           : 'Your monthly budget — edit any amount and it saves in this browser. Import statements to auto-fill amounts from the bank.'}
       </p>
 
-      {detected.length > 0 && (
-        <div className="glass-strong rounded-3xl overflow-hidden">
-          <div className="px-5 py-3.5 border-b border-white/50">
-            <h2 className="text-sm font-bold text-ink">Spotted in your statements</h2>
-            <p className="text-[11px] text-ink-faint mt-0.5">Payments that repeat across months — a cross-check against the budget above.</p>
+      {total > 0 ? (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {/* Where the money goes — category split */}
+          <div className="glass-strong rounded-3xl p-5">
+            <h2 className="text-sm font-bold text-ink mb-2">Where it goes</h2>
+            <div className="relative" style={{ width: '100%', height: 240 }}>
+              <ResponsiveContainer>
+                <PieChart>
+                  <Pie
+                    data={catData}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={62}
+                    outerRadius={92}
+                    paddingAngle={2}
+                    stroke="none"
+                  >
+                    {catData.map((d) => <Cell key={d.name} fill={d.color} />)}
+                  </Pie>
+                  <Tooltip
+                    formatter={(v, n) => [`${fmtGBP(v)}/mo`, n]}
+                    contentStyle={{ borderRadius: 14, border: '1px solid rgba(255,255,255,0.7)', background: 'rgba(255,255,255,0.9)', backdropFilter: 'blur(8px)', fontSize: 12 }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                <span className="text-[11px] text-ink-faint font-semibold uppercase tracking-wide">Per month</span>
+                <span className="text-2xl font-extrabold text-ink tracking-tight">{fmtGBP0(total)}</span>
+              </div>
+            </div>
+            <div className="flex flex-wrap justify-center gap-x-4 gap-y-1.5 mt-3">
+              {catData.map((d) => (
+                <span key={d.name} className="flex items-center gap-1.5 text-[11px] text-ink-soft">
+                  <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: d.color }} />
+                  {d.name} <span className="text-ink-faint">{fmtGBP0(d.value)}</span>
+                </span>
+              ))}
+            </div>
           </div>
-          <ul className="divide-y divide-white/40">
-            {detected.map((b, i) => (
-              <li key={i} className="px-5 py-3 flex items-center gap-3 hover:bg-white/40 transition-colors">
-                <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: b.color }} />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-ink truncate">{b.payee}</p>
-                  <p className="text-[11px] text-ink-faint">{b.category} · seen in {b.months} months · last {fmtDate(b.lastDate)}</p>
-                </div>
-                <span className="text-sm font-bold text-ink">{fmtGBP(b.monthly)}<span className="text-[11px] font-normal text-ink-faint">/mo</span></span>
-              </li>
-            ))}
-          </ul>
+
+          {/* Biggest bills */}
+          <div className="glass-strong rounded-3xl p-5">
+            <h2 className="text-sm font-bold text-ink mb-2">Biggest bills</h2>
+            <div style={{ width: '100%', height: 240 }}>
+              <ResponsiveContainer>
+                <BarChart data={topBills} layout="vertical" margin={{ top: 4, right: 16, left: 8, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(44,74,62,0.08)" horizontal={false} />
+                  <XAxis type="number" tick={{ fontSize: 11, fill: '#8a988f' }} axisLine={false} tickLine={false} tickFormatter={(v) => `£${v >= 1000 ? `${Math.round(v / 1000)}k` : v}`} />
+                  <YAxis type="category" dataKey="name" width={96} tick={{ fontSize: 11, fill: '#5a6b62' }} axisLine={false} tickLine={false} />
+                  <Tooltip
+                    cursor={{ fill: 'rgba(44,74,62,0.05)' }}
+                    formatter={(v) => [`${fmtGBP(v)}/mo`, 'Amount']}
+                    contentStyle={{ borderRadius: 14, border: '1px solid rgba(255,255,255,0.7)', background: 'rgba(255,255,255,0.9)', backdropFilter: 'blur(8px)', fontSize: 12 }}
+                  />
+                  <Bar dataKey="amount" radius={[0, 5, 5, 0]} maxBarSize={22}>
+                    {topBills.map((b) => <Cell key={b.name} fill={b.color} />)}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
         </div>
+      ) : (
+        <EmptyTab label="Add amounts to your bills (or use “Match to bank”) to see the breakdown charts." />
       )}
     </div>
   )
