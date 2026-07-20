@@ -1210,45 +1210,23 @@ function SavingsTab({ txns, settings, setSettings }) {
 
   return (
     <div className="space-y-4">
-      {/* Quick entry for total savings */}
-      <div className="glass-strong rounded-3xl p-5">
-        <h2 className="text-sm font-bold text-ink mb-4">Your savings</h2>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs font-medium text-ink-soft mb-2">Total saved so far</label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-lg font-bold text-ink-faint">£</span>
-              <input
-                type="number"
-                inputMode="decimal"
-                defaultValue={overallSaved || ''}
-                onBlur={(e) => setSettings(s => ({ ...s, overallSaved: Number(e.target.value) || 0 }))}
-                className="w-full pl-8 pr-4 py-3 text-xl font-bold bg-white border-2 border-emerald-300 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                placeholder="0"
-              />
-            </div>
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-ink-soft mb-2">Monthly contribution</label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-lg font-bold text-ink-faint">£</span>
-              <input
-                type="number"
-                inputMode="decimal"
-                defaultValue={overallContribution || ''}
-                onBlur={(e) => setSettings(s => ({ ...s, overallContribution: Number(e.target.value) || 0 }))}
-                className="w-full pl-8 pr-4 py-3 text-xl font-bold bg-white border-2 border-emerald-300 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                placeholder="0"
-              />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Stats */}
+      {/* Stats - editable tiles */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <StatTile label="Monthly contribution" value={fmtGBP0(combinedContribution)} tone="in" icon={<PiggyBank className="w-4 h-4" />} sub="planned / month" />
-        <StatTile label="Total saved" value={fmtGBP0(combinedSaved)} tone={combinedSaved > 0 ? 'in' : undefined} sub={savingsGoals.length > 0 ? `inc. ${savingsGoals.length} goals` : 'enter above'} />
+        <EditableStatTile
+          label="Monthly contribution"
+          value={overallContribution}
+          onChange={(v) => setSettings(s => ({ ...s, overallContribution: v }))}
+          tone="in"
+          icon={<PiggyBank className="w-4 h-4" />}
+          sub="click to edit"
+        />
+        <EditableStatTile
+          label="Total saved"
+          value={overallSaved}
+          onChange={(v) => setSettings(s => ({ ...s, overallSaved: v }))}
+          tone={combinedSaved > 0 ? 'in' : undefined}
+          sub="click to edit"
+        />
         <StatTile label="Goals target" value={fmtGBP0(totalGoals)} sub={`${savingsGoals.length} goals`} />
         <StatTile label="In 3 months" value={fmtGBP0(combinedForecast[2]?.total || 0)} tone="in" sub={`+${fmtGBP0(combinedContribution * 3)} projected`} />
       </div>
@@ -2136,6 +2114,70 @@ function StatTile({ label, value, sub, tone, icon }) {
         {icon}<span className="text-[11px] font-semibold uppercase tracking-wide">{label}</span>
       </div>
       <p className={`text-xl font-extrabold tracking-tight ${toneColor}`}>{value}</p>
+      {sub && <p className="text-[11px] text-ink-faint mt-0.5">{sub}</p>}
+    </div>
+  )
+}
+
+function EditableStatTile({ label, value, onChange, sub, tone, icon }) {
+  const [editing, setEditing] = useState(false)
+  const [inputVal, setInputVal] = useState('')
+  const toneColor = tone === 'in' ? 'text-emerald-600' : tone === 'out' ? 'text-ink' : tone === 'neg' ? 'text-red-500' : 'text-ink'
+
+  function handleClick() {
+    setInputVal(value || '')
+    setEditing(true)
+  }
+
+  function handleBlur() {
+    setEditing(false)
+    const numVal = Number(inputVal) || 0
+    if (numVal !== value) onChange(numVal)
+  }
+
+  function handleKeyDown(e) {
+    if (e.key === 'Enter') {
+      e.target.blur()
+    }
+    if (e.key === 'Escape') {
+      setEditing(false)
+    }
+  }
+
+  if (editing) {
+    return (
+      <div className="glass-strong rounded-3xl p-4 ring-2 ring-emerald-500">
+        <div className="flex items-center gap-1.5 text-ink-faint mb-1">
+          {icon}<span className="text-[11px] font-semibold uppercase tracking-wide">{label}</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <span className={`text-xl font-extrabold ${toneColor}`}>£</span>
+          <input
+            autoFocus
+            type="number"
+            inputMode="decimal"
+            value={inputVal}
+            onChange={(e) => setInputVal(e.target.value)}
+            onBlur={handleBlur}
+            onKeyDown={handleKeyDown}
+            className="w-full text-xl font-extrabold bg-transparent border-none outline-none"
+            placeholder="0"
+          />
+        </div>
+        <p className="text-[11px] text-emerald-600 mt-0.5">tap outside to save</p>
+      </div>
+    )
+  }
+
+  return (
+    <div
+      onClick={handleClick}
+      className="glass-strong rounded-3xl p-4 cursor-pointer hover:ring-2 hover:ring-emerald-300 transition-all"
+    >
+      <div className="flex items-center gap-1.5 text-ink-faint mb-1">
+        {icon}<span className="text-[11px] font-semibold uppercase tracking-wide">{label}</span>
+      </div>
+      <p className={`text-xl font-extrabold tracking-tight ${toneColor}`}>{fmtGBP0(value)}</p>
       {sub && <p className="text-[11px] text-ink-faint mt-0.5">{sub}</p>}
     </div>
   )
