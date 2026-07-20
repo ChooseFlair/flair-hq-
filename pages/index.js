@@ -42,6 +42,7 @@ const PERSONAL_NAV = [
       { id: 'bills', label: 'Bills' },
       { id: 'savings', label: 'Savings' },
       { id: 'debt', label: 'Debt' },
+      { id: 'mortgage', label: 'Mortgage' },
       { id: 'breakdown', label: 'Breakdown' },
     ]},
     { id: 'personal-tasks', label: 'Tasks', icon: '📝' },

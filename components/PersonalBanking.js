@@ -3,7 +3,7 @@ import {
   Landmark, Upload, FileText, Trash2, Link2, AlertCircle, X,
   ArrowDownLeft, ArrowUpRight, Plus, CheckCircle2, TrendingUp, TrendingDown, Repeat,
   Pencil, Cloud, CloudOff, RefreshCw, EyeOff, Eye, Filter, ArrowUpDown, Search,
-  PiggyBank, CreditCard,
+  PiggyBank, CreditCard, Home, Calendar,
 } from 'lucide-react'
 import {
   ResponsiveContainer, ComposedChart, Bar, BarChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Cell,
@@ -315,16 +315,20 @@ export default function PersonalBanking({ activeSubTab, setActiveSubTab }) {
           accounts={accounts}
           scope={scope}
           scopedTxns={scopedTxns}
+          filteredTxns={filteredTxns}
           excludedSet={excludedSet}
           onToggleExclude={toggleExcludeTxn}
           onSelect={setScope}
           onRemove={removeAccount}
+          bills={bills}
+          settings={settings}
         />
       )}
       {activeTab === 'cashflow' && <CashFlowTab txns={filteredTxns} />}
       {activeTab === 'bills' && <BillsTab txns={filteredTxns} bills={bills} setBills={setBills} settings={settings} setSettings={setSettings} />}
       {activeTab === 'savings' && <SavingsTab txns={filteredTxns} settings={settings} setSettings={setSettings} />}
       {activeTab === 'debt' && <DebtTab settings={settings} setSettings={setSettings} />}
+      {activeTab === 'mortgage' && <MortgageTab settings={settings} setSettings={setSettings} />}
       {activeTab === 'breakdown' && <BreakdownTab txns={filteredTxns} />}
 
       <p className="text-[11px] text-ink-faint text-center">
@@ -337,12 +341,33 @@ export default function PersonalBanking({ activeSubTab, setActiveSubTab }) {
 }
 
 // ── Overview ───────────────────────────────────────────────────
-function OverviewTab({ accounts, scope, scopedTxns, excludedSet, onToggleExclude, onSelect, onRemove }) {
+function OverviewTab({ accounts, scope, scopedTxns, filteredTxns, excludedSet, onToggleExclude, onSelect, onRemove, bills, settings }) {
   const [sortBy, setSortBy] = useState('date') // 'date' | 'amount'
   const [sortDir, setSortDir] = useState('desc') // 'asc' | 'desc'
   const [filterMin, setFilterMin] = useState('')
   const [showFilters, setShowFilters] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
+
+  // Summary calculations
+  const summary = useMemo(() => cashflowSummary(filteredTxns || []), [filteredTxns])
+  const { total: billsTotal } = useMemo(() => groupPlannedBills(bills || []), [bills])
+  const savingsGoals = settings?.savingsGoals || []
+  const debts = settings?.debts || []
+  const mortgage = settings?.mortgage || {}
+
+  const income = settings?.monthlyIncome ?? summary.avgIn
+  const totalSavingsContrib = savingsGoals.reduce((s, g) => s + (Number(g.contribution) || 0), 0)
+  const totalDebtPayment = debts.reduce((s, d) => s + (Number(d.minPayment) || 0), 0)
+  const mortgagePayment = Number(mortgage.payment) || 0
+  const committed = billsTotal + totalSavingsContrib + totalDebtPayment + mortgagePayment
+  const freeSpend = Math.max(0, income - committed)
+  const weeklyBudget = freeSpend / 4.33
+
+  // Total balances across all accounts
+  const totalBalance = accounts.reduce((s, acc) => {
+    const bal = currentBalance(acc.transactions)
+    return s + (bal ?? netImported(acc.transactions))
+  }, 0)
 
   const processedTxns = useMemo(() => {
     let txns = [...scopedTxns]
@@ -377,6 +402,45 @@ function OverviewTab({ accounts, scope, scopedTxns, excludedSet, onToggleExclude
   const excludedCount = scopedTxns.filter((t) => excludedSet.has(t.id)).length
   return (
     <>
+      {/* Summary Stats */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+        <StatTile label="Total balance" value={fmtGBP0(totalBalance)} tone={totalBalance >= 0 ? 'in' : 'neg'} icon={<Landmark className="w-4 h-4" />} sub={`${accounts.length} accounts`} />
+        <StatTile label="Income" value={fmtGBP0(income)} tone="in" icon={<ArrowDownLeft className="w-4 h-4" />} sub="avg / month" />
+        <StatTile label="Spending" value={fmtGBP0(summary.avgOut)} tone="out" icon={<ArrowUpRight className="w-4 h-4" />} sub="avg / month" />
+        <StatTile label="Weekly budget" value={fmtGBP0(weeklyBudget)} tone={weeklyBudget > 0 ? 'in' : 'neg'} sub="after commitments" />
+      </div>
+
+      {/* Commitments breakdown */}
+      {committed > 0 && (
+        <div className="glass-strong rounded-3xl p-4 mb-4">
+          <h3 className="text-xs font-bold text-ink-faint uppercase tracking-wider mb-3">Monthly commitments</h3>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
+            <div className="flex justify-between">
+              <span className="text-ink-soft">Bills</span>
+              <span className="font-semibold text-ink">{fmtGBP0(billsTotal)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-ink-soft">Savings</span>
+              <span className="font-semibold text-emerald-600">{fmtGBP0(totalSavingsContrib)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-ink-soft">Debt</span>
+              <span className="font-semibold text-ink">{fmtGBP0(totalDebtPayment)}</span>
+            </div>
+            {mortgagePayment > 0 && (
+              <div className="flex justify-between">
+                <span className="text-ink-soft">Mortgage</span>
+                <span className="font-semibold text-ink">{fmtGBP0(mortgagePayment)}</span>
+              </div>
+            )}
+          </div>
+          <div className="flex justify-between mt-3 pt-3 border-t border-white/40">
+            <span className="text-ink font-semibold">Free to spend</span>
+            <span className={`font-bold ${freeSpend > 0 ? 'text-emerald-600' : 'text-red-500'}`}>{fmtGBP0(freeSpend)}/mo</span>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {accounts.map((acc) => {
           const bal = currentBalance(acc.transactions)
@@ -613,6 +677,19 @@ function BillsTab({ txns, bills, setBills, settings, setSettings }) {
   const allSpend = summary.avgOut
   const savings = income - allSpend // avg money left each month
   const otherSpend = Math.max(0, allSpend - total) // spend that isn't a tracked bill
+
+  // Savings and debt totals
+  const savingsGoals = settings?.savingsGoals || []
+  const debts = settings?.debts || []
+  const totalSavingsContrib = savingsGoals.reduce((s, g) => s + (Number(g.contribution) || 0), 0)
+  const totalDebtPayment = debts.reduce((s, d) => s + (Number(d.minPayment) || 0), 0)
+  const mortgage = settings?.mortgage || {}
+  const mortgagePayment = Number(mortgage.payment) || 0
+
+  // Weekly spending available
+  const committed = total + totalSavingsContrib + totalDebtPayment + mortgagePayment
+  const freeSpend = Math.max(0, income - committed)
+  const weeklyBudget = freeSpend / 4.33
   const hasIncome = income > 0 || settings?.monthlyIncome > 0
   const catData = useMemo(
     () => groups.filter((g) => g.subtotal > 0).map((g) => ({ name: g.category, value: g.subtotal, color: g.color })),
@@ -670,8 +747,13 @@ function BillsTab({ txns, bills, setBills, settings, setSettings }) {
               onCancel={() => setEditingIncome(false)}
             />
             <StatTile label="Bills" value={fmtGBP0(total)} tone="out" icon={<Repeat className="w-4 h-4" />} sub={`${fmtGBP0(total * 12)} / yr`} />
-            <StatTile label="All spending" value={fmtGBP0(allSpend)} tone="out" icon={<TrendingDown className="w-4 h-4" />} sub="avg / month" />
-            <StatTile label={savings >= 0 ? 'Left to save' : 'Overspend'} value={fmtGBP0(savings)} tone={savings >= 0 ? 'in' : 'neg'} sub="income − spend" />
+            <StatTile label="Savings" value={fmtGBP0(totalSavingsContrib)} tone="in" icon={<PiggyBank className="w-4 h-4" />} sub={`${savingsGoals.length} goals`} />
+            <StatTile label="Debt payments" value={fmtGBP0(totalDebtPayment + mortgagePayment)} tone="out" icon={<CreditCard className="w-4 h-4" />} sub={mortgagePayment > 0 ? 'inc. mortgage' : `${debts.length} accounts`} />
+          </div>
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+            <StatTile label="Committed" value={fmtGBP0(committed)} tone="out" sub="bills + savings + debt" />
+            <StatTile label="Free spend" value={fmtGBP0(freeSpend)} tone={freeSpend > 0 ? 'in' : 'neg'} sub="after commitments" />
+            <StatTile label="Weekly budget" value={fmtGBP0(weeklyBudget)} tone={weeklyBudget > 0 ? 'in' : 'neg'} sub="available per week" />
           </div>
           <IncomeAllocation income={income} bills={total} otherSpend={otherSpend} savings={savings} />
           <IncomeVsSpend txns={txns} />
@@ -993,6 +1075,32 @@ function BillRow({ bill, bank, onChange, onRemove }) {
 // Track savings goals and auto-detect transfers to savings accounts.
 const SAVINGS_KEYWORDS = ['savings', 'isa', 'saver', 'nationwide saver', 'halifax saver', 'easy access', 'instant saver']
 
+// Editable input that uses local state during typing
+function EditableNumber({ value, onChange, placeholder, className }) {
+  const [localValue, setLocalValue] = useState(String(value || ''))
+  const [focused, setFocused] = useState(false)
+
+  useEffect(() => {
+    if (!focused) setLocalValue(String(value || ''))
+  }, [value, focused])
+
+  return (
+    <input
+      type="text"
+      inputMode="decimal"
+      value={localValue}
+      onChange={(e) => setLocalValue(e.target.value)}
+      onFocus={() => setFocused(true)}
+      onBlur={(e) => {
+        setFocused(false)
+        onChange(Number(e.target.value) || 0)
+      }}
+      className={className}
+      placeholder={placeholder}
+    />
+  )
+}
+
 function SavingsTab({ txns, settings, setSettings }) {
   const [showAddGoal, setShowAddGoal] = useState(false)
   const [newGoal, setNewGoal] = useState({ name: '', target: '', saved: '', contribution: '' })
@@ -1027,6 +1135,16 @@ function SavingsTab({ txns, settings, setSettings }) {
   const totalGoals = savingsGoals.reduce((s, g) => s + (Number(g.target) || 0), 0)
   const totalSaved = savingsGoals.reduce((s, g) => s + (Number(g.saved) || 0), 0)
   const totalContribution = savingsGoals.reduce((s, g) => s + (Number(g.contribution) || 0), 0)
+
+  // Forecast: project savings for next 3 months
+  const forecast = useMemo(() => {
+    const now = new Date()
+    return [1, 2, 3].map((m) => {
+      const date = new Date(now.getFullYear(), now.getMonth() + m, 1)
+      const label = date.toLocaleDateString('en-GB', { month: 'short', year: '2-digit' })
+      return { label, total: totalSaved + totalContribution * m }
+    })
+  }, [totalSaved, totalContribution])
 
   function addGoal() {
     if (!newGoal.name || !newGoal.target) return
@@ -1065,8 +1183,23 @@ function SavingsTab({ txns, settings, setSettings }) {
         <StatTile label="Monthly contribution" value={fmtGBP0(totalContribution)} tone="in" icon={<PiggyBank className="w-4 h-4" />} sub="planned / month" />
         <StatTile label="Total saved" value={fmtGBP0(totalSaved)} tone={totalSaved > 0 ? 'in' : undefined} sub={totalGoals > 0 ? `${Math.round((totalSaved / totalGoals) * 100)}% of goals` : 'no goals yet'} />
         <StatTile label="Goals target" value={fmtGBP0(totalGoals)} sub={`${savingsGoals.length} goals`} />
-        <StatTile label="Bank transfers" value={fmtGBP0(monthlyToSavings)} sub={`avg / month (${savingsTransfers.length} txns)`} />
+        <StatTile label="In 3 months" value={fmtGBP0(forecast[2]?.total || 0)} tone="in" sub={`+${fmtGBP0(totalContribution * 3)} projected`} />
       </div>
+
+      {/* Forecast */}
+      {totalContribution > 0 && (
+        <div className="glass-strong rounded-3xl p-5">
+          <h2 className="text-sm font-bold text-ink mb-3">Savings forecast</h2>
+          <div className="grid grid-cols-3 gap-3">
+            {forecast.map((f) => (
+              <div key={f.label} className="text-center">
+                <p className="text-lg font-bold text-emerald-600">{fmtGBP0(f.total)}</p>
+                <p className="text-xs text-ink-faint">{f.label}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Savings rate chart */}
       {monthlyData.length > 1 && (
@@ -1131,24 +1264,18 @@ function SavingsTab({ txns, settings, setSettings }) {
                     <div className="flex items-center gap-3">
                       <div className="flex items-center gap-1.5">
                         <span className="text-[11px] text-ink-faint">Saved:</span>
-                        <input
-                          type="text"
-                          inputMode="decimal"
-                          value={g.saved || ''}
-                          onChange={(e) => updateGoal(g.id, { saved: e.target.value === '' ? 0 : Number(e.target.value) })}
-                          onBlur={(e) => updateGoal(g.id, { saved: Number(e.target.value) || 0 })}
+                        <EditableNumber
+                          value={g.saved}
+                          onChange={(v) => updateGoal(g.id, { saved: v })}
                           className="w-20 px-2 py-1 text-xs text-right bg-white/50 border border-white/70 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900/10"
                           placeholder="0"
                         />
                       </div>
                       <div className="flex items-center gap-1.5">
                         <span className="text-[11px] text-ink-faint">/ month:</span>
-                        <input
-                          type="text"
-                          inputMode="decimal"
-                          value={g.contribution || ''}
-                          onChange={(e) => updateGoal(g.id, { contribution: e.target.value === '' ? 0 : Number(e.target.value) })}
-                          onBlur={(e) => updateGoal(g.id, { contribution: Number(e.target.value) || 0 })}
+                        <EditableNumber
+                          value={g.contribution}
+                          onChange={(v) => updateGoal(g.id, { contribution: v })}
                           className="w-20 px-2 py-1 text-xs text-right bg-white/50 border border-white/70 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900/10"
                           placeholder="0"
                         />
@@ -1213,6 +1340,10 @@ function DebtTab({ settings, setSettings }) {
   const totalMinPayment = debts.reduce((s, d) => s + (Number(d.minPayment) || 0), 0)
   const avgApr = debts.length > 0 ? debts.reduce((s, d) => s + (Number(d.apr) || 0), 0) / debts.length : 0
 
+  // Calculate months until debt-free (simplified, ignores interest compounding)
+  const monthsToPayoff = totalMinPayment > 0 ? Math.ceil(totalDebt / totalMinPayment) : null
+  const payoffDate = monthsToPayoff ? new Date(Date.now() + monthsToPayoff * 30 * 24 * 60 * 60 * 1000) : null
+
   function addDebt() {
     if (!newDebt.name || !newDebt.balance) return
     setSettings((s) => ({
@@ -1257,9 +1388,14 @@ function DebtTab({ settings, setSettings }) {
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <StatTile label="Total debt" value={fmtGBP0(totalDebt)} tone="neg" icon={<CreditCard className="w-4 h-4" />} sub={`${debts.length} account${debts.length === 1 ? '' : 's'}`} />
-        <StatTile label="Min payments" value={fmtGBP0(totalMinPayment)} tone="out" sub="per month" />
-        <StatTile label="Avg APR" value={`${avgApr.toFixed(1)}%`} sub="interest rate" />
-        <StatTile label="Monthly interest" value={fmtGBP0(totalDebt * (avgApr / 100) / 12)} tone="neg" sub="estimated" />
+        <StatTile label="Monthly payments" value={fmtGBP0(totalMinPayment)} tone="out" sub="per month" />
+        <StatTile
+          label="Debt free"
+          value={payoffDate ? payoffDate.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' }) : '—'}
+          tone={monthsToPayoff && monthsToPayoff <= 12 ? 'in' : undefined}
+          sub={monthsToPayoff ? `${monthsToPayoff} months left` : 'add payments'}
+        />
+        <StatTile label="Monthly interest" value={fmtGBP0(totalDebt * (avgApr / 100) / 12)} tone="neg" sub={`${avgApr.toFixed(1)}% avg APR`} />
       </div>
 
       {/* Debt progress chart */}
@@ -1327,23 +1463,17 @@ function DebtTab({ settings, setSettings }) {
                   <div className="flex items-center gap-4 mt-2">
                     <div className="flex items-center gap-2">
                       <span className="text-[11px] text-ink-faint">Balance £</span>
-                      <input
-                        type="text"
-                        inputMode="decimal"
-                        value={d.balance || ''}
-                        onChange={(e) => updateDebt(d.id, { balance: e.target.value === '' ? 0 : Number(e.target.value) })}
-                        onBlur={(e) => updateDebt(d.id, { balance: Number(e.target.value) || 0 })}
+                      <EditableNumber
+                        value={d.balance}
+                        onChange={(v) => updateDebt(d.id, { balance: v })}
                         className="w-24 px-2 py-1 text-xs bg-white/50 border border-white/70 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900/10"
                       />
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="text-[11px] text-ink-faint">Payment £</span>
-                      <input
-                        type="text"
-                        inputMode="decimal"
-                        value={d.minPayment || ''}
-                        onChange={(e) => updateDebt(d.id, { minPayment: e.target.value === '' ? 0 : Number(e.target.value) })}
-                        onBlur={(e) => updateDebt(d.id, { minPayment: Number(e.target.value) || 0 })}
+                      <EditableNumber
+                        value={d.minPayment}
+                        onChange={(v) => updateDebt(d.id, { minPayment: v })}
                         className="w-20 px-2 py-1 text-xs bg-white/50 border border-white/70 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900/10"
                       />
                     </div>
@@ -1393,6 +1523,147 @@ function DebtTab({ settings, setSettings }) {
           </ul>
         )}
       </div>
+    </div>
+  )
+}
+
+// ── Mortgage ────────────────────────────────────────────────────
+// Track mortgage with balance, payments, and equity.
+function MortgageTab({ settings, setSettings }) {
+  const mortgage = settings.mortgage || {}
+  const hasMortgage = mortgage.balance > 0
+
+  function updateMortgage(patch) {
+    setSettings((s) => ({ ...s, mortgage: { ...s.mortgage, ...patch } }))
+  }
+
+  // Calculate payoff timeline
+  const monthlyPayment = Number(mortgage.payment) || 0
+  const balance = Number(mortgage.balance) || 0
+  const rate = Number(mortgage.rate) || 0
+  const propertyValue = Number(mortgage.propertyValue) || 0
+  const equity = propertyValue - balance
+  const ltv = propertyValue > 0 ? (balance / propertyValue) * 100 : 0
+
+  // Estimate months to payoff (simplified, ignores interest compounding for display)
+  const monthlyInterest = balance * (rate / 100) / 12
+  const principalPayment = monthlyPayment - monthlyInterest
+  const monthsToPayoff = principalPayment > 0 ? Math.ceil(balance / principalPayment) : null
+  const payoffDate = monthsToPayoff ? new Date(Date.now() + monthsToPayoff * 30 * 24 * 60 * 60 * 1000) : null
+  const yearsLeft = monthsToPayoff ? Math.floor(monthsToPayoff / 12) : null
+  const monthsLeft = monthsToPayoff ? monthsToPayoff % 12 : null
+
+  return (
+    <div className="space-y-4">
+      {/* Stats */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <StatTile label="Outstanding" value={fmtGBP0(balance)} tone="neg" icon={<Home className="w-4 h-4" />} sub="mortgage balance" />
+        <StatTile label="Equity" value={fmtGBP0(equity)} tone={equity > 0 ? 'in' : undefined} sub={propertyValue > 0 ? `${(100 - ltv).toFixed(0)}% ownership` : 'set property value'} />
+        <StatTile label="Monthly" value={fmtGBP0(monthlyPayment)} tone="out" sub={`${fmtGBP0(principalPayment)} principal`} />
+        <StatTile
+          label="Mortgage free"
+          value={payoffDate ? payoffDate.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' }) : '—'}
+          icon={<Calendar className="w-4 h-4" />}
+          sub={yearsLeft !== null ? `${yearsLeft}y ${monthsLeft}m left` : 'add details'}
+        />
+      </div>
+
+      {/* LTV Progress */}
+      {propertyValue > 0 && (
+        <div className="glass-strong rounded-3xl p-5">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-bold text-ink">Loan to Value (LTV)</h2>
+            <span className="text-sm font-bold text-ink">{ltv.toFixed(1)}%</span>
+          </div>
+          <div className="h-4 rounded-full bg-red-500/20 overflow-hidden">
+            <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${100 - ltv}%` }} />
+          </div>
+          <div className="flex justify-between mt-2 text-[11px] text-ink-faint">
+            <span>Equity: {fmtGBP0(equity)}</span>
+            <span>Owed: {fmtGBP0(balance)}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Mortgage Details Form */}
+      <div className="glass-strong rounded-3xl overflow-hidden">
+        <div className="px-5 py-3.5 border-b border-white/50">
+          <h2 className="text-sm font-bold text-ink">Mortgage details</h2>
+        </div>
+        <div className="p-5 space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs text-ink-faint mb-1">Outstanding balance</label>
+              <EditableNumber
+                value={mortgage.balance}
+                onChange={(v) => updateMortgage({ balance: v })}
+                className="w-full px-3 py-2 text-sm bg-white/50 border border-white/70 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-900/10"
+                placeholder="e.g. 200000"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-ink-faint mb-1">Property value</label>
+              <EditableNumber
+                value={mortgage.propertyValue}
+                onChange={(v) => updateMortgage({ propertyValue: v })}
+                className="w-full px-3 py-2 text-sm bg-white/50 border border-white/70 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-900/10"
+                placeholder="e.g. 300000"
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs text-ink-faint mb-1">Monthly payment</label>
+              <EditableNumber
+                value={mortgage.payment}
+                onChange={(v) => updateMortgage({ payment: v })}
+                className="w-full px-3 py-2 text-sm bg-white/50 border border-white/70 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-900/10"
+                placeholder="e.g. 1200"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-ink-faint mb-1">Interest rate (%)</label>
+              <EditableNumber
+                value={mortgage.rate}
+                onChange={(v) => updateMortgage({ rate: v })}
+                className="w-full px-3 py-2 text-sm bg-white/50 border border-white/70 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-900/10"
+                placeholder="e.g. 4.5"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs text-ink-faint mb-1">Lender</label>
+            <input
+              type="text"
+              value={mortgage.lender || ''}
+              onChange={(e) => updateMortgage({ lender: e.target.value })}
+              className="w-full px-3 py-2 text-sm bg-white/50 border border-white/70 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-900/10"
+              placeholder="e.g. Nationwide"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Overpayment calculator */}
+      {hasMortgage && monthlyPayment > 0 && (
+        <div className="glass-strong rounded-3xl p-5">
+          <h2 className="text-sm font-bold text-ink mb-3">Overpayment impact</h2>
+          <p className="text-xs text-ink-faint mb-3">Extra monthly payment reduces your term and interest paid.</p>
+          <div className="grid grid-cols-3 gap-3 text-center">
+            {[50, 100, 200].map((extra) => {
+              const newPrincipal = principalPayment + extra
+              const newMonths = newPrincipal > 0 ? Math.ceil(balance / newPrincipal) : null
+              const saved = monthsToPayoff && newMonths ? (monthsToPayoff - newMonths) : 0
+              return (
+                <div key={extra} className="bg-white/30 rounded-2xl p-3">
+                  <p className="text-sm font-bold text-emerald-600">+£{extra}/mo</p>
+                  <p className="text-xs text-ink-faint mt-1">{saved > 0 ? `${Math.floor(saved / 12)}y ${saved % 12}m faster` : '—'}</p>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
