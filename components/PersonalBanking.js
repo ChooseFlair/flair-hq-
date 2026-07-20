@@ -49,6 +49,7 @@ export default function PersonalBanking({ activeSubTab, setActiveSubTab }) {
   const [settings, setSettings] = useState({ monthlyIncome: null, excludedTxns: [] }) // excludedTxns = transaction IDs to ignore
   const [loaded, setLoaded] = useState(false)
   const [scope, setScope] = useState('all') // 'all' | accountId
+  const [flowFilter, setFlowFilter] = useState('all') // 'all' | 'in' | 'out'
   const [showImport, setShowImport] = useState(false)
   const [storageError, setStorageError] = useState(null)
   const [syncStatus, setSyncStatus] = useState('idle') // 'idle' | 'syncing' | 'synced' | 'error'
@@ -238,9 +239,14 @@ export default function PersonalBanking({ activeSubTab, setActiveSubTab }) {
     return src.slice().sort((a, b) => new Date(b.date) - new Date(a.date))
   }, [accounts, scope])
 
-  // Filtered transactions for calculations (excludes marked transactions)
+  // Filtered transactions for calculations (excludes marked transactions + flow filter)
   const excludedSet = useMemo(() => new Set(settings.excludedTxns || []), [settings.excludedTxns])
-  const filteredTxns = useMemo(() => scopedTxns.filter((t) => !excludedSet.has(t.id)), [scopedTxns, excludedSet])
+  const filteredTxns = useMemo(() => {
+    let txns = scopedTxns.filter((t) => !excludedSet.has(t.id))
+    if (flowFilter === 'in') txns = txns.filter((t) => t.amount >= 0)
+    if (flowFilter === 'out') txns = txns.filter((t) => t.amount < 0)
+    return txns
+  }, [scopedTxns, excludedSet, flowFilter])
 
   function toggleExcludeTxn(id) {
     setSettings((s) => {
@@ -309,6 +315,37 @@ export default function PersonalBanking({ activeSubTab, setActiveSubTab }) {
           ))}
         </div>
       )}
+
+      {/* Flow filter - Money In vs Out */}
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-ink-faint">Show:</span>
+        <div className="flex gap-1">
+          <button
+            onClick={() => setFlowFilter('all')}
+            className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
+              flowFilter === 'all' ? 'bg-gray-900 text-white' : 'bg-white/50 text-ink-soft hover:bg-white/70'
+            }`}
+          >
+            All
+          </button>
+          <button
+            onClick={() => setFlowFilter('in')}
+            className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors flex items-center gap-1 ${
+              flowFilter === 'in' ? 'bg-emerald-600 text-white' : 'bg-white/50 text-ink-soft hover:bg-white/70'
+            }`}
+          >
+            <ArrowDownLeft className="w-3 h-3" /> Money In
+          </button>
+          <button
+            onClick={() => setFlowFilter('out')}
+            className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors flex items-center gap-1 ${
+              flowFilter === 'out' ? 'bg-red-500 text-white' : 'bg-white/50 text-ink-soft hover:bg-white/70'
+            }`}
+          >
+            <ArrowUpRight className="w-3 h-3" /> Money Out
+          </button>
+        </div>
+      </div>
 
       {activeTab === 'overview' && (
         <OverviewTab
