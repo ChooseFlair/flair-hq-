@@ -9,9 +9,11 @@ import {
 import { parseBankCsv, currentBalance, netImported, mergeTransactions } from '../lib/parseBankCsv'
 import {
   monthlyCashflow, cashflowSummary, categoryBreakdown, detectRecurringBills,
+  groupPlannedBills, DEFAULT_PLANNED_BILLS, BILL_CATEGORY_ORDER,
 } from '../lib/bankAnalytics'
 
 const STORAGE_KEY = 'flair_personal_accounts'
+const BILLS_KEY = 'flair_personal_bills'
 
 const BANKS = [
   { id: 'nationwide', name: 'Nationwide', color: '#003366' },
@@ -27,6 +29,7 @@ const fmtDate = (iso) =>
 
 export default function PersonalBanking({ activeSubTab, setActiveSubTab }) {
   const [accounts, setAccounts] = useState([])
+  const [bills, setBills] = useState(DEFAULT_PLANNED_BILLS)
   const [loaded, setLoaded] = useState(false)
   const [scope, setScope] = useState('all') // 'all' | accountId
   const [showImport, setShowImport] = useState(false)
@@ -38,12 +41,23 @@ export default function PersonalBanking({ activeSubTab, setActiveSubTab }) {
     if (saved) {
       try { setAccounts(JSON.parse(saved)) } catch {}
     }
+    const savedBills = localStorage.getItem(BILLS_KEY)
+    if (savedBills) {
+      try {
+        const parsed = JSON.parse(savedBills)
+        if (Array.isArray(parsed)) setBills(parsed)
+      } catch {}
+    }
     setLoaded(true)
   }, [])
 
   useEffect(() => {
     if (loaded) localStorage.setItem(STORAGE_KEY, JSON.stringify(accounts))
   }, [accounts, loaded])
+
+  useEffect(() => {
+    if (loaded) localStorage.setItem(BILLS_KEY, JSON.stringify(bills))
+  }, [bills, loaded])
 
   function saveImport({ name, bank, transactions }) {
     setAccounts((prev) => {
@@ -80,7 +94,9 @@ export default function PersonalBanking({ activeSubTab, setActiveSubTab }) {
 
   if (!loaded) return null
 
-  if (!accounts.length) {
+  // The planned-bills budget is maintained by hand, so it stays usable even
+  // before any statement has been imported. Every other tab needs data first.
+  if (!accounts.length && activeTab !== 'bills') {
     return (
       <>
         <EmptyState onImport={() => setShowImport(true)} />
@@ -119,7 +135,7 @@ export default function PersonalBanking({ activeSubTab, setActiveSubTab }) {
         <OverviewTab accounts={accounts} scope={scope} scopedTxns={scopedTxns} onSelect={setScope} onRemove={removeAccount} />
       )}
       {activeTab === 'cashflow' && <CashFlowTab txns={scopedTxns} />}
-      {activeTab === 'bills' && <BillsTab txns={scopedTxns} />}
+      {activeTab === 'bills' && <BillsTab txns={scopedTxns} bills={bills} setBills={setBills} />}
       {activeTab === 'breakdown' && <BreakdownTab txns={scopedTxns} />}
 
       <p className="text-[11px] text-ink-faint text-center">
@@ -249,40 +265,132 @@ function CashFlowTab({ txns }) {
 }
 
 // ── Bills ──────────────────────────────────────────────────────
-function BillsTab({ txns }) {
-  const bills = useMemo(() => detectRecurringBills(txns), [txns])
-  const monthlyTotal = bills.reduce((s, b) => s + b.monthly, 0)
+// Editable monthly budget of known recurring commitments, grouped by
+// category. The auto-detected list from statements sits underneath as a
+// cross-check.
+function BillsTab({ txns, bills, setBills }) {
+  const { total, groups } = useMemo(() => groupPlannedBills(bills), [bills])
+  const detected = useMemo(() => detectRecurringBills(txns), [txns])
 
-  if (!bills.length) return <EmptyTab label="No recurring payments detected yet. Import a few months of statements so repeats can be spotted." />
+  function updateBill(id, patch) {
+    setBills((prev) => prev.map((b) => (b.id === id ? { ...b, ...patch } : b)))
+  }
+  function removeBill(id) {
+    setBills((prev) => prev.filter((b) => b.id !== id))
+  }
+  function addBill() {
+    setBills((prev) => [
+      ...prev,
+      { id: `bill-${Date.now()}`, name: '', amount: 0, category: 'Other' },
+    ])
+  }
 
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3">
-        <StatTile label="Monthly commitments" value={fmtGBP(monthlyTotal)} tone="out" icon={<Repeat className="w-4 h-4" />} sub={`${bills.length} recurring payments`} />
-        <StatTile label="Yearly" value={fmtGBP0(monthlyTotal * 12)} tone="neg" sub="estimated" />
+        <StatTile label="Monthly bills" value={fmtGBP(total)} tone="out" icon={<Repeat className="w-4 h-4" />} sub={`${bills.length} recurring items`} />
+        <StatTile label="Yearly" value={fmtGBP0(total * 12)} tone="neg" sub="× 12 months" />
       </div>
 
       <div className="glass-strong rounded-3xl overflow-hidden">
-        <div className="px-5 py-3.5 border-b border-white/50">
-          <h2 className="text-sm font-bold text-ink">Recurring payments</h2>
+        <div className="px-5 py-3.5 border-b border-white/50 flex items-center justify-between">
+          <h2 className="text-sm font-bold text-ink">My bills</h2>
+          <button
+            onClick={addBill}
+            className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-full bg-gray-900 text-white hover:bg-gray-800 transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" /> Add bill
+          </button>
         </div>
-        <ul className="divide-y divide-white/40">
-          {bills.map((b, i) => (
-            <li key={i} className="px-5 py-3 flex items-center gap-3 hover:bg-white/40 transition-colors">
-              <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: b.color }} />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-ink truncate">{b.payee}</p>
-                <p className="text-[11px] text-ink-faint">{b.category} · seen in {b.months} months · last {fmtDate(b.lastDate)}</p>
-              </div>
-              <span className="text-sm font-bold text-ink">{fmtGBP(b.monthly)}<span className="text-[11px] font-normal text-ink-faint">/mo</span></span>
-            </li>
-          ))}
-        </ul>
+
+        {groups.map((g) => (
+          <div key={g.category}>
+            <div className="px-5 py-2 flex items-center justify-between bg-white/30 border-b border-white/40">
+              <span className="text-[11px] font-bold uppercase tracking-wide text-ink-soft flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: g.color }} />
+                {g.category}
+              </span>
+              <span className="text-[11px] font-semibold text-ink-faint">{fmtGBP(g.subtotal)}/mo</span>
+            </div>
+            <ul className="divide-y divide-white/40">
+              {g.bills.map((b) => (
+                <BillRow key={b.id} bill={b} onChange={(patch) => updateBill(b.id, patch)} onRemove={() => removeBill(b.id)} />
+              ))}
+            </ul>
+          </div>
+        ))}
+
+        <div className="px-5 py-3 flex items-center justify-between border-t border-white/50 bg-white/20">
+          <span className="text-sm font-bold text-ink">Total</span>
+          <span className="text-sm font-extrabold text-ink">{fmtGBP(total)}<span className="text-[11px] font-normal text-ink-faint">/mo</span></span>
+        </div>
       </div>
       <p className="text-[11px] text-ink-faint text-center">
-        Detected automatically from payments that repeat across months — treat as a guide.
+        Your monthly budget — edit any amount and it saves in this browser. Kept separate from Flair business data.
       </p>
+
+      {detected.length > 0 && (
+        <div className="glass-strong rounded-3xl overflow-hidden">
+          <div className="px-5 py-3.5 border-b border-white/50">
+            <h2 className="text-sm font-bold text-ink">Spotted in your statements</h2>
+            <p className="text-[11px] text-ink-faint mt-0.5">Payments that repeat across months — a cross-check against the budget above.</p>
+          </div>
+          <ul className="divide-y divide-white/40">
+            {detected.map((b, i) => (
+              <li key={i} className="px-5 py-3 flex items-center gap-3 hover:bg-white/40 transition-colors">
+                <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: b.color }} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-ink truncate">{b.payee}</p>
+                  <p className="text-[11px] text-ink-faint">{b.category} · seen in {b.months} months · last {fmtDate(b.lastDate)}</p>
+                </div>
+                <span className="text-sm font-bold text-ink">{fmtGBP(b.monthly)}<span className="text-[11px] font-normal text-ink-faint">/mo</span></span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
+  )
+}
+
+function BillRow({ bill, onChange, onRemove }) {
+  return (
+    <li className="px-5 py-2.5 flex items-center gap-3 hover:bg-white/40 transition-colors group">
+      <input
+        value={bill.name}
+        onChange={(e) => onChange({ name: e.target.value })}
+        placeholder="Bill name"
+        className="flex-1 min-w-0 bg-transparent text-sm font-semibold text-ink placeholder:text-ink-faint/60 focus:outline-none focus:bg-white/60 rounded-lg px-2 py-1 -mx-2 transition-colors"
+      />
+      <select
+        value={bill.category || 'Other'}
+        onChange={(e) => onChange({ category: e.target.value })}
+        className="text-[11px] font-semibold text-ink-soft bg-white/50 border border-white/70 rounded-full px-2.5 py-1 focus:outline-none focus:ring-2 focus:ring-gray-900/10 cursor-pointer"
+      >
+        {BILL_CATEGORY_ORDER.map((c) => (
+          <option key={c} value={c}>{c}</option>
+        ))}
+      </select>
+      <div className="flex items-center gap-1 w-24">
+        <span className="text-sm text-ink-faint">£</span>
+        <input
+          type="number"
+          min="0"
+          step="1"
+          value={bill.amount === 0 ? '' : bill.amount}
+          onChange={(e) => onChange({ amount: e.target.value === '' ? 0 : Number(e.target.value) })}
+          placeholder="0"
+          className="w-full bg-white/50 border border-white/70 rounded-lg px-2 py-1 text-sm font-bold text-ink text-right focus:outline-none focus:ring-2 focus:ring-gray-900/10"
+        />
+      </div>
+      <button
+        onClick={onRemove}
+        className="p-1 rounded-full text-ink-faint/50 hover:text-red-500 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 transition-all"
+        title="Remove bill"
+      >
+        <Trash2 className="w-3.5 h-3.5" />
+      </button>
+    </li>
   )
 }
 
