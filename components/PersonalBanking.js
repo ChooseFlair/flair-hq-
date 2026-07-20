@@ -958,7 +958,7 @@ const SAVINGS_KEYWORDS = ['savings', 'isa', 'saver', 'nationwide saver', 'halifa
 
 function SavingsTab({ txns, settings, setSettings }) {
   const [showAddGoal, setShowAddGoal] = useState(false)
-  const [newGoal, setNewGoal] = useState({ name: '', target: '', saved: '' })
+  const [newGoal, setNewGoal] = useState({ name: '', target: '', saved: '', contribution: '' })
 
   const savingsGoals = settings.savingsGoals || []
 
@@ -989,14 +989,21 @@ function SavingsTab({ txns, settings, setSettings }) {
 
   const totalGoals = savingsGoals.reduce((s, g) => s + (Number(g.target) || 0), 0)
   const totalSaved = savingsGoals.reduce((s, g) => s + (Number(g.saved) || 0), 0)
+  const totalContribution = savingsGoals.reduce((s, g) => s + (Number(g.contribution) || 0), 0)
 
   function addGoal() {
     if (!newGoal.name || !newGoal.target) return
     setSettings((s) => ({
       ...s,
-      savingsGoals: [...(s.savingsGoals || []), { id: `goal-${Date.now()}`, ...newGoal, saved: Number(newGoal.saved) || 0, target: Number(newGoal.target) }],
+      savingsGoals: [...(s.savingsGoals || []), {
+        id: `goal-${Date.now()}`,
+        name: newGoal.name,
+        target: Number(newGoal.target),
+        saved: Number(newGoal.saved) || 0,
+        contribution: Number(newGoal.contribution) || 0,
+      }],
     }))
-    setNewGoal({ name: '', target: '', saved: '' })
+    setNewGoal({ name: '', target: '', saved: '', contribution: '' })
     setShowAddGoal(false)
   }
 
@@ -1018,10 +1025,10 @@ function SavingsTab({ txns, settings, setSettings }) {
     <div className="space-y-4">
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <StatTile label="To savings" value={fmtGBP0(monthlyToSavings)} tone="in" icon={<PiggyBank className="w-4 h-4" />} sub="avg / month" />
-        <StatTile label="Total transferred" value={fmtGBP0(totalToSavings)} tone="in" sub={`${savingsTransfers.length} transfers`} />
+        <StatTile label="Monthly contribution" value={fmtGBP0(totalContribution)} tone="in" icon={<PiggyBank className="w-4 h-4" />} sub="planned / month" />
+        <StatTile label="Total saved" value={fmtGBP0(totalSaved)} tone={totalSaved > 0 ? 'in' : undefined} sub={totalGoals > 0 ? `${Math.round((totalSaved / totalGoals) * 100)}% of goals` : 'no goals yet'} />
         <StatTile label="Goals target" value={fmtGBP0(totalGoals)} sub={`${savingsGoals.length} goals`} />
-        <StatTile label="Goals saved" value={fmtGBP0(totalSaved)} tone={totalSaved > 0 ? 'in' : undefined} sub={totalGoals > 0 ? `${Math.round((totalSaved / totalGoals) * 100)}% complete` : 'no goals yet'} />
+        <StatTile label="Bank transfers" value={fmtGBP0(monthlyToSavings)} sub={`avg / month (${savingsTransfers.length} txns)`} />
       </div>
 
       {/* Savings rate chart */}
@@ -1064,6 +1071,7 @@ function SavingsTab({ txns, settings, setSettings }) {
           <ul className="divide-y divide-white/40">
             {savingsGoals.map((g) => {
               const pct = g.target > 0 ? Math.min(100, Math.round((g.saved / g.target) * 100)) : 0
+              const monthsLeft = g.contribution > 0 ? Math.ceil((g.target - g.saved) / g.contribution) : null
               return (
                 <li key={g.id} className="px-5 py-4 group">
                   <div className="flex items-center justify-between mb-2">
@@ -1079,17 +1087,31 @@ function SavingsTab({ txns, settings, setSettings }) {
                   <div className="h-2 rounded-full bg-white/50 overflow-hidden">
                     <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${pct}%` }} />
                   </div>
-                  <div className="flex items-center justify-between mt-2">
-                    <span className="text-[11px] text-ink-faint">{pct}% complete</span>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="number"
-                        value={g.saved}
-                        onChange={(e) => updateGoal(g.id, { saved: Number(e.target.value) || 0 })}
-                        className="w-20 px-2 py-1 text-xs text-right bg-white/50 border border-white/70 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900/10"
-                        placeholder="Saved"
-                      />
-                      <span className="text-[11px] text-ink-faint">saved</span>
+                  <div className="flex items-center justify-between mt-2 flex-wrap gap-2">
+                    <span className="text-[11px] text-ink-faint">
+                      {pct}% complete{monthsLeft && pct < 100 ? ` · ${monthsLeft} months left` : ''}
+                    </span>
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[11px] text-ink-faint">Saved:</span>
+                        <input
+                          type="number"
+                          value={g.saved}
+                          onChange={(e) => updateGoal(g.id, { saved: Number(e.target.value) || 0 })}
+                          className="w-20 px-2 py-1 text-xs text-right bg-white/50 border border-white/70 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900/10"
+                          placeholder="0"
+                        />
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[11px] text-ink-faint">/ month:</span>
+                        <input
+                          type="number"
+                          value={g.contribution || ''}
+                          onChange={(e) => updateGoal(g.id, { contribution: Number(e.target.value) || 0 })}
+                          className="w-20 px-2 py-1 text-xs text-right bg-white/50 border border-white/70 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900/10"
+                          placeholder="0"
+                        />
+                      </div>
                     </div>
                   </div>
                 </li>
@@ -1097,20 +1119,34 @@ function SavingsTab({ txns, settings, setSettings }) {
             })}
             {showAddGoal && (
               <li className="px-5 py-4 bg-white/20">
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 flex-wrap">
                   <input
                     autoFocus
                     type="text"
                     value={newGoal.name}
                     onChange={(e) => setNewGoal({ ...newGoal, name: e.target.value })}
                     placeholder="Goal name (e.g. Emergency fund)"
-                    className="flex-1 px-3 py-2 text-sm bg-white/60 border border-white/70 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-900/10"
+                    className="flex-1 min-w-[180px] px-3 py-2 text-sm bg-white/60 border border-white/70 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-900/10"
                   />
                   <input
                     type="number"
                     value={newGoal.target}
                     onChange={(e) => setNewGoal({ ...newGoal, target: e.target.value })}
                     placeholder="Target £"
+                    className="w-24 px-3 py-2 text-sm bg-white/60 border border-white/70 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-900/10"
+                  />
+                  <input
+                    type="number"
+                    value={newGoal.saved}
+                    onChange={(e) => setNewGoal({ ...newGoal, saved: e.target.value })}
+                    placeholder="Already saved £"
+                    className="w-28 px-3 py-2 text-sm bg-white/60 border border-white/70 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-900/10"
+                  />
+                  <input
+                    type="number"
+                    value={newGoal.contribution}
+                    onChange={(e) => setNewGoal({ ...newGoal, contribution: e.target.value })}
+                    placeholder="£/month"
                     className="w-24 px-3 py-2 text-sm bg-white/60 border border-white/70 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-900/10"
                   />
                   <button onClick={addGoal} className="px-4 py-2 text-sm font-semibold bg-emerald-600 text-white rounded-xl hover:bg-emerald-700">Add</button>
