@@ -1273,29 +1273,33 @@ function SavingsTab({ txns, settings, setSettings }) {
                   <div className="h-2 rounded-full bg-white/50 overflow-hidden">
                     <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${pct}%` }} />
                   </div>
-                  <div className="flex items-center justify-between mt-2 flex-wrap gap-2">
+                  <div className="flex items-center justify-between mt-3 flex-wrap gap-2">
                     <span className="text-[11px] text-ink-faint">
                       {pct}% complete{monthsLeft && pct < 100 ? ` · ${monthsLeft} months left` : ''}
                     </span>
-                    <div className="flex items-center gap-3">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[11px] text-ink-faint">Saved:</span>
-                        <EditableNumber
-                          value={g.saved}
-                          onChange={(v) => updateGoal(g.id, { saved: v })}
-                          className="w-20 px-2 py-1 text-xs text-right bg-white/50 border border-white/70 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900/10"
-                          placeholder="0"
-                        />
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[11px] text-ink-faint">/ month:</span>
-                        <EditableNumber
-                          value={g.contribution}
-                          onChange={(v) => updateGoal(g.id, { contribution: v })}
-                          className="w-20 px-2 py-1 text-xs text-right bg-white/50 border border-white/70 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900/10"
-                          placeholder="0"
-                        />
-                      </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 mt-3">
+                    <div>
+                      <label className="block text-[11px] text-ink-faint mb-1">Current savings</label>
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        defaultValue={g.saved || ''}
+                        onBlur={(e) => updateGoal(g.id, { saved: Number(e.target.value) || 0 })}
+                        className="w-full px-3 py-2 text-sm bg-white/60 border border-white/70 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
+                        placeholder="0"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] text-ink-faint mb-1">Monthly contribution</label>
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        defaultValue={g.contribution || ''}
+                        onBlur={(e) => updateGoal(g.id, { contribution: Number(e.target.value) || 0 })}
+                        className="w-full px-3 py-2 text-sm bg-white/60 border border-white/70 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
+                        placeholder="0"
+                      />
                     </div>
                   </div>
                 </li>
