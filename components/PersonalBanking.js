@@ -167,6 +167,43 @@ export default function PersonalBanking({ activeSubTab, setActiveSubTab }) {
     saveToCloud('settings', settings)
   }, [settings, saveToCloud])
 
+  // Auto-update savings & debt monthly
+  useEffect(() => {
+    if (!loaded) return
+    const currentMonth = new Date().toISOString().slice(0, 7) // YYYY-MM
+    const lastUpdate = settings.lastMonthlyUpdate
+    if (lastUpdate === currentMonth) return // Already updated this month
+
+    // Check if we have any goals or debts to update
+    const goals = settings.savingsGoals || []
+    const debts = settings.debts || []
+    if (goals.length === 0 && debts.length === 0) return
+
+    // Calculate months passed since last update
+    let monthsPassed = 1
+    if (lastUpdate) {
+      const [lastY, lastM] = lastUpdate.split('-').map(Number)
+      const [curY, curM] = currentMonth.split('-').map(Number)
+      monthsPassed = (curY - lastY) * 12 + (curM - lastM)
+      if (monthsPassed <= 0) return
+    }
+
+    setSettings((s) => ({
+      ...s,
+      lastMonthlyUpdate: currentMonth,
+      // Increase savings by contribution for each month passed
+      savingsGoals: (s.savingsGoals || []).map((g) => ({
+        ...g,
+        saved: Math.min(g.target, (Number(g.saved) || 0) + (Number(g.contribution) || 0) * monthsPassed),
+      })),
+      // Decrease debt by payment for each month passed (but don't go below 0)
+      debts: (s.debts || []).map((d) => ({
+        ...d,
+        balance: Math.max(0, (Number(d.balance) || 0) - (Number(d.minPayment) || 0) * monthsPassed),
+      })),
+    }))
+  }, [loaded, settings.lastMonthlyUpdate, settings.savingsGoals?.length, settings.debts?.length])
+
   function saveImport({ name, bank, transactions }) {
     setAccounts((prev) => {
       const existing = prev.find((a) => a.name.toLowerCase() === name.toLowerCase())
@@ -1095,9 +1132,11 @@ function SavingsTab({ txns, settings, setSettings }) {
                       <div className="flex items-center gap-1.5">
                         <span className="text-[11px] text-ink-faint">Saved:</span>
                         <input
-                          type="number"
-                          value={g.saved}
-                          onChange={(e) => updateGoal(g.id, { saved: Number(e.target.value) || 0 })}
+                          type="text"
+                          inputMode="decimal"
+                          value={g.saved || ''}
+                          onChange={(e) => updateGoal(g.id, { saved: e.target.value === '' ? 0 : Number(e.target.value) })}
+                          onBlur={(e) => updateGoal(g.id, { saved: Number(e.target.value) || 0 })}
                           className="w-20 px-2 py-1 text-xs text-right bg-white/50 border border-white/70 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900/10"
                           placeholder="0"
                         />
@@ -1105,9 +1144,11 @@ function SavingsTab({ txns, settings, setSettings }) {
                       <div className="flex items-center gap-1.5">
                         <span className="text-[11px] text-ink-faint">/ month:</span>
                         <input
-                          type="number"
+                          type="text"
+                          inputMode="decimal"
                           value={g.contribution || ''}
-                          onChange={(e) => updateGoal(g.id, { contribution: Number(e.target.value) || 0 })}
+                          onChange={(e) => updateGoal(g.id, { contribution: e.target.value === '' ? 0 : Number(e.target.value) })}
+                          onBlur={(e) => updateGoal(g.id, { contribution: Number(e.target.value) || 0 })}
                           className="w-20 px-2 py-1 text-xs text-right bg-white/50 border border-white/70 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900/10"
                           placeholder="0"
                         />
@@ -1287,18 +1328,22 @@ function DebtTab({ settings, setSettings }) {
                     <div className="flex items-center gap-2">
                       <span className="text-[11px] text-ink-faint">Balance £</span>
                       <input
-                        type="number"
-                        value={d.balance}
-                        onChange={(e) => updateDebt(d.id, { balance: Number(e.target.value) || 0 })}
+                        type="text"
+                        inputMode="decimal"
+                        value={d.balance || ''}
+                        onChange={(e) => updateDebt(d.id, { balance: e.target.value === '' ? 0 : Number(e.target.value) })}
+                        onBlur={(e) => updateDebt(d.id, { balance: Number(e.target.value) || 0 })}
                         className="w-24 px-2 py-1 text-xs bg-white/50 border border-white/70 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900/10"
                       />
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-[11px] text-ink-faint">Min £</span>
+                      <span className="text-[11px] text-ink-faint">Payment £</span>
                       <input
-                        type="number"
-                        value={d.minPayment}
-                        onChange={(e) => updateDebt(d.id, { minPayment: Number(e.target.value) || 0 })}
+                        type="text"
+                        inputMode="decimal"
+                        value={d.minPayment || ''}
+                        onChange={(e) => updateDebt(d.id, { minPayment: e.target.value === '' ? 0 : Number(e.target.value) })}
+                        onBlur={(e) => updateDebt(d.id, { minPayment: Number(e.target.value) || 0 })}
                         className="w-20 px-2 py-1 text-xs bg-white/50 border border-white/70 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900/10"
                       />
                     </div>
